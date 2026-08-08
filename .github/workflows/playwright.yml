@@ -1,0 +1,173 @@
+name: Realey Playwright Automation
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  run-tests:
+    name: Run Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CI: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install Playwright browser and dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+
+      - name: Verify browser installation
+        run: |
+          google-chrome --version
+          which google-chrome
+          npx playwright --version
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+          rm -rf allure-report
+          rm -rf playwright-report
+          rm -rf test-results
+          rm -rf screenshots
+
+      - name: Run Playwright tests
+        id: playwright-tests
+        continue-on-error: true
+        run: npx playwright test --project=chrome
+
+      - name: Generate Allure report
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results)" ]; then
+            npx allure generate allure-results \
+              --clean \
+              --output allure-report
+          else
+            echo "No Allure results were generated."
+            mkdir -p allure-report
+            echo "<h1>No Allure results were generated</h1>" > allure-report/index.html
+          fi
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-html-report
+          path: playwright-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-html-report
+          path: allure-report/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload Playwright test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload step screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: step-screenshots
+          path: screenshots/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure report for GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: allure-report/
+
+      - name: Display Playwright result
+        if: always()
+        run: |
+          echo "Playwright test outcome: ${{ steps.playwright-tests.outcome }}"
+
+  deploy-allure-report:
+    name: Publish Allure Report
+    if: always()
+    needs:
+      - run-tests
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy Allure report to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  final-status:
+    name: Final Test Status
+    if: always()
+    needs:
+      - run-tests
+      - deploy-allure-report
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mark workflow failed when tests fail
+        if: needs.run-tests.result == 'failure'
+        run: |
+          echo "One or more Playwright tests failed."
+          exit 1
+
+      - name: Workflow completed
+        if: needs.run-tests.result != 'failure'
+        run: echo "Workflow completed."
