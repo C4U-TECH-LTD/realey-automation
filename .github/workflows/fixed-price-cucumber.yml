@@ -1,4 +1,4 @@
-name: "Fixed Price Direct Offer Acceptance and Settlement"
+name: Flow 1-Fixed Price-Direct Offer Acceptance & Settlement Completion
 
 on:
   workflow_dispatch:
@@ -162,33 +162,6 @@ jobs:
 
         run: |
           npx cucumber-js --tags "@fixed-price"
-
-      # =====================================================
-      # WRITE ALLURE ENVIRONMENT METADATA
-      # =====================================================
-
-      - name: Write Allure environment metadata
-        if: always()
-
-        run: |
-          mkdir -p allure-results
-
-          cat > allure-results/environment.properties <<'EOF'
-BASE_URL=${BASE_URL}
-CI=true
-NODE_VERSION=$(node -v)
-GITHUB_WORKFLOW=${GITHUB_WORKFLOW}
-GITHUB_RUN_ID=${GITHUB_RUN_ID}
-GITHUB_RUN_NUMBER=${GITHUB_RUN_NUMBER}
-EOF
-
-          cat > allure-results/executor.json <<'EOF'
-{
-  "name": "GitHub Actions",
-  "type": "github",
-  "url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-}
-EOF
 
       # =====================================================
       # GENERATE ALLURE REPORT

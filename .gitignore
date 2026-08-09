@@ -14,5 +14,7 @@ blob-report/
 !.env.example
 
 screenshots/
-videos/
-
+test-results/
+playwright-report/
+allure-results/
+allure-report/
