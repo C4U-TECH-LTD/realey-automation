@@ -48,7 +48,9 @@ async function saveAndAttachScreenshot(
 
   fs.mkdirSync(
     directory,
-    { recursive: true }
+    {
+      recursive: true,
+    }
   );
 
   const screenshotPath =
@@ -72,20 +74,29 @@ async function saveAndAttachScreenshot(
 BeforeAll(function () {
   fs.mkdirSync(
     "screenshots/cucumber",
-    { recursive: true }
+    {
+      recursive: true,
+    }
   );
 
   fs.mkdirSync(
     "reports/cucumber",
-    { recursive: true }
+    {
+      recursive: true,
+    }
   );
 });
 
 Before(async function ({ pickle }) {
   this.pickle = pickle;
 
+  // =====================================================
+  // IMPORTANT:
+  // HEADLESS=false => visible Chrome
+  // HEADLESS=true  => headless Chrome
+  // =====================================================
+
   const headless =
-    Boolean(process.env.CI) ||
     process.env.HEADLESS === "true";
 
   const slowMo =
@@ -96,10 +107,16 @@ Before(async function ({ pickle }) {
           500
         );
 
+  // =====================================================
+  // BROWSER
+  // =====================================================
+
   this.browser =
     await chromium.launch({
       channel: "chrome",
+
       headless,
+
       slowMo,
 
       args: headless
@@ -111,6 +128,10 @@ Before(async function ({ pickle }) {
             "--start-maximized",
           ],
     });
+
+  // =====================================================
+  // BROWSER CONTEXT
+  // =====================================================
 
   this.context =
     await this.browser.newContext({
@@ -131,6 +152,10 @@ Before(async function ({ pickle }) {
         false,
     });
 
+  // =====================================================
+  // PAGE
+  // =====================================================
+
   this.page =
     await this.context.newPage();
 
@@ -142,11 +167,16 @@ Before(async function ({ pickle }) {
     30_000
   );
 
+  // =====================================================
+  // BROWSER CONSOLE ERRORS
+  // =====================================================
+
   this.page.on(
     "console",
     (message) => {
       if (
-        message.type() === "error"
+        message.type() ===
+        "error"
       ) {
         console.error(
           `[Browser console] ${message.text()}`
@@ -154,6 +184,10 @@ Before(async function ({ pickle }) {
       }
     }
   );
+
+  // =====================================================
+  // PAGE ERRORS
+  // =====================================================
 
   this.page.on(
     "pageerror",
@@ -164,6 +198,10 @@ Before(async function ({ pickle }) {
     }
   );
 
+  // =====================================================
+  // INITIALISE PAGE OBJECTS
+  // =====================================================
+
   if (
     typeof this.initialisePageObjects ===
     "function"
@@ -171,19 +209,30 @@ Before(async function ({ pickle }) {
     this.initialisePageObjects();
   } else {
     throw new Error(
-      "Custom RealeyWorld was not loaded. Check cucumber.js support require paths."
+      "Custom RealeyWorld was not loaded. " +
+      "Check cucumber.js support require paths."
     );
   }
 });
 
+// =====================================================
+// SCREENSHOT AFTER EVERY STEP
+// =====================================================
+
 AfterStep(
-  async function ({ pickleStep }) {
+  async function ({
+    pickleStep,
+  }) {
     await saveAndAttachScreenshot(
       this,
       pickleStep.text
     );
   }
 );
+
+// =====================================================
+// AFTER SCENARIO
+// =====================================================
 
 After(async function ({ result }) {
   try {
