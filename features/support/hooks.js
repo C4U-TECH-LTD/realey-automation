@@ -30,12 +30,9 @@ function sanitize(value = "step") {
 }
 
 function ensureDirectory(directory) {
-  fs.mkdirSync(
-    directory,
-    {
-      recursive: true,
-    }
-  );
+  fs.mkdirSync(directory, {
+    recursive: true,
+  });
 }
 
 async function saveAndAttachScreenshot(
@@ -113,18 +110,12 @@ async function saveAndAttachVideo(
     );
 
   try {
-    /*
-     * Playwright saveAs() waits until
-     * the page/context video is finalized.
-     */
     await world.video.saveAs(
       videoPath
     );
 
     if (
-      !fs.existsSync(
-        videoPath
-      )
+      !fs.existsSync(videoPath)
     ) {
       console.log(
         `Video was not found at: ${videoPath}`
@@ -138,10 +129,6 @@ async function saveAndAttachVideo(
         videoPath
       );
 
-    /*
-     * Cucumber attachment is picked up
-     * by the Allure Cucumber reporter.
-     */
     await world.attach(
       videoBuffer,
       "video/webm"
@@ -173,6 +160,10 @@ BeforeAll(function () {
   ensureDirectory(
     "videos/cucumber"
   );
+
+  ensureDirectory(
+    "videos/playwright-temp"
+  );
 });
 
 // =====================================================
@@ -183,26 +174,54 @@ Before(
   async function ({ pickle }) {
     this.pickle = pickle;
 
+    // =================================================
+    // LOCAL VS GITHUB
+    // =================================================
+
     /*
-     * Important:
-     *
+     * LOCAL:
+     * CI is normally undefined/false
      * HEADLESS=false
-     * => visible Chrome
+     * Chrome visible
+     * Slow Mo enabled
      *
-     * HEADLESS=true
-     * => hidden/headless Chrome
+     * GITHUB:
+     * CI=true
+     * Chrome headless
+     * Slow Mo disabled
      */
+
+    const isGitHub =
+      process.env.CI === "true";
+
     const headless =
+      isGitHub ||
       process.env.HEADLESS ===
-      "true";
+        "true";
 
     const slowMo =
-      headless
+      isGitHub
         ? 0
         : Number(
             process.env.SLOW_MO ||
             500
           );
+
+    console.log(
+      `Execution mode: ${
+        isGitHub
+          ? "GitHub Actions"
+          : "Local"
+      }`
+    );
+
+    console.log(
+      `Headless: ${headless}`
+    );
+
+    console.log(
+      `Slow Mo: ${slowMo}ms`
+    );
 
     // =================================================
     // BROWSER
@@ -210,6 +229,14 @@ Before(
 
     this.browser =
       await chromium.launch({
+        /*
+         * Local:
+         * use installed Google Chrome.
+         *
+         * GitHub:
+         * workflow installs Google Chrome,
+         * so the same channel works there.
+         */
         channel: "chrome",
 
         headless,
@@ -248,9 +275,10 @@ Before(
         ignoreHTTPSErrors:
           false,
 
-        /*
-         * Record the complete scenario.
-         */
+        // =============================================
+        // RECORD COMPLETE SCENARIO VIDEO
+        // =============================================
+
         recordVideo: {
           dir:
             "videos/playwright-temp",
@@ -270,7 +298,7 @@ Before(
       await this.context.newPage();
 
     /*
-     * Save video object BEFORE context closes.
+     * Keep reference before context closes.
      */
     this.video =
       this.page.video();
@@ -284,7 +312,7 @@ Before(
     );
 
     // =================================================
-    // CONSOLE
+    // BROWSER CONSOLE ERRORS
     // =================================================
 
     this.page.on(
@@ -302,7 +330,7 @@ Before(
     );
 
     // =================================================
-    // PAGE ERROR
+    // PAGE ERRORS
     // =================================================
 
     this.page.on(
@@ -315,7 +343,7 @@ Before(
     );
 
     // =================================================
-    // PAGE OBJECTS
+    // INITIALISE PAGE OBJECTS
     // =================================================
 
     if (
@@ -369,10 +397,11 @@ After(
         );
       }
 
-      /*
-       * Video is fully finalized only
-       * when the browser context closes.
-       */
+      // ===============================================
+      // CLOSE CONTEXT FIRST
+      // FINALIZES PLAYWRIGHT VIDEO
+      // ===============================================
+
       if (this.context) {
         await this.context
           .close()
@@ -386,7 +415,7 @@ After(
       }
 
       // ===============================================
-      // SAVE + ATTACH VIDEO
+      // SAVE + ATTACH VIDEO TO CUCUMBER / ALLURE
       // ===============================================
 
       await saveAndAttachVideo(
