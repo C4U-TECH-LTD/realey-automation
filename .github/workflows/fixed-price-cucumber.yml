@@ -1,4 +1,4 @@
-name: Realey Fixed Price Cucumber Automation
+name: Flow 1-Fixed Price-Direct Offer Acceptance & Settlement Completion
 
 on:
   workflow_dispatch:
