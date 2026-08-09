@@ -1,4 +1,4 @@
-name: Flow 1-Fixed Price-Direct Offer Acceptance & Settlement Completion
+name: "Fixed Price Direct Offer Acceptance and Settlement"
 
 on:
   workflow_dispatch:
