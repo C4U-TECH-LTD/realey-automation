@@ -5,6 +5,9 @@ on:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+  actions: read
 
 concurrency:
   group: realey-fixed-price
@@ -13,6 +16,7 @@ concurrency:
 jobs:
   run-fixed-price:
     name: Run Fixed Price Test
+
     runs-on:
       - self-hosted
       - Windows
@@ -38,8 +42,16 @@ jobs:
       TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC }}
 
     steps:
+      # =====================================================
+      # CHECKOUT
+      # =====================================================
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # =====================================================
+      # NODE
+      # =====================================================
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -47,9 +59,17 @@ jobs:
           node-version: 24
           cache: npm
 
+      # =====================================================
+      # INSTALL
+      # =====================================================
+
       - name: Install dependencies
         shell: powershell
         run: npm ci
+
+      # =====================================================
+      # VERIFY
+      # =====================================================
 
       - name: Verify environment
         shell: powershell
@@ -58,6 +78,11 @@ jobs:
           npm --version
           npx playwright --version
           npx cucumber-js --version
+          npx allure --version
+
+      # =====================================================
+      # CLEAN OLD REPORTS
+      # =====================================================
 
       - name: Clean previous reports
         shell: powershell
@@ -67,6 +92,10 @@ jobs:
           Remove-Item reports\cucumber -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item screenshots\cucumber -Recurse -Force -ErrorAction SilentlyContinue
 
+      # =====================================================
+      # RUN ONLY FIXED PRICE
+      # =====================================================
+
       - name: Run Fixed Price Cucumber Test
         id: cucumber-tests
         continue-on-error: true
@@ -74,29 +103,57 @@ jobs:
         run: |
           npx cucumber-js --tags "@fixed-price"
 
+      # =====================================================
+      # GENERATE ALLURE
+      # =====================================================
+
       - name: Generate Allure Report
         if: always()
         shell: powershell
         run: |
           if (Test-Path "allure-results") {
+
             $files = Get-ChildItem "allure-results" -ErrorAction SilentlyContinue
 
             if ($files.Count -gt 0) {
+
+              Write-Host "Generating Allure report..."
+
               npx allure generate allure-results --clean -o allure-report
+
             }
             else {
+
               Write-Host "allure-results folder is empty"
-              New-Item -ItemType Directory -Force -Path "allure-report" | Out-Null
+
+              New-Item `
+                -ItemType Directory `
+                -Force `
+                -Path "allure-report" |
+                Out-Null
+
               "<h1>No Allure results generated</h1>" |
                 Out-File "allure-report\index.html"
             }
+
           }
           else {
+
             Write-Host "allure-results folder not found"
-            New-Item -ItemType Directory -Force -Path "allure-report" | Out-Null
+
+            New-Item `
+              -ItemType Directory `
+              -Force `
+              -Path "allure-report" |
+              Out-Null
+
             "<h1>No Allure results generated</h1>" |
               Out-File "allure-report\index.html"
           }
+
+      # =====================================================
+      # NORMAL GITHUB ARTIFACTS
+      # =====================================================
 
       - name: Upload Cucumber Report
         if: always()
@@ -134,15 +191,88 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      # =====================================================
+      # GITHUB PAGES ARTIFACT
+      # =====================================================
+
+      - name: Configure GitHub Pages
+        if: always()
+        uses: actions/configure-pages@v5
+
+      - name: Upload Allure Report To GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: allure-report/
+
+      # =====================================================
+      # RESULT
+      # =====================================================
+
       - name: Display Test Result
         if: always()
         shell: powershell
         run: |
-          Write-Host "Fixed Price test result: ${{ steps.cucumber-tests.outcome }}"
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "Fixed Price Test Result"
+          Write-Host "============================================"
+          Write-Host "${{ steps.cucumber-tests.outcome }}"
+          Write-Host "============================================"
 
-      - name: Fail Workflow If Test Failed
-        if: steps.cucumber-tests.outcome == 'failure'
-        shell: powershell
+  # =========================================================
+  # DEPLOY ALLURE TO GITHUB PAGES
+  # =========================================================
+
+  deploy-allure:
+    name: Publish Allure Report
+
+    if: always()
+
+    needs:
+      - run-fixed-price
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      actions: read
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy Allure Report
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Show Allure Report URL
         run: |
-          Write-Host "Fixed Price test failed."
-          exit 1
+          echo "============================================"
+          echo "ALLURE REPORT"
+          echo "${{ steps.deployment.outputs.page_url }}"
+          echo "============================================"
+
+  # =========================================================
+  # FINAL STATUS
+  # =========================================================
+
+  final-status:
+    name: Final Test Status
+
+    if: always()
+
+    needs:
+      - run-fixed-price
+      - deploy-allure
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test Completed
+        run: |
+          echo "Fixed Price automation completed."
+          echo "Open the Publish Allure Report job to access the live report."

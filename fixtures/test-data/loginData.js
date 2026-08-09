@@ -8,11 +8,11 @@ const loginData = {
   agent: {
     email:
       process.env.AGENT_EMAIL ||
-      "realey-login@1bjhpbwd.mailosaur.net",
+      "sztest0099+1@gmail.com",
 
     password:
       process.env.AGENT_PASSWORD ||
-      "#Test1234",
+      "Realey123@",
 
     otp:
       process.env.AGENT_OTP ||
@@ -22,11 +22,11 @@ const loginData = {
   generalUser: {
     email:
       process.env.GENERAL_USER_EMAIL ||
-      "siamttouch@gmail.com",
+      "sztest0099+1111@gmail.com",
 
     password:
       process.env.GENERAL_USER_PASSWORD ||
-      "#Test1234",
+      "Realey123@",
 
     otp:
       process.env.GENERAL_USER_OTP ||
