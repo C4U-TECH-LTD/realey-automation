@@ -52,6 +52,10 @@ const {
 } = require("../../pages/AgentOffersPage");
 
 const {
+  ConversationsPage,
+} = require("../../pages/ConversationsPage");
+
+const {
   SettlementPage,
 } = require("../../pages/SettlementPage");
 
@@ -110,6 +114,9 @@ class RealeyWorld extends World {
 
     this.agentOffersPage =
       new AgentOffersPage(this.page);
+
+    this.conversationsPage =
+      new ConversationsPage(this.page);
 
     this.settlementPage =
       new SettlementPage(this.page);
