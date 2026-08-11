@@ -1,4 +1,5 @@
-name: All Run
+name: All Run - Fixed Price + Offer Price
+
 on:
   workflow_dispatch:
 
@@ -7,13 +8,18 @@ permissions:
   pages: write
   id-token: write
 
+# =========================================================
+# PREVENT MULTIPLE ALL-RUN WORKFLOWS FROM WAITING
+# If a new All Run starts, cancel the previous one.
+# =========================================================
+
 concurrency:
   group: realey-all-run
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   # =========================================================
-  # RUN BOTH FLOWS
+  # RUN FLOW 1 + FLOW 2
   # =========================================================
 
   run-all-flows:
@@ -115,7 +121,7 @@ jobs:
       - name: Verify environment
         run: |
           echo "============================================"
-          echo "ENVIRONMENT"
+          echo "REALEY TEST ENVIRONMENT"
           echo "============================================"
 
           node --version
@@ -126,8 +132,11 @@ jobs:
           google-chrome --version
 
       # =====================================================
-      # CLEAN OLD REPORTS
-      # Clean ONLY ONCE so both flow results stay together
+      # CLEAN REPORTS ONLY ONCE
+      #
+      # IMPORTANT:
+      # We do not clean allure-results between Flow 1 and
+      # Flow 2 because both results must appear in one report.
       # =====================================================
 
       - name: Clean previous reports
@@ -141,7 +150,8 @@ jobs:
           mkdir -p allure-results
 
       # =====================================================
-      # FLOW 1 - FIXED PRICE
+      # FLOW 1
+      # FIXED PRICE
       # =====================================================
 
       - name: Run Flow 1 - Fixed Price
@@ -150,6 +160,7 @@ jobs:
         continue-on-error: true
 
         run: |
+          echo ""
           echo "============================================"
           echo "FLOW 1 - FIXED PRICE"
           echo "============================================"
@@ -157,18 +168,22 @@ jobs:
           npx cucumber-js --tags "@fixed-price"
 
       # =====================================================
-      # FLOW 2 - OFFER PRICE
-      # Runs after Flow 1 even if Flow 1 fails
+      # FLOW 2
+      # OFFER PRICE
+      #
+      # Run after Flow 1 even if Flow 1 failed,
+      # but DO NOT run after workflow cancellation.
       # =====================================================
 
       - name: Run Flow 2 - Offer Price
         id: flow2
 
-        if: always()
+        if: ${{ !cancelled() }}
 
         continue-on-error: true
 
         run: |
+          echo ""
           echo "============================================"
           echo "FLOW 2 - OFFER PRICE"
           echo "============================================"
@@ -176,16 +191,17 @@ jobs:
           npx cucumber-js --tags "@offer-price"
 
       # =====================================================
-      # GENERATE ONE COMBINED ALLURE REPORT
+      # GENERATE ONE ALLURE REPORT
       # =====================================================
 
       - name: Generate Combined Allure Report
-        if: always()
+        if: ${{ !cancelled() }}
 
         run: |
           if [ -d "allure-results" ] && \
              [ "$(ls -A allure-results 2>/dev/null)" ]; then
 
+            echo ""
             echo "============================================"
             echo "GENERATING COMBINED ALLURE REPORT"
             echo "============================================"
@@ -197,7 +213,7 @@ jobs:
 
           else
 
-            echo "No Allure results were generated."
+            echo "No Allure results generated."
 
             mkdir -p allure-report
 
@@ -207,11 +223,11 @@ jobs:
           fi
 
       # =====================================================
-      # UPLOAD COMBINED ALLURE HTML
+      # UPLOAD ALLURE HTML REPORT
       # =====================================================
 
       - name: Upload Combined Allure Report
-        if: always()
+        if: ${{ !cancelled() }}
 
         uses: actions/upload-artifact@v4
 
@@ -226,7 +242,7 @@ jobs:
       # =====================================================
 
       - name: Upload Allure Raw Results
-        if: always()
+        if: ${{ !cancelled() }}
 
         uses: actions/upload-artifact@v4
 
@@ -237,11 +253,11 @@ jobs:
           if-no-files-found: warn
 
       # =====================================================
-      # UPLOAD SCREENSHOTS
+      # SCREENSHOTS
       # =====================================================
 
       - name: Upload Screenshots
-        if: always()
+        if: ${{ !cancelled() }}
 
         uses: actions/upload-artifact@v4
 
@@ -252,11 +268,11 @@ jobs:
           if-no-files-found: warn
 
       # =====================================================
-      # UPLOAD VIDEOS
+      # VIDEOS
       # =====================================================
 
       - name: Upload Videos
-        if: always()
+        if: ${{ !cancelled() }}
 
         uses: actions/upload-artifact@v4
 
@@ -267,20 +283,20 @@ jobs:
           if-no-files-found: warn
 
       # =====================================================
-      # PREPARE GITHUB PAGES
+      # CONFIGURE GITHUB PAGES
       # =====================================================
 
       - name: Configure GitHub Pages
-        if: always()
+        if: ${{ !cancelled() }}
 
         uses: actions/configure-pages@v5
 
       # =====================================================
-      # UPLOAD ALLURE SITE FOR PAGES
+      # UPLOAD ALLURE SITE TO GITHUB PAGES ARTIFACT
       # =====================================================
 
       - name: Upload Combined Allure To GitHub Pages
-        if: always()
+        if: ${{ !cancelled() }}
 
         uses: actions/upload-pages-artifact@v4
 
@@ -288,11 +304,11 @@ jobs:
           path: allure-report/
 
       # =====================================================
-      # TEST RESULT SUMMARY
+      # SHOW TEST RESULTS
       # =====================================================
 
       - name: Show Test Results
-        if: always()
+        if: ${{ !cancelled() }}
 
         run: |
           echo ""
@@ -308,7 +324,7 @@ jobs:
       # =====================================================
 
       - name: Add Flow Results To Summary
-        if: always()
+        if: ${{ !cancelled() }}
 
         run: |
           echo "## 🧪 Realey E2E Test Results" >> "$GITHUB_STEP_SUMMARY"
@@ -324,30 +340,43 @@ jobs:
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "Combined Allure report is generated from both flows." >> "$GITHUB_STEP_SUMMARY"
+          echo "Combined Allure report contains both E2E flows." >> "$GITHUB_STEP_SUMMARY"
 
       # =====================================================
-      # FAIL JOB IF ANY FLOW FAILED
+      # FAIL TEST JOB IF FLOW 1 OR FLOW 2 FAILED
       # =====================================================
 
       - name: Fail Job If Any Flow Failed
         if: |
-          steps.flow1.outcome == 'failure' ||
-          steps.flow2.outcome == 'failure'
+          !cancelled() &&
+          (
+            steps.flow1.outcome == 'failure' ||
+            steps.flow2.outcome == 'failure'
+          )
 
         run: |
-          echo "One or more E2E flows failed."
+          echo ""
+          echo "============================================"
+          echo "ONE OR MORE E2E FLOWS FAILED"
+          echo "============================================"
+          echo "Flow 1: ${{ steps.flow1.outcome }}"
+          echo "Flow 2: ${{ steps.flow2.outcome }}"
+          echo "============================================"
+
           exit 1
 
 
   # =========================================================
   # PUBLISH COMBINED ALLURE REPORT
+  #
+  # IMPORTANT:
+  # Do not start this job after workflow cancellation.
   # =========================================================
 
   deploy-allure:
     name: Publish Combined Allure Report
 
-    if: always()
+    if: ${{ !cancelled() }}
 
     needs:
       - run-all-flows
@@ -367,7 +396,7 @@ jobs:
 
     steps:
       # =====================================================
-      # DEPLOY
+      # DEPLOY ALLURE REPORT
       # =====================================================
 
       - name: Deploy Combined Allure Report
@@ -376,7 +405,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
       # =====================================================
-      # DISPLAY URL
+      # SHOW REPORT URL
       # =====================================================
 
       - name: Show Allure Report URL
@@ -389,7 +418,7 @@ jobs:
           echo "============================================"
 
       # =====================================================
-      # SAME STYLE AS YOUR FLOW 2 SUMMARY
+      # ALLURE SUMMARY
       # =====================================================
 
       - name: Add Allure Link To Job Summary
@@ -398,7 +427,7 @@ jobs:
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 👉 [Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -426,7 +455,7 @@ jobs:
   final-status:
     name: Final All Run Test Status
 
-    if: always()
+    if: ${{ !cancelled() }}
 
     needs:
       - run-all-flows
@@ -443,14 +472,14 @@ jobs:
         run: |
           echo ""
           echo "============================================"
-          echo "REALEY ALL E2E AUTOMATION"
+          echo "REALEY ALL E2E AUTOMATION COMPLETED"
           echo "============================================"
-          echo "Tests: ${{ needs.run-all-flows.result }}"
-          echo "Allure Report: ${{ needs.deploy-allure.result }}"
+          echo "Test Job       : ${{ needs.run-all-flows.result }}"
+          echo "Allure Publish : ${{ needs.deploy-allure.result }}"
           echo "============================================"
 
       # =====================================================
-      # FINAL GITHUB SUMMARY
+      # FINAL SUMMARY
       # =====================================================
 
       - name: Add Final Summary
@@ -469,18 +498,28 @@ jobs:
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "📊 Combined Allure report publication status: **${{ needs.deploy-allure.result }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Status" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Test job: **${{ needs.run-all-flows.result }}**" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Allure report: **${{ needs.deploy-allure.result }}**" >> "$GITHUB_STEP_SUMMARY"
 
       # =====================================================
-      # FINAL FAILURE
+      # FINAL FAILURE IF TESTS FAILED
       # =====================================================
 
       - name: Fail Final Status If Tests Failed
         if: needs.run-all-flows.result == 'failure'
 
         run: |
-          echo "One or more test flows failed."
+          echo "One or more E2E test flows failed."
           exit 1
+
+      # =====================================================
+      # FINAL FAILURE IF ALLURE DEPLOY FAILED
+      # =====================================================
 
       - name: Fail Final Status If Allure Publish Failed
         if: needs.deploy-allure.result == 'failure'
