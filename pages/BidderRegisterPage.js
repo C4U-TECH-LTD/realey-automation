@@ -610,22 +610,49 @@ async drawPalSignature() {
   // =====================================================
   // COMPLETE BIDDER REGISTRATION
   // =====================================================
-async registerAsBidder(signatureName = "SIAM") {
+async registerAsBidder(
+  signatureName = "SIAM",
+  screenshot = null
+) {
   console.log(
     "===== BIDDER REGISTRATION START ====="
   );
 
   await this.openRegistration();
 
+  if (screenshot) {
+    await screenshot(
+      "Bidder - Registration Form Opened",
+      this.page
+    );
+  }
+
   await this.acceptContractOfSale();
+
+  if (screenshot) {
+    await screenshot(
+      "Bidder - Contract Of Sale Accepted",
+      this.page
+    );
+  }
 
   await this.acceptAuctionTerms();
 
+  if (screenshot) {
+    await screenshot(
+      "Bidder - Auction Terms Accepted",
+      this.page
+    );
+  }
+
   await this.acceptSuccessfulBidderTerms();
 
-  // =================================================
-  // SIGNATURE
-  // =================================================
+  if (screenshot) {
+    await screenshot(
+      "Bidder - Successful Bidder Terms Accepted",
+      this.page
+    );
+  }
 
   if (
     String(signatureName).toUpperCase() === "PAL"
@@ -635,11 +662,39 @@ async registerAsBidder(signatureName = "SIAM") {
     await this.drawSiamSignature();
   }
 
+  if (screenshot) {
+    await screenshot(
+      `Bidder - ${signatureName} Signature`,
+      this.page
+    );
+  }
+
   await this.acceptPrivacyPolicy();
+
+  if (screenshot) {
+    await screenshot(
+      "Bidder - Privacy Policy Accepted",
+      this.page
+    );
+  }
 
   await this.openPreview();
 
+  if (screenshot) {
+    await screenshot(
+      "Bidder - Registration Preview",
+      this.page
+    );
+  }
+
   await this.saveRegistration();
+
+  if (screenshot) {
+    await screenshot(
+      "Bidder - Registration Saved",
+      this.page
+    );
+  }
 
   console.log(
     "===== BIDDER REGISTRATION COMPLETED ====="

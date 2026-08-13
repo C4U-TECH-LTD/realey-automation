@@ -5,6 +5,10 @@ const {
   setDefaultTimeout,
 } = require("@cucumber/cucumber");
 
+const {
+  takeCucumberScreenshot,
+} = require("../../utils/cucumberScreenshot");
+
 const { expect } = require("@playwright/test");
 
 const {
@@ -368,8 +372,17 @@ When(
 
     // Buyer 1 signature = SIAM
     const activePage =
-      await this.bidderRegisterPage
-        .registerAsBidder("SIAM");
+  await this.bidderRegisterPage
+    .registerAsBidder(
+      "SIAM",
+      async (title, page) => {
+        await takeCucumberScreenshot(
+          this,
+          `Buyer 1 - ${title}`,
+          page
+        );
+      }
+    );
 
     if (!activePage) {
       throw new Error(
@@ -473,8 +486,17 @@ When(
 
     // Buyer 2 signature = PAL
     const activePage =
-      await this.bidderRegisterPage
-        .registerAsBidder("PAL");
+  await this.bidderRegisterPage
+    .registerAsBidder(
+      "PAL",
+      async (title, page) => {
+        await takeCucumberScreenshot(
+          this,
+          `Buyer 2 - ${title}`,
+          page
+        );
+      }
+    );
 
     if (!activePage) {
       throw new Error(
