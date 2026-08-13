@@ -6,14 +6,14 @@ const loginData = {
   },
 
   agent: {
-    email: process.env.AGENT_EMAIL || "sztest0099+1@gmail.com",
-    password: process.env.AGENT_PASSWORD || "Realey123@",
+    email: process.env.AGENT_EMAIL || "subratotest99@gmail.com",
+    password: process.env.AGENT_PASSWORD || "Test12345@",
     otp: process.env.AGENT_OTP || "123456",
   },
 
   generalUser: {
-    email: process.env.GENERAL_USER_EMAIL || "sztest0099+1111@gmail.com",
-    password: process.env.GENERAL_USER_PASSWORD || "Realey123@",
+    email: process.env.GENERAL_USER_EMAIL || "siamtest1999+3@gmail.com",
+    password: process.env.GENERAL_USER_PASSWORD || "Test12345@",
     otp: process.env.GENERAL_USER_OTP || "123456",
   },
 

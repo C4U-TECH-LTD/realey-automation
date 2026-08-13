@@ -425,6 +425,95 @@ class BidderRegisterPage {
     );
   }
 
+
+  // =====================================================
+// DRAW "PAL" WITH MOUSE
+// =====================================================
+async drawPalSignature() {
+  await expect(
+    this.signatureCanvas,
+    "Bidder Signature canvas should be visible"
+  ).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await this.signatureCanvas.scrollIntoViewIfNeeded();
+
+  const box =
+    await this.signatureCanvas.boundingBox();
+
+  if (!box) {
+    throw new Error(
+      "Unable to get Bidder Signature canvas position."
+    );
+  }
+
+  console.log(
+    'Drawing bidder signature "PAL"...'
+  );
+
+  const startX =
+    box.x + Math.min(80, box.width * 0.08);
+
+  const centerY =
+    box.y + box.height / 2;
+
+  const height =
+    Math.min(55, box.height * 0.5);
+
+  const width = 32;
+  const gap = 22;
+
+  let x = startX;
+
+  // =================================================
+  // P
+  // =================================================
+
+  await this.drawStroke([
+    [x, centerY + height / 2],
+    [x, centerY - height / 2],
+    [x + width - 8, centerY - height / 2],
+    [x + width, centerY - height / 3],
+    [x + width, centerY - 5],
+    [x + width - 8, centerY],
+    [x, centerY],
+  ]);
+
+  // =================================================
+  // A
+  // =================================================
+
+  x += width + gap;
+
+  await this.drawStroke([
+    [x, centerY + height / 2],
+    [x + width / 2, centerY - height / 2],
+    [x + width, centerY + height / 2],
+  ]);
+
+  await this.drawStroke([
+    [x + 7, centerY + 5],
+    [x + width - 7, centerY + 5],
+  ]);
+
+  // =================================================
+  // L
+  // =================================================
+
+  x += width + gap;
+
+  await this.drawStroke([
+    [x, centerY - height / 2],
+    [x, centerY + height / 2],
+    [x + width, centerY + height / 2],
+  ]);
+
+  console.log(
+    'Bidder signature "PAL" completed'
+  );
+}
+
   // =====================================================
   // PRIVACY POLICY
   // =====================================================
@@ -521,39 +610,43 @@ class BidderRegisterPage {
   // =====================================================
   // COMPLETE BIDDER REGISTRATION
   // =====================================================
-  async registerAsBidder() {
-    console.log(
-      "===== BIDDER REGISTRATION START ====="
-    );
+async registerAsBidder(signatureName = "SIAM") {
+  console.log(
+    "===== BIDDER REGISTRATION START ====="
+  );
 
-    // Property page -> new Auction registration tab
-    // then second Register -> same-tab registration form
-    await this.openRegistration();
+  await this.openRegistration();
 
-    // Same registration tab
-    await this.acceptContractOfSale();
+  await this.acceptContractOfSale();
 
-    await this.acceptAuctionTerms();
+  await this.acceptAuctionTerms();
 
-    await this.acceptSuccessfulBidderTerms();
+  await this.acceptSuccessfulBidderTerms();
 
+  // =================================================
+  // SIGNATURE
+  // =================================================
+
+  if (
+    String(signatureName).toUpperCase() === "PAL"
+  ) {
+    await this.drawPalSignature();
+  } else {
     await this.drawSiamSignature();
-
-    await this.acceptPrivacyPolicy();
-
-    // Same tab Preview
-    await this.openPreview();
-
-    // Save
-    await this.saveRegistration();
-
-    console.log(
-      "===== BIDDER REGISTRATION COMPLETED ====="
-    );
-
-    // Important: return the active registration tab
-    return this.page;
   }
+
+  await this.acceptPrivacyPolicy();
+
+  await this.openPreview();
+
+  await this.saveRegistration();
+
+  console.log(
+    "===== BIDDER REGISTRATION COMPLETED ====="
+  );
+
+  return this.page;
+}
 }
 
 module.exports = {

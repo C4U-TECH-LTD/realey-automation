@@ -24,12 +24,10 @@ Feature: Auction Bidding and Settlement
     Then the Second Auction Buyer bid is submitted successfully
 
     When I wait for the Auction to end
-Then the Auction has ended successfully
+    Then the Auction has ended successfully
 
-When I login again as Second Auction Buyer for settlement
-And the Second Auction Buyer opens the created Auction listing again
-And the Second Auction Buyer starts the Auction settlement process
-And the Second Auction Buyer selects the configured solicitor
-And the Second Auction Buyer selects the configured mortgage broker
-And the Second Auction Buyer pays the Auction deposit
-Then the Auction deposit payment is successful
+    When I login again as Second Auction Buyer for settlement
+    And the Second Auction Buyer opens the created Auction listing again
+    And the Second Auction Buyer starts the Auction settlement process
+    And the Second Auction Buyer pays the Auction deposit
+    Then the Auction deposit payment is successful

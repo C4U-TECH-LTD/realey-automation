@@ -4,6 +4,10 @@ class SettlementPage {
   constructor(page) {
     this.page = page;
 
+    // =====================================================
+    // COMMON SETTLEMENT
+    // =====================================================
+
     this.settlementHeading =
       page.getByRole("heading", {
         name: "Property Settlement Process",
@@ -11,10 +15,16 @@ class SettlementPage {
       });
 
     this.continueButton =
-      page.getByRole("button", {
-        name: "Continue",
-        exact: true,
-      }).last();
+      page
+        .getByRole("button", {
+          name: "Continue",
+          exact: true,
+        })
+        .last();
+
+    // =====================================================
+    // SOLICITOR
+    // =====================================================
 
     this.solicitorHeading =
       page.getByRole("heading", {
@@ -27,6 +37,10 @@ class SettlementPage {
         name: /Browse Available Solicitors/i,
       });
 
+    // =====================================================
+    // BROKER
+    // =====================================================
+
     this.brokerHeading =
       page.getByRole("heading", {
         name: "Invite Your Mortgage Broker",
@@ -38,11 +52,21 @@ class SettlementPage {
         name: /Browse Available Brokers/i,
       });
 
+    // =====================================================
+    // PROFESSIONAL SEARCH
+    // =====================================================
+
     this.professionalSearchInput =
       page.getByPlaceholder(
         "Search by name, company, or specialization...",
-        { exact: true }
+        {
+          exact: true,
+        }
       );
+
+    // =====================================================
+    // DEPOSIT
+    // =====================================================
 
     this.depositHeading =
       page.getByRole("heading", {
@@ -50,6 +74,10 @@ class SettlementPage {
         exact: true,
       });
   }
+
+  // =====================================================
+  // FIXED / OFFER FLOW
+  // =====================================================
 
   async start() {
     await expect(
@@ -60,8 +88,18 @@ class SettlementPage {
     });
 
     await expect(
-      this.continueButton
-    ).toBeVisible();
+      this.continueButton,
+      "Settlement Continue button should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expect(
+      this.continueButton,
+      "Settlement Continue button should be enabled"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
 
     await this.continueButton.click();
 
@@ -73,15 +111,23 @@ class SettlementPage {
     });
   }
 
+  // =====================================================
+  // SELECT SOLICITOR
+  // =====================================================
+
   async selectSolicitor(searchText) {
     await expect(
-      this.browseSolicitorsButton
-    ).toBeVisible();
+      this.browseSolicitorsButton,
+      "Browse Available Solicitors button should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
     await this.browseSolicitorsButton.click();
 
     await expect(
-      this.professionalSearchInput
+      this.professionalSearchInput,
+      "Professional search input should be visible"
     ).toBeVisible({
       timeout: 10_000,
     });
@@ -98,7 +144,10 @@ class SettlementPage {
       .filter({
         has: this.page.getByRole(
           "button",
-          { name: "Select", exact: true }
+          {
+            name: "Select",
+            exact: true,
+          }
         ),
       })
       .first();
@@ -121,8 +170,18 @@ class SettlementPage {
     await select.click();
 
     await expect(
-      this.continueButton
-    ).toBeVisible();
+      this.continueButton,
+      "Continue button should be visible after solicitor selection"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expect(
+      this.continueButton,
+      "Continue button should be enabled after solicitor selection"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
 
     await this.continueButton.click();
 
@@ -134,15 +193,23 @@ class SettlementPage {
     });
   }
 
+  // =====================================================
+  // SELECT BROKER
+  // =====================================================
+
   async selectBroker(searchText) {
     await expect(
-      this.browseBrokersButton
-    ).toBeVisible();
+      this.browseBrokersButton,
+      "Browse Available Brokers button should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
     await this.browseBrokersButton.click();
 
     await expect(
-      this.professionalSearchInput
+      this.professionalSearchInput,
+      "Professional search input should be visible"
     ).toBeVisible({
       timeout: 10_000,
     });
@@ -159,7 +226,10 @@ class SettlementPage {
       .filter({
         has: this.page.getByRole(
           "button",
-          { name: "Select", exact: true }
+          {
+            name: "Select",
+            exact: true,
+          }
         ),
       })
       .first();
@@ -181,6 +251,20 @@ class SettlementPage {
 
     await select.click();
 
+    await expect(
+      this.continueButton,
+      "Continue button should be visible after broker selection"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expect(
+      this.continueButton,
+      "Continue button should be enabled after broker selection"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
+
     await this.continueButton.click();
 
     await expect(
@@ -191,13 +275,18 @@ class SettlementPage {
     });
   }
 
+  // =====================================================
+  // FIND PAYMENT FRAME
+  // FIXED / OFFER
+  // =====================================================
+
   async findPaymentFrame() {
     const frames = this.page.frames();
 
     for (const frame of frames) {
       const numberInput =
         frame.locator(
-          '#payment-numberInput, input[name="number"]'
+          '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
         );
 
       if (
@@ -214,9 +303,14 @@ class SettlementPage {
     );
   }
 
+  // =====================================================
+  // FIXED / OFFER PAYMENT
+  // =====================================================
+
   async payDeposit(payment) {
     await expect(
-      this.depositHeading
+      this.depositHeading,
+      "Deposit Payment heading should be visible"
     ).toBeVisible({
       timeout: 20_000,
     });
@@ -224,39 +318,65 @@ class SettlementPage {
     const frame =
       await this.findPaymentFrame();
 
-    const cardNumber = frame.locator(
-      '#payment-numberInput, input[name="number"]'
-    );
+    const cardNumber =
+      frame.locator(
+        '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+      );
 
-    const expiry = frame.locator(
-      '#payment-expiryInput, input[name="expiry"]'
-    );
+    const expiry =
+      frame.locator(
+        '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
+      );
 
-    const cvc = frame.locator(
-      '#payment-cvcInput, input[name="cvc"]'
-    );
+    const cvc =
+      frame.locator(
+        '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
+      );
 
-    await expect(cardNumber).toBeVisible();
+    await expect(
+      cardNumber,
+      "Card Number field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
     await cardNumber.fill(
       String(payment.cardNumber)
     );
 
-    await expect(expiry).toBeVisible();
+    await expect(
+      expiry,
+      "Expiration Date field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
     await expiry.fill(
       String(payment.expiry)
     );
 
-    await expect(cvc).toBeVisible();
+    await expect(
+      cvc,
+      "CVC field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
     await cvc.fill(
       String(payment.cvc)
     );
 
     const submitCandidates = [
-      this.page.locator('button[type="submit"]').last(),
-      frame.locator('button[type="submit"]').last(),
+      this.page
+        .locator('button[type="submit"]')
+        .last(),
+
+      frame
+        .locator('button[type="submit"]')
+        .last(),
     ];
 
-    let clicked = false
+    let clicked = false;
 
     for (const button of submitCandidates) {
       if (
@@ -264,8 +384,17 @@ class SettlementPage {
           .isVisible()
           .catch(() => false)
       ) {
+        await expect(
+          button,
+          "Deposit payment button should be enabled"
+        ).toBeEnabled({
+          timeout: 20_000,
+        });
+
         await button.click();
+
         clicked = true;
+
         break;
       }
     }
@@ -277,25 +406,381 @@ class SettlementPage {
     }
   }
 
-  async verifyPaymentSuccessful(expectedMessage) {
+  // =====================================================
+  // AUCTION SETTLEMENT
+  // =====================================================
+
+  async waitForAuctionSettlement() {
+    console.log(
+      "Waiting for Auction Property Settlement Process..."
+    );
+
     await expect(
-      this.page.getByText(
-        expectedMessage
-      ).first(),
+      this.settlementHeading,
+      "Auction Property Settlement Process should be visible"
+    ).toBeVisible({
+      timeout: 30_000,
+    });
+
+    console.log(
+      "Auction Property Settlement Process opened automatically"
+    );
+
+    console.log(
+      "Auction settlement URL:",
+      this.page.url()
+    );
+  }
+
+  // =====================================================
+  // FIND AUCTION PAYMENT ROOT
+  //
+  // Waits until real Stripe card inputs are mounted.
+  // Checks:
+  // 1. Main page
+  // 2. All iframes
+  // =====================================================
+
+  async findAuctionPaymentRoot(
+    timeoutMs = 45_000
+  ) {
+    console.log(
+      "Waiting for Auction Stripe payment fields..."
+    );
+
+    const startedAt = Date.now();
+
+    while (
+      Date.now() - startedAt <
+      timeoutMs
+    ) {
+      // ===============================================
+      // CHECK MAIN PAGE
+      // ===============================================
+
+      const mainCard =
+        this.page.locator(
+          '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+        );
+
+      if (
+        await mainCard
+          .isVisible()
+          .catch(() => false)
+      ) {
+        console.log(
+          "Auction payment fields found on main page"
+        );
+
+        return this.page;
+      }
+
+      // ===============================================
+      // CHECK ALL FRAMES
+      // ===============================================
+
+      for (
+        const frame of this.page.frames()
+      ) {
+        const card =
+          frame.locator(
+            '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+          );
+
+        if (
+          await card
+            .isVisible()
+            .catch(() => false)
+        ) {
+          console.log(
+            "Auction payment fields found inside iframe:",
+            frame.url()
+          );
+
+          return frame;
+        }
+      }
+
+      await this.page.waitForTimeout(500);
+    }
+
+    console.log(
+      "Auction payment fields did not appear."
+    );
+
+    console.log(
+      "Available frames:"
+    );
+
+    for (
+      const frame of this.page.frames()
+    ) {
+      console.log(
+        "-",
+        frame.url()
+      );
+    }
+
+    throw new Error(
+      `Auction Stripe card fields did not load within ${timeoutMs}ms.`
+    );
+  }
+
+  // =====================================================
+  // AUCTION PAYMENT
+  // =====================================================
+
+  async payAuctionDeposit(payment) {
+    await this.waitForAuctionSettlement();
+
+    if (!payment) {
+      throw new Error(
+        "Auction payment configuration is missing."
+      );
+    }
+
+    if (!payment.cardNumber) {
+      throw new Error(
+        "Auction payment card number is missing."
+      );
+    }
+
+    if (!payment.expiry) {
+      throw new Error(
+        "Auction payment expiry is missing."
+      );
+    }
+
+    if (!payment.cvc) {
+      throw new Error(
+        "Auction payment CVC is missing."
+      );
+    }
+
+    // Wait for actual payment UI
+    const paymentRoot =
+      await this.findAuctionPaymentRoot(
+        45_000
+      );
+
+    // =================================================
+    // CARD NUMBER
+    // =================================================
+
+    const cardNumber =
+      paymentRoot.locator(
+        '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+      );
+
+    // =================================================
+    // EXPIRY
+    // =================================================
+
+    const expiry =
+      paymentRoot.locator(
+        '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
+      );
+
+    // =================================================
+    // CVC
+    // =================================================
+
+    const cvc =
+      paymentRoot.locator(
+        '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
+      );
+
+    // =================================================
+    // FILL CARD NUMBER
+    // =================================================
+
+    await expect(
+      cardNumber,
+      "Auction Card Number field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await cardNumber.click();
+
+    await cardNumber.fill(
+      String(payment.cardNumber)
+    );
+
+    console.log(
+      "Auction Card Number entered"
+    );
+
+    // =================================================
+    // FILL EXPIRATION DATE
+    // =================================================
+
+    await expect(
+      expiry,
+      "Auction Expiration Date field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expiry.click();
+
+    await expiry.fill(
+      String(payment.expiry)
+    );
+
+    console.log(
+      "Auction Expiration Date entered"
+    );
+
+    // =================================================
+    // FILL CVC
+    // =================================================
+
+    await expect(
+      cvc,
+      "Auction Security Code field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await cvc.click();
+
+    await cvc.fill(
+      String(payment.cvc)
+    );
+
+    console.log(
+      "Auction CVC entered"
+    );
+
+    // =================================================
+    // PAY BUTTON
+    //
+    // Examples:
+    // Pay $375,000 AUD
+    // Pay $32,500 AUD
+    // Pay $1,000.00 AUD
+    // =================================================
+
+    const payButtonRegex =
+      /^Pay\s+\$[\d,]+(?:\.\d{1,2})?\s+AUD$/i;
+
+    const pagePayButton =
+      this.page.getByRole(
+        "button",
+        {
+          name: payButtonRegex,
+        }
+      );
+
+    let payButton =
+      pagePayButton;
+
+    const pagePayVisible =
+      await pagePayButton
+        .isVisible()
+        .catch(() => false);
+
+    if (!pagePayVisible) {
+      payButton =
+        paymentRoot.getByRole(
+          "button",
+          {
+            name: payButtonRegex,
+          }
+        );
+    }
+
+    await expect(
+      payButton,
+      "Auction Pay button should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expect(
+      payButton,
+      "Auction Pay button should be enabled"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
+
+    const buttonText =
+      await payButton
+        .innerText()
+        .catch(() => "Pay");
+
+    console.log(
+      "Auction Pay button:",
+      buttonText
+    );
+
+    console.log(
+      "Clicking Auction Pay button..."
+    );
+
+    await payButton.click();
+
+    console.log(
+      "Auction deposit Pay button clicked"
+    );
+  }
+
+  // =====================================================
+  // AUCTION PAYMENT SUCCESS
+  // =====================================================
+
+  async verifyAuctionPaymentSuccessful() {
+    console.log(
+      "Waiting for Auction Payment Successful message..."
+    );
+
+    await expect(
+      this.page
+        .getByText(
+          "Payment Successful",
+          {
+            exact: true,
+          }
+        )
+        .first(),
+      "Auction Payment Successful message should appear"
+    ).toBeVisible({
+      timeout: 30_000,
+    });
+
+    console.log(
+      "Auction deposit payment successful"
+    );
+  }
+
+  // =====================================================
+  // FIXED / OFFER PAYMENT SUCCESS
+  // =====================================================
+
+  async verifyPaymentSuccessful(
+    expectedMessage
+  ) {
+    await expect(
+      this.page
+        .getByText(
+          expectedMessage
+        )
+        .first(),
       "Payment Successful toast should appear"
     ).toBeVisible({
       timeout: 30_000,
     });
   }
 
+  // =====================================================
+  // COMPLETE SETTLEMENT
+  // =====================================================
+
   async completeSettlement() {
-    /*
-     * Final Complete Settlement control was not supplied.
-     * Keep this explicit rather than inventing a locator.
-     */
     throw new Error(
       "Complete Settlement locator is not configured yet. " +
-      "Add the final Complete Settlement button/page outerHTML."
+        "Add the final Complete Settlement button/page outerHTML."
     );
   }
 }

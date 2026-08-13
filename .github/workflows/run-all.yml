@@ -1,4 +1,4 @@
-name: Run All - Fixed Price + Offer Price
+name: Run All - Fixed Price + Offer Price + Auction
 
 on:
   workflow_dispatch:
@@ -20,11 +20,13 @@ jobs:
   # =========================================================
 
   run-all:
-    name: Run Fixed Price + Offer Price
+    name: Run Fixed Price + Offer Price + Auction
 
     runs-on: ubuntu-latest
 
-    timeout-minutes: 90
+    # Auction includes waiting for the auction to end,
+    # so give the complete 3-flow run enough time.
+    timeout-minutes: 120
 
     env:
       # ===============================================
@@ -32,9 +34,7 @@ jobs:
       # ===============================================
 
       CI: "true"
-
       HEADLESS: "true"
-
       SLOW_MO: "0"
 
       # ===============================================
@@ -53,11 +53,21 @@ jobs:
 
       # ===============================================
       # GENERAL USER
+      # Flow 1 / Flow 2 / Auction Buyer 1
       # ===============================================
 
       GENERAL_USER_EMAIL: ${{ secrets.GENERAL_USER_EMAIL }}
       GENERAL_USER_PASSWORD: ${{ secrets.GENERAL_USER_PASSWORD }}
       GENERAL_USER_OTP: ${{ secrets.GENERAL_USER_OTP }}
+
+      # ===============================================
+      # AUCTION BUYER 2
+      # Flow 3
+      # ===============================================
+
+      AUCTION_BUYER_2_EMAIL: ${{ secrets.AUCTION_BUYER_2_EMAIL }}
+      AUCTION_BUYER_2_PASSWORD: ${{ secrets.AUCTION_BUYER_2_PASSWORD }}
+      AUCTION_BUYER_2_OTP: ${{ secrets.AUCTION_BUYER_2_OTP }}
 
       # ===============================================
       # PAYMENT
@@ -82,7 +92,6 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
-
         with:
           node-version: 24
           cache: npm
@@ -105,7 +114,7 @@ jobs:
 
       # =====================================================
       # INSTALL GOOGLE CHROME
-      # Because hooks.js uses channel: "chrome"
+      # hooks.js uses channel: "chrome"
       # =====================================================
 
       - name: Install Google Chrome
@@ -124,15 +133,10 @@ jobs:
       - name: Verify environment
         run: |
           node --version
-
           npm --version
-
           npx playwright --version
-
           npx cucumber-js --version
-
           npx allure --version
-
           google-chrome --version
 
       # =====================================================
@@ -142,51 +146,68 @@ jobs:
       - name: Clean previous reports
         run: |
           rm -rf allure-results
-
           rm -rf allure-report
-
           rm -rf reports/cucumber
-
           rm -rf screenshots/cucumber
-
           rm -rf videos
 
       # =====================================================
       # FLOW 1 - FIXED PRICE
       # =====================================================
 
-      - name: Run Fixed Price Cucumber Test
+      - name: Run Flow 1 - Fixed Price
         id: fixed-price-tests
-
         continue-on-error: true
 
         run: |
+          echo "============================================"
+          echo "STARTING FLOW 1 - FIXED PRICE"
+          echo "============================================"
+
           npx cucumber-js --tags "@fixed-price"
 
       # =====================================================
       # FLOW 2 - OFFER PRICE
       # =====================================================
 
-      - name: Run Offer Price Cucumber Test
+      - name: Run Flow 2 - Offer Price
         id: offer-price-tests
-
         continue-on-error: true
 
         run: |
+          echo "============================================"
+          echo "STARTING FLOW 2 - OFFER PRICE"
+          echo "============================================"
+
           npx cucumber-js --tags "@offer-price"
+
+      # =====================================================
+      # FLOW 3 - AUCTION
+      # =====================================================
+
+      - name: Run Flow 3 - Auction
+        id: auction-tests
+        continue-on-error: true
+
+        run: |
+          echo "============================================"
+          echo "STARTING FLOW 3 - AUCTION"
+          echo "============================================"
+
+          npx cucumber-js --tags "@auction"
 
       # =====================================================
       # GENERATE COMBINED ALLURE REPORT
       # =====================================================
 
-      - name: Generate Allure Report
+      - name: Generate Combined Allure Report
         if: always()
 
         run: |
           if [ -d "allure-results" ] && \
              [ "$(ls -A allure-results 2>/dev/null)" ]; then
 
-            echo "Generating Allure report..."
+            echo "Generating combined Allure report..."
 
             npx allure generate \
               allure-results \
@@ -215,11 +236,8 @@ jobs:
 
         with:
           name: run-all-cucumber-report
-
           path: reports/cucumber/
-
           retention-days: 30
-
           if-no-files-found: warn
 
       # =====================================================
@@ -233,11 +251,8 @@ jobs:
 
         with:
           name: run-all-allure-results
-
           path: allure-results/
-
           retention-days: 30
-
           if-no-files-found: warn
 
       # =====================================================
@@ -251,11 +266,8 @@ jobs:
 
         with:
           name: run-all-allure-html-report
-
           path: allure-report/
-
           retention-days: 30
-
           if-no-files-found: warn
 
       # =====================================================
@@ -269,11 +281,8 @@ jobs:
 
         with:
           name: run-all-cucumber-screenshots
-
           path: screenshots/cucumber/
-
           retention-days: 30
-
           if-no-files-found: warn
 
       # =====================================================
@@ -287,11 +296,8 @@ jobs:
 
         with:
           name: run-all-cucumber-videos
-
           path: videos/cucumber/
-
           retention-days: 30
-
           if-no-files-found: warn
 
       # =====================================================
@@ -312,7 +318,7 @@ jobs:
           path: allure-report/
 
       # =====================================================
-      # DISPLAY TEST RESULTS
+      # DISPLAY ALL 3 RESULTS
       # =====================================================
 
       - name: Display All Test Results
@@ -321,29 +327,54 @@ jobs:
         run: |
           echo ""
           echo "============================================"
-          echo "REALEY ALL AUTOMATION"
+          echo "REALEY ALL AUTOMATION RESULTS"
           echo "============================================"
-          echo "Fixed Price Result: ${{ steps.fixed-price-tests.outcome }}"
-          echo "Offer Price Result: ${{ steps.offer-price-tests.outcome }}"
+          echo "Flow 1 - Fixed Price: ${{ steps.fixed-price-tests.outcome }}"
+          echo "Flow 2 - Offer Price: ${{ steps.offer-price-tests.outcome }}"
+          echo "Flow 3 - Auction:     ${{ steps.auction-tests.outcome }}"
           echo "============================================"
 
       # =====================================================
-      # FAIL JOB IF ANY TEST FAILED
+      # GITHUB JOB SUMMARY
+      # =====================================================
+
+      - name: Add Test Results To Summary
+        if: always()
+
+        run: |
+          echo "## Realey Automation Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "| Flow | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Flow 1 - Fixed Price | ${{ steps.fixed-price-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Flow 2 - Offer Price | ${{ steps.offer-price-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Flow 3 - Auction | ${{ steps.auction-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+
+      # =====================================================
+      # FAIL JOB IF ANY FLOW FAILED
       # =====================================================
 
       - name: Fail Job If Any Test Failed
         if: |
           steps.fixed-price-tests.outcome == 'failure' ||
-          steps.offer-price-tests.outcome == 'failure'
+          steps.offer-price-tests.outcome == 'failure' ||
+          steps.auction-tests.outcome == 'failure'
 
         run: |
-          echo "One or more Cucumber tests failed."
+          echo "============================================"
+          echo "ONE OR MORE AUTOMATION FLOWS FAILED"
+          echo "============================================"
+
+          echo "Fixed Price: ${{ steps.fixed-price-tests.outcome }}"
+          echo "Offer Price: ${{ steps.offer-price-tests.outcome }}"
+          echo "Auction:     ${{ steps.auction-tests.outcome }}"
 
           exit 1
 
 
   # =========================================================
-  # DEPLOY ALLURE REPORT
+  # DEPLOY COMBINED ALLURE REPORT
   # =========================================================
 
   deploy-allure:
@@ -363,21 +394,19 @@ jobs:
 
     environment:
       name: github-pages
-
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
 
       - name: Deploy Allure Report
         id: deployment
-
         uses: actions/deploy-pages@v4
 
       - name: Show Allure Report URL
         run: |
           echo ""
           echo "============================================"
-          echo "ALLURE REPORT"
+          echo "COMBINED ALLURE REPORT"
           echo "============================================"
           echo "${{ steps.deployment.outputs.page_url }}"
           echo "============================================"
@@ -392,11 +421,13 @@ jobs:
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "Report includes:" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Report includes:" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Fixed Price Cucumber scenario results" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Flow 1 - Fixed Price" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Offer Price Cucumber scenario results" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Flow 2 - Offer Price" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Flow 3 - Auction Bidding & Settlement" >> "$GITHUB_STEP_SUMMARY"
 
           echo "- Step screenshots" >> "$GITHUB_STEP_SUMMARY"
 
@@ -422,4 +453,10 @@ jobs:
 
       - name: Workflow Summary
         run: |
-          echo "Fixed Price + Offer Price automation workflow completed."
+          echo "============================================"
+          echo "REALEY RUN ALL COMPLETED"
+          echo "============================================"
+          echo "Flow 1: Fixed Price"
+          echo "Flow 2: Offer Price"
+          echo "Flow 3: Auction Bidding & Settlement"
+          echo "============================================"

@@ -4,173 +4,433 @@ const {
   Then,
   setDefaultTimeout,
 } = require("@cucumber/cucumber");
+
 const { expect } = require("@playwright/test");
 
-setDefaultTimeout(20 * 60 * 1000);
+const {
+  loginData,
+} = require("../../fixtures/test-data/loginData");
 
-const { loginData } = require("../../fixtures/test-data/loginData");
 const {
   auctionFlowData,
 } = require("../../fixtures/test-data/auctionFlowData");
+
+// =====================================================
+// GLOBAL TIMEOUT
+//
+// Auction duration = 15 minutes.
+// Allow enough time for the long Auction wait step.
+// =====================================================
+
+setDefaultTimeout(20 * 60 * 1000);
 
 // =====================================================
 // HELPERS
 // =====================================================
 
 async function clearCurrentSession(world) {
+  console.log("Clearing current user session...");
+
+  // Clear authentication cookies
   await world.context.clearCookies();
 
-  await world.page.goto(world.baseURL || "https://uat.realey.au/");
+  // Clear browser storage from the current page
+  if (!world.page.isClosed()) {
+    try {
+      await world.page.evaluate(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+      });
 
-  await world.page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
+      console.log("Browser storage cleared");
+    } catch (error) {
+      console.log(
+        "Storage clear skipped:",
+        error.message
+      );
+    }
+  }
 
-  await world.page.goto(loginData.application.loginPath);
-}
+  // IMPORTANT:
+  // Do NOT navigate to https://uat.realey.au/ first.
+  // Go directly to the login page.
+  try {
+    await world.page.goto(
+      loginData.application.loginPath,
+      {
+        waitUntil: "domcontentloaded",
+        timeout: 30_000,
+      }
+    );
+  } catch (error) {
+    console.log(
+      "First login navigation failed:",
+      error.message
+    );
 
-async function loginAs(world, account, accountName) {
-  if (!account?.email || !account?.password) {
-    throw new Error(
-      `${accountName} credentials are missing. Configure email/password in .env or GitHub Actions secrets.`
+    // Retry once in case the application aborted
+    // navigation because of a redirect/state update.
+    await world.page.waitForTimeout(1000);
+
+    await world.page.goto(
+      loginData.application.loginPath,
+      {
+        waitUntil: "domcontentloaded",
+        timeout: 30_000,
+      }
     );
   }
 
-  await world.loginPage.goto(loginData.application.loginPath);
-  await world.loginPage.login(account.email, account.password);
+  console.log(
+    "Current session cleared and login page opened:",
+    world.page.url()
+  );
+}
+
+async function loginAs(
+  world,
+  account,
+  accountName
+) {
+  if (
+    !account?.email ||
+    !account?.password
+  ) {
+    throw new Error(
+      `${accountName} credentials are missing. ` +
+        `Configure email/password in .env or GitHub Actions secrets.`
+    );
+  }
+
+  console.log(
+    `Logging in as ${accountName}...`
+  );
+
+  await world.loginPage.goto(
+    loginData.application.loginPath
+  );
+
+  await world.loginPage.login(
+    account.email,
+    account.password
+  );
+
   await world.loginPage.waitForOtpPage();
-  await world.loginPage.enterOtp(account.otp);
+
+  await world.loginPage.enterOtp(
+    account.otp
+  );
+
   await world.loginPage.submitOtp();
+
+  console.log(
+    `${accountName} login completed`
+  );
 }
 
 // =====================================================
 // AGENT LOGIN
 // =====================================================
 
-Given("the agent is logged in for the Auction E2E flow", async function () {
-  await loginAs(this, loginData.agent, "Agent");
-  await this.dashboardPage.waitForDashboard();
-});
+Given(
+  "the agent is logged in for the Auction E2E flow",
+  async function () {
+    await loginAs(
+      this,
+      loginData.agent,
+      "Agent"
+    );
+
+    await this.dashboardPage
+      .waitForDashboard();
+
+    console.log(
+      "Agent dashboard opened"
+    );
+  }
+);
 
 // =====================================================
 // CREATE AUCTION LISTING
 // =====================================================
 
-When("the agent creates and publishes an Auction listing", async function () {
-  const listing = auctionFlowData.agent.listing;
+When(
+  "the agent creates and publishes an Auction listing",
+  async function () {
+    const listing =
+      auctionFlowData.agent.listing;
 
-  await this.dashboardPage.clickCreateListing();
+    console.log(
+      "Starting Auction listing creation..."
+    );
 
-  // Property Location
-  await this.propertyLocationPage.waitForPage();
-  await this.propertyLocationPage.typeAddressAndSelectFirstSuggestion(
-    listing.addressSearchText
-  );
-  await this.propertyLocationPage.waitForAutoFilledLocationFields();
-  await this.propertyLocationPage.clickNext();
+    await this.dashboardPage
+      .clickCreateListing();
 
-  // Property Details
-  await this.propertyDetailsPage.waitForPage();
-  await this.propertyDetailsPage.completeDetailsStep({
-    propertyType: listing.propertyType,
-    bedrooms: listing.bedrooms,
-    bathrooms: listing.bathrooms,
-    carSpaces: listing.carSpaces,
-    landSize: listing.landSize || "",
-    buildingSize: listing.buildingSize || "",
-    yearBuilt: listing.yearBuilt || "",
-  });
+    // =================================================
+    // PROPERTY LOCATION
+    // =================================================
 
-  // Auction Pricing & Sale Method
-  this.auctionSlot = await this.pricingSalePage.completeAuctionPricingStep({
-    listingType: listing.listingType,
-    reservePrice: listing.reservePrice,
-    depositPercent: listing.depositPercent,
-    auctionLocation: listing.auctionLocation,
-    startingPrice: listing.startingPrice,
-    minimumBidIncrement: listing.minimumBidIncrement,
-    slotMinutes: auctionFlowData.auction.slotMinutes,
-    durationMinutes: auctionFlowData.auction.durationMinutes,
-  });
+    await this.propertyLocationPage
+      .waitForPage();
 
-  // Description & Features
-  await this.descriptionFeaturesPage.waitForPage();
-  await this.descriptionFeaturesPage.enterHeadline(listing.headline);
-  await this.descriptionFeaturesPage.enterDescription(
-    listing.propertyDescription
-  );
-  await this.descriptionFeaturesPage.selectFeatures(listing.keyFeatures);
-  await this.descriptionFeaturesPage.clickNext();
+    await this.propertyLocationPage
+      .typeAddressAndSelectFirstSuggestion(
+        listing.addressSearchText
+      );
 
-  // Listing Media
-  await this.listingMediaPage.waitForPage();
-  await this.listingMediaPage.uploadPropertyPhotos(listing.propertyPhotos);
-  await this.listingMediaPage.uploadFloorPlan(listing.floorPlan);
-  await this.listingMediaPage.confirmListing();
-  await this.listingMediaPage.publishListing();
-});
+    await this.propertyLocationPage
+      .waitForAutoFilledLocationFields();
 
-Then("the Auction listing is published successfully", async function () {
-  const listing = auctionFlowData.agent.listing;
+    await this.propertyLocationPage
+      .clickNext();
 
-  await this.dashboardPage.waitForDashboardAfterPublish();
-  await this.dashboardPage.openListingsMenu();
-  await this.dashboardPage.verifyListingVisibleByLocation(
-    listing.expectedPropertyName
-  );
-});
+    // =================================================
+    // PROPERTY DETAILS
+    // =================================================
+
+    await this.propertyDetailsPage
+      .waitForPage();
+
+    await this.propertyDetailsPage
+      .completeDetailsStep({
+        propertyType:
+          listing.propertyType,
+
+        bedrooms:
+          listing.bedrooms,
+
+        bathrooms:
+          listing.bathrooms,
+
+        carSpaces:
+          listing.carSpaces,
+
+        landSize:
+          listing.landSize || "",
+
+        buildingSize:
+          listing.buildingSize || "",
+
+        yearBuilt:
+          listing.yearBuilt || "",
+      });
+
+    // =================================================
+    // AUCTION PRICING
+    // =================================================
+
+    this.auctionSlot =
+      await this.pricingSalePage
+        .completeAuctionPricingStep({
+          listingType:
+            listing.listingType,
+
+          reservePrice:
+            listing.reservePrice,
+
+          depositPercent:
+            listing.depositPercent,
+
+          auctionLocation:
+            listing.auctionLocation,
+
+          startingPrice:
+            listing.startingPrice,
+
+          minimumBidIncrement:
+            listing.minimumBidIncrement,
+
+          slotMinutes:
+            auctionFlowData.auction
+              .slotMinutes,
+
+          durationMinutes:
+            auctionFlowData.auction
+              .durationMinutes,
+        });
+
+    // =================================================
+    // DESCRIPTION & FEATURES
+    // =================================================
+
+    await this.descriptionFeaturesPage
+      .waitForPage();
+
+    await this.descriptionFeaturesPage
+      .enterHeadline(
+        listing.headline
+      );
+
+    await this.descriptionFeaturesPage
+      .enterDescription(
+        listing.propertyDescription
+      );
+
+    await this.descriptionFeaturesPage
+      .selectFeatures(
+        listing.keyFeatures
+      );
+
+    await this.descriptionFeaturesPage
+      .clickNext();
+
+    // =================================================
+    // LISTING MEDIA
+    // =================================================
+
+    await this.listingMediaPage
+      .waitForPage();
+
+    await this.listingMediaPage
+      .uploadPropertyPhotos(
+        listing.propertyPhotos
+      );
+
+    await this.listingMediaPage
+      .uploadFloorPlan(
+        listing.floorPlan
+      );
+
+    await this.listingMediaPage
+      .confirmListing();
+
+    await this.listingMediaPage
+      .publishListing();
+
+    console.log(
+      "Auction listing publish action completed"
+    );
+  }
+);
+
+Then(
+  "the Auction listing is published successfully",
+  async function () {
+    const listing =
+      auctionFlowData.agent.listing;
+
+    await this.dashboardPage
+      .waitForDashboardAfterPublish();
+
+    await this.dashboardPage
+      .openListingsMenu();
+
+    await this.dashboardPage
+      .verifyListingVisibleByLocation(
+        listing.expectedPropertyName
+      );
+
+    console.log(
+      "Auction listing published successfully"
+    );
+  }
+);
 
 // =====================================================
 // BUYER 1
 // =====================================================
 
-When("I switch from Agent to First Auction Buyer", async function () {
-  await clearCurrentSession(this);
-  await loginAs(this, loginData.generalUser, "First Auction Buyer");
-});
-
 When(
-  "the First Auction Buyer opens the created Auction listing",
+  "I switch from Agent to First Auction Buyer",
   async function () {
-    await this.generalUserListingsPage.openFirstMatchingListing(
-      auctionFlowData.firstBuyer.searchText
+    await clearCurrentSession(this);
+
+    await loginAs(
+      this,
+      loginData.generalUser,
+      "First Auction Buyer"
     );
   }
 );
 
-When("the First Auction Buyer registers as a bidder", async function () {
-  const activePage = await this.bidderRegisterPage.registerAsBidder();
+When(
+  "the First Auction Buyer opens the created Auction listing",
+  async function () {
+    await this.generalUserListingsPage
+      .openFirstMatchingListing(
+        auctionFlowData.firstBuyer
+          .searchText
+      );
 
-  if (!activePage) {
-    throw new Error("Bidder registration did not return the active Auction page.");
+    console.log(
+      "Buyer 1 Auction listing opened"
+    );
   }
+);
 
-  this.page = activePage;
-  await this.page.bringToFront();
+When(
+  "the First Auction Buyer registers as a bidder",
+  async function () {
+    console.log(
+      "Starting Buyer 1 bidder registration..."
+    );
 
-  this.initialisePageObjects();
+    // Buyer 1 signature = SIAM
+    const activePage =
+      await this.bidderRegisterPage
+        .registerAsBidder("SIAM");
 
-  console.log(
-    "Buyer 1 active page after bidder registration:",
-    this.page.url()
-  );
-});
+    if (!activePage) {
+      throw new Error(
+        "Buyer 1 bidder registration did not return the active Auction page."
+      );
+    }
 
-Then("the First Auction Buyer registration is successful", async function () {
-  await this.auctionPage.waitUntilBiddingIsOpen();
-});
+    this.page = activePage;
+
+    await this.page.bringToFront();
+
+    // Important:
+    // Rebuild page objects for the new page/tab.
+    this.initialisePageObjects();
+
+    console.log(
+      "Buyer 1 active page after bidder registration:",
+      this.page.url()
+    );
+  }
+);
+
+Then(
+  "the First Auction Buyer registration is successful",
+  async function () {
+    await this.auctionPage
+      .waitUntilBiddingIsOpen();
+
+    console.log(
+      "Buyer 1 registration successful"
+    );
+  }
+);
 
 When(
   "the First Auction Buyer places the configured Auction bid",
   async function () {
-    await this.auctionPage.placeBid(auctionFlowData.firstBuyer.bidAmount);
+    console.log(
+      "Buyer 1 placing Auction bid:",
+      auctionFlowData.firstBuyer
+        .bidAmount
+    );
+
+    await this.auctionPage.placeBid(
+      auctionFlowData.firstBuyer
+        .bidAmount
+    );
   }
 );
 
-Then("the First Auction Buyer bid is submitted successfully", async function () {
-  await this.auctionPage.verifyBidSubmitted();
-});
+Then(
+  "the First Auction Buyer bid is submitted successfully",
+  async function () {
+    await this.auctionPage
+      .verifyBidSubmitted();
+
+    console.log(
+      "Buyer 1 Auction bid submitted successfully"
+    );
+  }
+);
 
 // =====================================================
 // BUYER 2
@@ -180,78 +440,125 @@ When(
   "I switch from First Auction Buyer to Second Auction Buyer",
   async function () {
     await clearCurrentSession(this);
-    await loginAs(this, loginData.auctionBuyer2, "Second Auction Buyer");
+
+    await loginAs(
+      this,
+      loginData.auctionBuyer2,
+      "Second Auction Buyer"
+    );
   }
 );
 
 When(
   "the Second Auction Buyer opens the created Auction listing",
   async function () {
-    await this.generalUserListingsPage.openFirstMatchingListing(
-      auctionFlowData.secondBuyer.searchText
+    await this.generalUserListingsPage
+      .openFirstMatchingListing(
+        auctionFlowData.secondBuyer
+          .searchText
+      );
+
+    console.log(
+      "Buyer 2 Auction listing opened"
     );
   }
 );
 
-When("the Second Auction Buyer registers as a bidder", async function () {
-  const activePage = await this.bidderRegisterPage.registerAsBidder();
+When(
+  "the Second Auction Buyer registers as a bidder",
+  async function () {
+    console.log(
+      "Starting Buyer 2 bidder registration..."
+    );
 
-  if (!activePage) {
-    throw new Error("Buyer 2 bidder registration did not return the active Auction page.");
+    // Buyer 2 signature = PAL
+    const activePage =
+      await this.bidderRegisterPage
+        .registerAsBidder("PAL");
+
+    if (!activePage) {
+      throw new Error(
+        "Buyer 2 bidder registration did not return the active Auction page."
+      );
+    }
+
+    this.page = activePage;
+
+    await this.page.bringToFront();
+
+    // Rebuild page objects for new page/tab.
+    this.initialisePageObjects();
+
+    console.log(
+      "Buyer 2 active page after bidder registration:",
+      this.page.url()
+    );
   }
+);
 
-  this.page = activePage;
-  await this.page.bringToFront();
+Then(
+  "the Second Auction Buyer registration is successful",
+  async function () {
+    await this.auctionPage
+      .waitUntilBiddingIsOpen();
 
-  this.initialisePageObjects();
-
-  console.log(
-    "Buyer 2 active page after bidder registration:",
-    this.page.url()
-  );
-});
-
-Then("the Second Auction Buyer registration is successful", async function () {
-  await this.auctionPage.waitUntilBiddingIsOpen();
-});
+    console.log(
+      "Buyer 2 registration successful"
+    );
+  }
+);
 
 When(
   "the Second Auction Buyer places the configured winning Auction bid",
   async function () {
-    await this.auctionPage.placeBid(auctionFlowData.secondBuyer.bidAmount);
+    console.log(
+      "Buyer 2 placing winning Auction bid:",
+      auctionFlowData.secondBuyer
+        .bidAmount
+    );
+
+    await this.auctionPage.placeBid(
+      auctionFlowData.secondBuyer
+        .bidAmount
+    );
   }
 );
 
 Then(
   "the Second Auction Buyer bid is submitted successfully",
   async function () {
-    await this.auctionPage.verifyBidSubmitted();
+    await this.auctionPage
+      .verifyBidSubmitted();
+
+    console.log(
+      "Buyer 2 winning Auction bid submitted successfully"
+    );
   }
 );
-
-// =====================================================
-// WAIT FOR END
-// =====================================================
 
 // =====================================================
 // WAIT FOR AUCTION END
 // =====================================================
 
-When("I wait for the Auction to end", async function () {
-  console.log(
-    "Waiting for Auction to end..."
-  );
+When(
+  "I wait for the Auction to end",
+  async function () {
+    console.log(
+      "Waiting for Auction to end..."
+    );
 
-  // Auction duration = 15 minutes
-  // Playwright gets 18 minutes maximum as safety margin
-  await this.auctionPage.waitForAuctionToEnd(
-    18 * 60 * 1000
-  );
+    // Auction duration = 15 minutes.
+    // Give Playwright 18 minutes maximum.
+    await this.auctionPage
+      .waitForAuctionToEnd(
+        18 * 60 * 1000
+      );
 
-  console.log(
-    "Auction ended. Continuing the E2E flow..."
-  );
-});
+    console.log(
+      "Auction ended. Continuing E2E flow..."
+    );
+  }
+);
 
 Then(
   "the Auction has ended successfully",
@@ -270,33 +577,25 @@ Then(
 );
 
 // =====================================================
-// AGENT -> BIDS -> NEGOTIATION
-// =====================================================
-
-When(
-  "I switch from Second Auction Buyer to Agent for the Auction flow",
-  async function () {
-    await clearCurrentSession(this);
-    await loginAs(this, loginData.agent, "Agent");
-    await this.dashboardPage.waitForDashboard();
-  }
-);
-
-When("the Agent opens Auction Bids", async function () {
-  await this.agentBidsPage.openBids();
-});
-
-When("the Agent starts negotiation with the winning bidder", async function () {
-  await this.agentBidsPage.startNegotiation();
-});
-
-// =====================================================
-// WINNING BUYER SETTLEMENT
+// WINNING BUYER LOGIN FOR SETTLEMENT
+//
+// IMPORTANT:
+// Auction does NOT use:
+// settlementPage.start()
+// selectSolicitor()
+// selectBroker()
+//
+// Opening the winning property automatically opens
+// Property Settlement Process / payment.
 // =====================================================
 
 When(
   "I login again as Second Auction Buyer for settlement",
   async function () {
+    console.log(
+      "Logging Buyer 2 in again for Auction settlement..."
+    );
+
     await clearCurrentSession(this);
 
     await loginAs(
@@ -314,43 +613,84 @@ When(
 When(
   "the Second Auction Buyer opens the created Auction listing again",
   async function () {
-    await this.generalUserListingsPage.openFirstMatchingListing(
-      auctionFlowData.secondBuyer.searchText
+    console.log(
+      "Searching for winning Auction property..."
+    );
+
+    await this.generalUserListingsPage
+      .openFirstMatchingListing(
+        auctionFlowData.secondBuyer
+          .searchText
+      );
+
+    console.log(
+      "Winning Auction property opened:",
+      this.page.url()
     );
   }
 );
+
+// =====================================================
+// AUCTION SETTLEMENT
+//
+// DO NOT call:
+// this.settlementPage.start()
+//
+// start() is only for Fixed/Offer because it clicks
+// the Continue button.
+// =====================================================
 
 When(
   "the Second Auction Buyer starts the Auction settlement process",
   async function () {
-    await this.settlementPage.start();
-  }
-);
+    console.log(
+      "Waiting for automatic Auction Property Settlement Process..."
+    );
 
-When(
-  "the Second Auction Buyer selects the configured solicitor",
-  async function () {
-    await this.settlementPage.selectSolicitor(
-      auctionFlowData.settlement.solicitorSearch
+    await this.settlementPage
+      .waitForAuctionSettlement();
+
+    console.log(
+      "Auction Property Settlement Process is ready"
     );
   }
 );
 
+// =====================================================
+// AUCTION PAYMENT
+//
+// Card number
+// Expiration date
+// Security code
+// Pay $... AUD
+// =====================================================
+
 When(
-  "the Second Auction Buyer selects the configured mortgage broker",
+  "the Second Auction Buyer pays the Auction deposit",
   async function () {
-    await this.settlementPage.selectBroker(
-      auctionFlowData.settlement.brokerSearch
+    console.log(
+      "Starting Auction deposit payment..."
     );
+
+    await this.settlementPage
+      .payAuctionDeposit(
+        auctionFlowData.payment
+      );
   }
 );
 
-When("the Second Auction Buyer pays the Auction deposit", async function () {
-  await this.settlementPage.payDeposit(auctionFlowData.payment);
-});
+// =====================================================
+// PAYMENT SUCCESS
+// =====================================================
 
-Then("the Auction deposit payment is successful", async function () {
-  await this.settlementPage.verifyPaymentSuccessful(
-    auctionFlowData.expected.paymentSuccessful
-  );
-});
+Then(
+  "the Auction deposit payment is successful",
+  async function () {
+    await this.settlementPage
+      .verifyAuctionPaymentSuccessful();
+
+    console.log(
+      "Auction settlement payment completed successfully"
+    );
+  }
+);
