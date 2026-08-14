@@ -8,77 +8,67 @@ class SettlementPage {
     // COMMON SETTLEMENT
     // =====================================================
 
-    this.settlementHeading =
-      page.getByRole("heading", {
-        name: "Property Settlement Process",
-        exact: true,
-      });
+    this.settlementHeading = page.getByRole("heading", {
+      name: "Property Settlement Process",
+      exact: true,
+    });
 
-    this.continueButton =
-      page
-        .getByRole("button", {
-          name: "Continue",
-          exact: true,
-        })
-        .last();
+    this.continueButton = page
+      .getByRole("button", {
+        name: "Continue",
+        exact: true,
+      })
+      .last();
 
     // =====================================================
     // SOLICITOR
     // =====================================================
 
-    this.solicitorHeading =
-      page.getByRole("heading", {
-        name: "Invite Your Solicitor",
-        exact: true,
-      });
+    this.solicitorHeading = page.getByRole("heading", {
+      name: "Invite Your Solicitor",
+      exact: true,
+    });
 
-    this.browseSolicitorsButton =
-      page.getByRole("button", {
-        name: /Browse Available Solicitors/i,
-      });
+    this.browseSolicitorsButton = page.getByRole("button", {
+      name: /Browse Available Solicitors/i,
+    });
 
     // =====================================================
     // BROKER
     // =====================================================
 
-    this.brokerHeading =
-      page.getByRole("heading", {
-        name: "Invite Your Mortgage Broker",
-        exact: true,
-      });
+    this.brokerHeading = page.getByRole("heading", {
+      name: "Invite Your Mortgage Broker",
+      exact: true,
+    });
 
-    this.browseBrokersButton =
-      page.getByRole("button", {
-        name: /Browse Available Brokers/i,
-      });
+    this.browseBrokersButton = page.getByRole("button", {
+      name: /Browse Available Brokers/i,
+    });
 
     // =====================================================
     // PROFESSIONAL SEARCH
     // =====================================================
 
-    this.professionalSearchInput =
-      page.getByPlaceholder(
-        "Search by name, company, or specialization...",
-        {
-          exact: true,
-        }
-      );
+    this.professionalSearchInput = page.getByPlaceholder(
+      "Search by name, company, or specialization...",
+      {
+        exact: true,
+      }
+    );
 
     // =====================================================
     // DEPOSIT
     // =====================================================
 
-    this.depositHeading =
-      page.getByRole("heading", {
-        name: "Deposit Payment",
-        exact: true,
-      });
+    this.depositHeading = page.getByRole("heading", {
+      name: "Deposit Payment",
+      exact: true,
+    });
   }
 
-
-
   // =====================================================
-  // FIXED / OFFER FLOW
+  // COMMON FIXED / OFFER SETTLEMENT START
   // =====================================================
 
   async start() {
@@ -134,9 +124,7 @@ class SettlementPage {
       timeout: 10_000,
     });
 
-    await this.professionalSearchInput.fill(
-      searchText
-    );
+    await this.professionalSearchInput.fill(searchText);
 
     const result = this.page
       .locator("div")
@@ -144,23 +132,17 @@ class SettlementPage {
         hasText: searchText,
       })
       .filter({
-        has: this.page.getByRole(
-          "button",
-          {
-            name: "Select",
-            exact: true,
-          }
-        ),
+        has: this.page.getByRole("button", {
+          name: "Select",
+          exact: true,
+        }),
       })
       .first();
 
-    const select = result.getByRole(
-      "button",
-      {
-        name: "Select",
-        exact: true,
-      }
-    );
+    const select = result.getByRole("button", {
+      name: "Select",
+      exact: true,
+    });
 
     await expect(
       select,
@@ -216,9 +198,7 @@ class SettlementPage {
       timeout: 10_000,
     });
 
-    await this.professionalSearchInput.fill(
-      searchText
-    );
+    await this.professionalSearchInput.fill(searchText);
 
     const result = this.page
       .locator("div")
@@ -226,23 +206,17 @@ class SettlementPage {
         hasText: searchText,
       })
       .filter({
-        has: this.page.getByRole(
-          "button",
-          {
-            name: "Select",
-            exact: true,
-          }
-        ),
+        has: this.page.getByRole("button", {
+          name: "Select",
+          exact: true,
+        }),
       })
       .first();
 
-    const select = result.getByRole(
-      "button",
-      {
-        name: "Select",
-        exact: true,
-      }
-    );
+    const select = result.getByRole("button", {
+      name: "Select",
+      exact: true,
+    });
 
     await expect(
       select,
@@ -278,18 +252,18 @@ class SettlementPage {
   }
 
   // =====================================================
-  // FIND PAYMENT FRAME
-  // FIXED / OFFER
+  // OLD COMMON PAYMENT FRAME
+  //
+  // Kept because your existing code may still reference it.
   // =====================================================
 
   async findPaymentFrame() {
     const frames = this.page.frames();
 
     for (const frame of frames) {
-      const numberInput =
-        frame.locator(
-          '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
-        );
+      const numberInput = frame.locator(
+        '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+      );
 
       if (
         await numberInput
@@ -305,126 +279,388 @@ class SettlementPage {
     );
   }
 
+  // =====================================================
+  // OFFER PRICE PAYMENT FRAME
+  //
+  // KEEP OFFER FLOW SEPARATE
+  // =====================================================
 
   async findOfferPaymentFrame(timeoutMs = 45_000) {
-  console.log(
-    "Waiting for Offer Price Stripe payment fields..."
-  );
+    console.log(
+      "Waiting for Offer Price Stripe payment fields..."
+    );
 
-  const startedAt = Date.now();
+    const startedAt = Date.now();
 
-  while (Date.now() - startedAt < timeoutMs) {
-    for (const frame of this.page.frames()) {
-      const cardNumber = frame.locator(
-        '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
-      );
+    while (Date.now() - startedAt < timeoutMs) {
+      for (const frame of this.page.frames()) {
+        const cardNumber = frame.locator(
+          '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+        );
 
+        if (
+          await cardNumber
+            .isVisible()
+            .catch(() => false)
+        ) {
+          console.log(
+            "Offer Price payment frame found:",
+            frame.url()
+          );
+
+          return frame;
+        }
+      }
+
+      await this.page.waitForTimeout(500);
+    }
+
+    throw new Error(
+      "Offer Price Stripe payment fields did not load within 45 seconds."
+    );
+  }
+
+  // =====================================================
+  // OFFER PRICE PAYMENT
+  // =====================================================
+
+  async payOfferDeposit(payment) {
+    await expect(
+      this.depositHeading,
+      "Offer Price Deposit Payment should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const frame =
+      await this.findOfferPaymentFrame();
+
+    const cardNumber = frame.locator(
+      '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+    );
+
+    const expiry = frame.locator(
+      '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
+    );
+
+    const cvc = frame.locator(
+      '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
+    );
+
+    await expect(
+      cardNumber,
+      "Offer Price card number should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await cardNumber.fill(
+      String(payment.cardNumber)
+    );
+
+    await expect(
+      expiry,
+      "Offer Price expiration date should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expiry.fill(
+      String(payment.expiry)
+    );
+
+    await expect(
+      cvc,
+      "Offer Price CVC should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await cvc.fill(
+      String(payment.cvc)
+    );
+
+    const submitCandidates = [
+      this.page
+        .locator('button[type="submit"]')
+        .last(),
+
+      frame
+        .locator('button[type="submit"]')
+        .last(),
+    ];
+
+    for (const button of submitCandidates) {
       if (
-        await cardNumber
+        await button
           .isVisible()
           .catch(() => false)
       ) {
+        await expect(
+          button,
+          "Offer Price payment button should be enabled"
+        ).toBeEnabled({
+          timeout: 20_000,
+        });
+
+        await button.click();
+
         console.log(
-          "Offer Price payment frame found:",
-          frame.url()
+          "Offer Price deposit submitted"
         );
 
-        return frame;
+        return;
       }
     }
 
-    await this.page.waitForTimeout(500);
+    throw new Error(
+      "Offer Price payment submit button was not found."
+    );
   }
 
-  throw new Error(
-    "Offer Price Stripe payment fields did not load within 45 seconds."
-  );
-}
+  // =====================================================
+  // FIXED PRICE PAYMENT FRAME
+  //
+  // NEW FIX:
+  // Fixed Price waits for Stripe to load instead of
+  // checking the frame only one time.
+  // =====================================================
 
-async payOfferDeposit(payment) {
-  await expect(
-    this.depositHeading,
-    "Offer Price Deposit Payment should be visible"
-  ).toBeVisible({
-    timeout: 20_000,
-  });
+  async findFixedPaymentFrame(
+    timeoutMs = 45_000
+  ) {
+    console.log(
+      "Waiting for Fixed Price Stripe payment fields..."
+    );
 
-  const frame =
-    await this.findOfferPaymentFrame();
+    const startedAt = Date.now();
 
-  const cardNumber = frame.locator(
-    '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
-  );
-
-  const expiry = frame.locator(
-    '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
-  );
-
-  const cvc = frame.locator(
-    '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
-  );
-
-  await expect(cardNumber).toBeVisible({
-    timeout: 20_000,
-  });
-
-  await cardNumber.fill(
-    String(payment.cardNumber)
-  );
-
-  await expect(expiry).toBeVisible({
-    timeout: 20_000,
-  });
-
-  await expiry.fill(
-    String(payment.expiry)
-  );
-
-  await expect(cvc).toBeVisible({
-    timeout: 20_000,
-  });
-
-  await cvc.fill(
-    String(payment.cvc)
-  );
-
-  const submitCandidates = [
-    this.page
-      .locator('button[type="submit"]')
-      .last(),
-
-    frame
-      .locator('button[type="submit"]')
-      .last(),
-  ];
-
-  for (const button of submitCandidates) {
-    if (
-      await button
-        .isVisible()
-        .catch(() => false)
+    while (
+      Date.now() - startedAt < timeoutMs
     ) {
-      await expect(button).toBeEnabled({
+      const frames = this.page.frames();
+
+      for (const frame of frames) {
+        const cardNumber = frame.locator(
+          '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+        );
+
+        if (
+          await cardNumber
+            .isVisible()
+            .catch(() => false)
+        ) {
+          console.log(
+            "Fixed Price payment frame found:",
+            frame.url()
+          );
+
+          return frame;
+        }
+      }
+
+      await this.page.waitForTimeout(500);
+    }
+
+    console.log(
+      "Fixed Price payment fields did not appear."
+    );
+
+    console.log(
+      "Available frames:"
+    );
+
+    for (const frame of this.page.frames()) {
+      console.log(
+        "-",
+        frame.url()
+      );
+    }
+
+    throw new Error(
+      `Fixed Price Stripe payment fields did not load within ${timeoutMs}ms.`
+    );
+  }
+
+  // =====================================================
+  // FIXED PRICE PAYMENT
+  //
+  // ONLY Fixed Price should call this method.
+  // =====================================================
+
+  async payFixedDeposit(payment) {
+    await expect(
+      this.depositHeading,
+      "Fixed Price Deposit Payment should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    if (!payment) {
+      throw new Error(
+        "Fixed Price payment configuration is missing."
+      );
+    }
+
+    if (!payment.cardNumber) {
+      throw new Error(
+        "Fixed Price card number is missing."
+      );
+    }
+
+    if (!payment.expiry) {
+      throw new Error(
+        "Fixed Price expiry is missing."
+      );
+    }
+
+    if (!payment.cvc) {
+      throw new Error(
+        "Fixed Price CVC is missing."
+      );
+    }
+
+    const frame =
+      await this.findFixedPaymentFrame(
+        45_000
+      );
+
+    const cardNumber = frame.locator(
+      '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+    );
+
+    const expiry = frame.locator(
+      '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
+    );
+
+    const cvc = frame.locator(
+      '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
+    );
+
+    // =================================================
+    // CARD NUMBER
+    // =================================================
+
+    await expect(
+      cardNumber,
+      "Fixed Price Card Number field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await cardNumber.click();
+
+    await cardNumber.fill(
+      String(payment.cardNumber)
+    );
+
+    console.log(
+      "Fixed Price Card Number entered"
+    );
+
+    // =================================================
+    // EXPIRY
+    // =================================================
+
+    await expect(
+      expiry,
+      "Fixed Price Expiration Date field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expiry.click();
+
+    await expiry.fill(
+      String(payment.expiry)
+    );
+
+    console.log(
+      "Fixed Price Expiration Date entered"
+    );
+
+    // =================================================
+    // CVC
+    // =================================================
+
+    await expect(
+      cvc,
+      "Fixed Price CVC field should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await cvc.click();
+
+    await cvc.fill(
+      String(payment.cvc)
+    );
+
+    console.log(
+      "Fixed Price CVC entered"
+    );
+
+    // =================================================
+    // PAYMENT BUTTON
+    // =================================================
+
+    const submitCandidates = [
+      this.page
+        .locator('button[type="submit"]')
+        .last(),
+
+      frame
+        .locator('button[type="submit"]')
+        .last(),
+    ];
+
+    for (const button of submitCandidates) {
+      const visible =
+        await button
+          .isVisible()
+          .catch(() => false);
+
+      if (!visible) {
+        continue;
+      }
+
+      await expect(
+        button,
+        "Fixed Price payment button should be enabled"
+      ).toBeEnabled({
         timeout: 20_000,
       });
+
+      const buttonText =
+        await button
+          .innerText()
+          .catch(() => "Payment button");
+
+      console.log(
+        "Fixed Price payment button:",
+        buttonText
+      );
 
       await button.click();
 
       console.log(
-        "Offer Price deposit submitted"
+        "Fixed Price deposit submitted"
       );
 
       return;
     }
+
+    throw new Error(
+      "Fixed Price payment submit button was not found."
+    );
   }
 
-  throw new Error(
-    "Offer Price payment submit button was not found."
-  );
-}
-
   // =====================================================
-  // FIXED / OFFER PAYMENT
+  // LEGACY COMMON PAYMENT
+  //
+  // KEEP FOR COMPATIBILITY.
+  // Fixed Price should now use payFixedDeposit().
+  // Offer should use payOfferDeposit().
   // =====================================================
 
   async payDeposit(payment) {
@@ -438,20 +674,17 @@ async payOfferDeposit(payment) {
     const frame =
       await this.findPaymentFrame();
 
-    const cardNumber =
-      frame.locator(
-        '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
-      );
+    const cardNumber = frame.locator(
+      '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+    );
 
-    const expiry =
-      frame.locator(
-        '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
-      );
+    const expiry = frame.locator(
+      '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
+    );
 
-    const cvc =
-      frame.locator(
-        '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
-      );
+    const cvc = frame.locator(
+      '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
+    );
 
     await expect(
       cardNumber,
@@ -554,11 +787,6 @@ async payOfferDeposit(payment) {
 
   // =====================================================
   // FIND AUCTION PAYMENT ROOT
-  //
-  // Waits until real Stripe card inputs are mounted.
-  // Checks:
-  // 1. Main page
-  // 2. All iframes
   // =====================================================
 
   async findAuctionPaymentRoot(
@@ -575,7 +803,7 @@ async payOfferDeposit(payment) {
       timeoutMs
     ) {
       // ===============================================
-      // CHECK MAIN PAGE
+      // MAIN PAGE
       // ===============================================
 
       const mainCard =
@@ -596,16 +824,15 @@ async payOfferDeposit(payment) {
       }
 
       // ===============================================
-      // CHECK ALL FRAMES
+      // IFRAMES
       // ===============================================
 
       for (
         const frame of this.page.frames()
       ) {
-        const card =
-          frame.locator(
-            '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
-          );
+        const card = frame.locator(
+          '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+        );
 
         if (
           await card
@@ -677,33 +904,20 @@ async payOfferDeposit(payment) {
       );
     }
 
-    // Wait for actual payment UI
     const paymentRoot =
       await this.findAuctionPaymentRoot(
         45_000
       );
-
-    // =================================================
-    // CARD NUMBER
-    // =================================================
 
     const cardNumber =
       paymentRoot.locator(
         '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
       );
 
-    // =================================================
-    // EXPIRY
-    // =================================================
-
     const expiry =
       paymentRoot.locator(
         '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
       );
-
-    // =================================================
-    // CVC
-    // =================================================
 
     const cvc =
       paymentRoot.locator(
@@ -711,7 +925,7 @@ async payOfferDeposit(payment) {
       );
 
     // =================================================
-    // FILL CARD NUMBER
+    // CARD NUMBER
     // =================================================
 
     await expect(
@@ -732,7 +946,7 @@ async payOfferDeposit(payment) {
     );
 
     // =================================================
-    // FILL EXPIRATION DATE
+    // EXPIRY
     // =================================================
 
     await expect(
@@ -753,7 +967,7 @@ async payOfferDeposit(payment) {
     );
 
     // =================================================
-    // FILL CVC
+    // CVC
     // =================================================
 
     await expect(
@@ -775,11 +989,6 @@ async payOfferDeposit(payment) {
 
     // =================================================
     // PAY BUTTON
-    //
-    // Examples:
-    // Pay $375,000 AUD
-    // Pay $32,500 AUD
-    // Pay $1,000.00 AUD
     // =================================================
 
     const payButtonRegex =
