@@ -75,6 +75,8 @@ class SettlementPage {
       });
   }
 
+
+
   // =====================================================
   // FIXED / OFFER FLOW
   // =====================================================
@@ -302,6 +304,124 @@ class SettlementPage {
       "Stripe payment iframe with card fields was not found."
     );
   }
+
+
+  async findOfferPaymentFrame(timeoutMs = 45_000) {
+  console.log(
+    "Waiting for Offer Price Stripe payment fields..."
+  );
+
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    for (const frame of this.page.frames()) {
+      const cardNumber = frame.locator(
+        '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+      );
+
+      if (
+        await cardNumber
+          .isVisible()
+          .catch(() => false)
+      ) {
+        console.log(
+          "Offer Price payment frame found:",
+          frame.url()
+        );
+
+        return frame;
+      }
+    }
+
+    await this.page.waitForTimeout(500);
+  }
+
+  throw new Error(
+    "Offer Price Stripe payment fields did not load within 45 seconds."
+  );
+}
+
+async payOfferDeposit(payment) {
+  await expect(
+    this.depositHeading,
+    "Offer Price Deposit Payment should be visible"
+  ).toBeVisible({
+    timeout: 20_000,
+  });
+
+  const frame =
+    await this.findOfferPaymentFrame();
+
+  const cardNumber = frame.locator(
+    '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+  );
+
+  const expiry = frame.locator(
+    '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
+  );
+
+  const cvc = frame.locator(
+    '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
+  );
+
+  await expect(cardNumber).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await cardNumber.fill(
+    String(payment.cardNumber)
+  );
+
+  await expect(expiry).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await expiry.fill(
+    String(payment.expiry)
+  );
+
+  await expect(cvc).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await cvc.fill(
+    String(payment.cvc)
+  );
+
+  const submitCandidates = [
+    this.page
+      .locator('button[type="submit"]')
+      .last(),
+
+    frame
+      .locator('button[type="submit"]')
+      .last(),
+  ];
+
+  for (const button of submitCandidates) {
+    if (
+      await button
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await expect(button).toBeEnabled({
+        timeout: 20_000,
+      });
+
+      await button.click();
+
+      console.log(
+        "Offer Price deposit submitted"
+      );
+
+      return;
+    }
+  }
+
+  throw new Error(
+    "Offer Price payment submit button was not found."
+  );
+}
 
   // =====================================================
   // FIXED / OFFER PAYMENT

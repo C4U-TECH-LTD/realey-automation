@@ -454,7 +454,7 @@ When(
   "the General User pays the Offer Price deposit",
   async function () {
     await this.settlementPage
-      .payDeposit(
+      .payOfferDeposit(
         offerPriceFlowData.payment
       );
   }
