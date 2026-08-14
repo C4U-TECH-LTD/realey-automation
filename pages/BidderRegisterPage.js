@@ -104,6 +104,7 @@ class BidderRegisterPage {
 
     const context = this.page.context();
 
+    const sourcePage = this.page;
     const [registrationTab] = await Promise.all([
       context.waitForEvent("page", {
         timeout: 20_000,
@@ -115,13 +116,21 @@ class BidderRegisterPage {
       "domcontentloaded"
     );
 
-    await registrationTab.bringToFront();
+    const registrationUrl = registrationTab.url();
 
-    // Switch page object to new tab
-    this.setPage(registrationTab);
+    // Playwright records one video per page. Continue the registration on the
+    // original scenario page, in the same context, so the single scenario video
+    // contains the complete Agent/Buyer journey instead of being split by tabs.
+    await registrationTab.close();
+    await sourcePage.goto(registrationUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
+    await sourcePage.bringToFront();
+    this.setPage(sourcePage);
 
     console.log(
-      `Auction registration tab opened: ${registrationTab.url()}`
+      `Auction registration opened on scenario page: ${this.page.url()}`
     );
 
     // Verify we are on auction registration URL
