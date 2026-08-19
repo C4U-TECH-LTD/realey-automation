@@ -46,4 +46,3 @@ Feature: Auction Reserve Price Not Met Counter Offer Negotiation and Settlement
     And the General User continues through Auction Reserve Not Met personal details
     And the General User selects the Auction Reserve Not Met configured solicitor
     And the General User selects the Auction Reserve Not Met configured mortgage broker
- 
