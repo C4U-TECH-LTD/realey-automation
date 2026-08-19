@@ -97,6 +97,8 @@ const auctionFlowData = {
   expected: {
     auctionEnded: /Auction has ended!/i,
     paymentSuccessful: /Payment Successful/i,
+    settlementCompleted:
+      /Settlement Complete|Settlement Completed|Completed/i,
   },
 };
 

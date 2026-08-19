@@ -26,10 +26,10 @@ class PropertyLocationPage {
       }
     );
 
-    /*
-     * Google Places autocomplete suggestions are usually rendered
-     * inside .pac-container and .pac-item.
-     */
+    // =====================================================
+    // GOOGLE AUTOCOMPLETE
+    // =====================================================
+
     this.googleSuggestionList = page.locator(
       ".pac-container"
     );
@@ -38,17 +38,31 @@ class PropertyLocationPage {
       ".pac-container .pac-item"
     );
 
+    // =====================================================
+    // LOCATION FIELDS
+    //
+    // IMPORTANT:
+    // Do NOT use:
+    // getByText("Postcode").locator("following::input[1]")
+    //
+    // because it can accidentally select Council/other inputs.
+    // =====================================================
+
     this.suburbInput = page
-      .getByText("Suburb", {
-        exact: false,
+      .locator("label")
+      .filter({
+        hasText: /^Suburb\b/i,
       })
-      .locator("xpath=following::input[1]");
+      .locator("xpath=following-sibling::*//input | following-sibling::input")
+      .first();
 
     this.postcodeInput = page
-      .getByText("Postcode", {
-        exact: false,
+      .locator("label")
+      .filter({
+        hasText: /^Postcode\b/i,
       })
-      .locator("xpath=following::input[1]");
+      .locator("xpath=following-sibling::*//input | following-sibling::input")
+      .first();
 
     this.stateDropdown = page
       .getByRole("combobox")
@@ -69,6 +83,10 @@ class PropertyLocationPage {
       .last();
   }
 
+  // =====================================================
+  // WAIT FOR PAGE
+  // =====================================================
+
   async waitForPage() {
     await expect(
       this.modalTitle,
@@ -80,18 +98,28 @@ class PropertyLocationPage {
     await expect(
       this.sectionHeading,
       "Property Location step should be visible"
-    ).toBeVisible();
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
     await expect(
       this.streetAddressInput,
       "Street Address input should be visible"
-    ).toBeVisible();
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
     await expect(
       this.nextButton,
       "Next button should be visible"
-    ).toBeVisible();
+    ).toBeVisible({
+      timeout: 20_000,
+    });
   }
+
+  // =====================================================
+  // SELECT GOOGLE ADDRESS
+  // =====================================================
 
   async typeAddressAndSelectFirstSuggestion(
     searchText = "a"
@@ -113,9 +141,6 @@ class PropertyLocationPage {
       }
     );
 
-    /*
-     * Wait for Google Places suggestions.
-     */
     await expect(
       this.googleSuggestionList,
       "Google address suggestion list should appear"
@@ -142,9 +167,10 @@ class PropertyLocationPage {
 
     await firstSuggestion.click();
 
-    /*
-     * After selection, Google usually fills the full address.
-     */
+    // =====================================================
+    // WAIT FOR ADDRESS TO ACTUALLY CHANGE
+    // =====================================================
+
     await expect(
       this.streetAddressInput,
       "Street Address should be populated after selecting a suggestion"
@@ -164,40 +190,199 @@ class PropertyLocationPage {
     console.log(
       `Selected address: ${selectedAddress}`
     );
+
+    // Give Google Places / React state a short moment
+    // to populate the remaining fields.
+    await this.page.waitForTimeout(700);
   }
 
+  // =====================================================
+  // FIND FIELD BY LABEL
+  //
+  // Fallback helper in case the DOM wrapper differs
+  // between different listing flows.
+  // =====================================================
+
+  async findInputNearLabel(labelText) {
+    const label = this.page
+      .getByText(labelText, {
+        exact: false,
+      })
+      .filter({
+        visible: true,
+      })
+      .first();
+
+    if (
+      !(await label
+        .isVisible()
+        .catch(() => false))
+    ) {
+      return null;
+    }
+
+    const parent = label.locator(
+      "xpath=ancestor::*[self::div or self::label][1]"
+    );
+
+    const parentInput = parent
+      .locator("input")
+      .first();
+
+    if (
+      await parentInput
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return parentInput;
+    }
+
+    const siblingInput = label.locator(
+      "xpath=following-sibling::input[1]"
+    );
+
+    if (
+      await siblingInput
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return siblingInput;
+    }
+
+    const nextContainerInput = label.locator(
+      "xpath=following-sibling::*[1]//input[1]"
+    );
+
+    if (
+      await nextContainerInput
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return nextContainerInput;
+    }
+
+    return null;
+  }
+
+  // =====================================================
+  // WAIT FOR AUTO-FILLED FIELDS
+  // =====================================================
+
   async waitForAutoFilledLocationFields() {
-    /*
-     * These fields may be auto-filled by Google Places.
-     * They are optional checks because the application may fill them asynchronously.
-     */
-    const suburbVisible =
-      await this.suburbInput
+    console.log(
+      "Waiting for auto-filled location fields..."
+    );
+
+    // =====================================================
+    // SUBURB
+    // =====================================================
+
+    let suburbInput = this.suburbInput;
+
+    let suburbVisible =
+      await suburbInput
         .isVisible()
         .catch(() => false);
 
+    if (!suburbVisible) {
+      const fallback =
+        await this.findInputNearLabel(
+          "Suburb"
+        );
+
+      if (fallback) {
+        suburbInput = fallback;
+        suburbVisible = true;
+      }
+    }
+
     if (suburbVisible) {
       await expect(
-        this.suburbInput,
+        suburbInput,
         "Suburb should be auto-filled"
       ).not.toHaveValue("", {
         timeout: 15_000,
       });
+
+      console.log(
+        "Suburb:",
+        await suburbInput.inputValue()
+      );
+    } else {
+      console.log(
+        "Suburb input not found - skipping optional verification"
+      );
     }
 
-    const postcodeVisible =
-      await this.postcodeInput
+    // =====================================================
+    // POSTCODE
+    // =====================================================
+
+    let postcodeInput = this.postcodeInput;
+
+    let postcodeVisible =
+      await postcodeInput
         .isVisible()
         .catch(() => false);
 
+    if (!postcodeVisible) {
+      const fallback =
+        await this.findInputNearLabel(
+          "Postcode"
+        );
+
+      if (fallback) {
+        postcodeInput = fallback;
+        postcodeVisible = true;
+      }
+    }
+
     if (postcodeVisible) {
+      const placeholder =
+        await postcodeInput
+          .getAttribute("placeholder")
+          .catch(() => "");
+
+      console.log(
+        "Postcode input placeholder:",
+        placeholder
+      );
+
+      // Safety:
+      // Never treat Council input as Postcode input.
+      if (
+        placeholder &&
+        /ACT Government/i.test(
+          placeholder
+        )
+      ) {
+        throw new Error(
+          "Wrong Postcode locator detected: Council input was selected instead of Postcode."
+        );
+      }
+
       await expect(
-        this.postcodeInput,
+        postcodeInput,
         "Postcode should be auto-filled"
       ).not.toHaveValue("", {
         timeout: 15_000,
       });
+
+      const postcode =
+        await postcodeInput.inputValue();
+
+      console.log(
+        `Postcode: ${postcode}`
+      );
+    } else {
+      console.log(
+        "Postcode input not found - skipping optional verification"
+      );
     }
+
+    // =====================================================
+    // STATE
+    // =====================================================
 
     const stateVisible =
       await this.stateDropdown
@@ -206,42 +391,66 @@ class PropertyLocationPage {
 
     if (stateVisible) {
       const stateText =
-        await this.stateDropdown.innerText();
+        await this.stateDropdown
+          .innerText();
 
       if (!stateText.trim()) {
         throw new Error(
           "State was not auto-filled after selecting address."
         );
       }
+
+      console.log(
+        `State: ${stateText.trim()}`
+      );
     }
+
+    console.log(
+      "Location auto-fill verification completed"
+    );
   }
+
+  // =====================================================
+  // NEXT
+  // =====================================================
 
   async clickNext() {
     await expect(
       this.nextButton,
       "Location step Next button should be visible"
-    ).toBeVisible();
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
     await expect(
       this.nextButton,
       "Location step Next button should be enabled"
-    ).toBeEnabled();
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
 
-    await this.nextButton.scrollIntoViewIfNeeded();
+    await this.nextButton
+      .scrollIntoViewIfNeeded();
 
     await this.nextButton.click();
   }
+
+  // =====================================================
+  // COMPLETE LOCATION STEP
+  // =====================================================
 
   async completeLocationStep({
     addressSearchText = "a",
   } = {}) {
     await this.waitForPage();
 
-    await this.typeAddressAndSelectFirstSuggestion(
-      addressSearchText
-    );
+    await this
+      .typeAddressAndSelectFirstSuggestion(
+        addressSearchText
+      );
 
-    await this.waitForAutoFilledLocationFields();
+    await this
+      .waitForAutoFilledLocationFields();
 
     await this.clickNext();
   }

@@ -31,3 +31,10 @@ Feature: Auction Bidding and Settlement
     And the Second Auction Buyer starts the Auction settlement process
     And the Second Auction Buyer pays the Auction deposit
     Then the Auction deposit payment is successful
+
+    When the Second Auction Buyer continues after Auction payment
+    And the Second Auction Buyer continues through Auction personal details
+    And the Second Auction Buyer selects the Auction configured solicitor
+    And the Second Auction Buyer selects the Auction configured mortgage broker
+ 
+   

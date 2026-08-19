@@ -1,0 +1,424 @@
+name: Flow 5-Auction Counter Rejected & Re-list Fixed Price
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: realey-auction-flow5
+  cancel-in-progress: false
+
+jobs:
+  # =========================================================
+  # RUN FLOW 5 TEST
+  # =========================================================
+
+  run-flow5:
+    name: Run Flow 5 Test
+
+    runs-on: ubuntu-latest
+
+    # Auction itself can wait around 15 minutes,
+    # plus listing, bidder registration, bidding,
+    # negotiation, decline, re-listing,
+    # reports and CI overhead.
+    timeout-minutes: 60
+
+    env:
+      # ===============================================
+      # GITHUB MODE
+      # ===============================================
+
+      CI: "true"
+
+      HEADLESS: "true"
+
+      SLOW_MO: "0"
+
+      # ===============================================
+      # APPLICATION
+      # ===============================================
+
+      BASE_URL: ${{ secrets.BASE_URL }}
+
+      # ===============================================
+      # AGENT
+      # ===============================================
+
+      AGENT_EMAIL: ${{ secrets.AGENT_EMAIL }}
+      AGENT_PASSWORD: ${{ secrets.AGENT_PASSWORD }}
+      AGENT_OTP: ${{ secrets.AGENT_OTP }}
+
+      # ===============================================
+      # GENERAL USER / AUCTION BUYER
+      # ===============================================
+
+      GENERAL_USER_EMAIL: ${{ secrets.GENERAL_USER_EMAIL }}
+      GENERAL_USER_PASSWORD: ${{ secrets.GENERAL_USER_PASSWORD }}
+      GENERAL_USER_OTP: ${{ secrets.GENERAL_USER_OTP }}
+
+    steps:
+      # =====================================================
+      # CHECKOUT
+      # =====================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # =====================================================
+      # NODE
+      # =====================================================
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+
+        with:
+          node-version: 24
+          cache: npm
+
+      # =====================================================
+      # INSTALL DEPENDENCIES
+      # =====================================================
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      # =====================================================
+      # INSTALL PLAYWRIGHT
+      # =====================================================
+
+      - name: Install Playwright Browser
+        run: |
+          npx playwright install --with-deps chromium
+
+      # =====================================================
+      # INSTALL GOOGLE CHROME
+      # Because hooks.js uses channel: "chrome"
+      # =====================================================
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            ./google-chrome-stable_current_amd64.deb
+
+      # =====================================================
+      # VERIFY ENVIRONMENT
+      # =====================================================
+
+      - name: Verify environment
+        run: |
+          node --version
+
+          npm --version
+
+          npx playwright --version
+
+          npx cucumber-js --version
+
+          npx allure --version
+
+          google-chrome --version
+
+      # =====================================================
+      # CLEAN OLD OUTPUT
+      # =====================================================
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+
+          rm -rf allure-report
+
+          rm -rf reports/cucumber
+
+          rm -rf screenshots/cucumber
+
+          rm -rf videos
+
+      # =====================================================
+      # RUN ONLY FLOW 5
+      # =====================================================
+
+      - name: Run Flow 5 Cucumber Test
+        id: cucumber-tests
+
+        continue-on-error: true
+
+        run: |
+          npx cucumber-js --tags "@counter-reject and @relist-fixed"
+
+      # =====================================================
+      # GENERATE ALLURE REPORT
+      # =====================================================
+
+      - name: Generate Allure Report
+        if: always()
+
+        run: |
+          if [ -d "allure-results" ] && \
+             [ "$(ls -A allure-results 2>/dev/null)" ]; then
+
+            echo "Generating Flow 5 Allure report..."
+
+            npx allure generate \
+              allure-results \
+              --clean \
+              -o allure-report
+
+          else
+
+            echo "No Allure results generated."
+
+            mkdir -p allure-report
+
+            echo "<h1>No Allure results generated</h1>" \
+              > allure-report/index.html
+
+          fi
+
+      # =====================================================
+      # CUCUMBER REPORT
+      # =====================================================
+
+      - name: Upload Flow 5 Cucumber Report
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: flow5-cucumber-report
+
+          path: reports/cucumber/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # ALLURE RAW RESULTS
+      # =====================================================
+
+      - name: Upload Flow 5 Allure Raw Results
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: flow5-allure-results
+
+          path: allure-results/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # ALLURE HTML REPORT
+      # =====================================================
+
+      - name: Upload Flow 5 Allure HTML Report
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: flow5-allure-html-report
+
+          path: allure-report/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # SCREENSHOTS
+      # =====================================================
+
+      - name: Upload Flow 5 Screenshots
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: flow5-cucumber-screenshots
+
+          path: screenshots/cucumber/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # RECORDED VIDEOS
+      # =====================================================
+
+      - name: Upload Flow 5 Test Videos
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: flow5-cucumber-videos
+
+          path: videos/cucumber/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # GITHUB PAGES
+      # =====================================================
+
+      - name: Configure GitHub Pages
+        if: always()
+
+        uses: actions/configure-pages@v5
+
+      - name: Upload Flow 5 Allure Report To GitHub Pages
+        if: always()
+
+        uses: actions/upload-pages-artifact@v4
+
+        with:
+          path: allure-report/
+
+      # =====================================================
+      # DISPLAY TEST RESULT
+      # =====================================================
+
+      - name: Display Flow 5 Test Result
+        if: always()
+
+        run: |
+          echo ""
+          echo "============================================"
+          echo "REALEY FLOW 5 AUTOMATION"
+          echo "============================================"
+          echo "Auction Reserve Not Met"
+          echo "Counter Offer Rejected"
+          echo "Re-list As Fixed Price"
+          echo "============================================"
+          echo "Result: ${{ steps.cucumber-tests.outcome }}"
+          echo "============================================"
+
+      # =====================================================
+      # FAIL TEST JOB IF CUCUMBER FAILED
+      # =====================================================
+
+      - name: Fail Job If Flow 5 Test Failed
+        if: steps.cucumber-tests.outcome == 'failure'
+
+        run: |
+          echo "Flow 5 Cucumber test failed."
+
+          exit 1
+
+
+  # =========================================================
+  # DEPLOY ALLURE REPORT
+  # =========================================================
+
+  deploy-allure:
+    name: Publish Flow 5 Allure Report
+
+    if: always()
+
+    needs:
+      - run-flow5
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy Flow 5 Allure Report
+        id: deployment
+
+        uses: actions/deploy-pages@v4
+
+      - name: Show Flow 5 Allure Report URL
+        run: |
+          echo ""
+          echo "============================================"
+          echo "FLOW 5 ALLURE REPORT"
+          echo "============================================"
+          echo "${{ steps.deployment.outputs.page_url }}"
+          echo "============================================"
+
+      - name: Add Flow 5 Allure Link To Job Summary
+        run: |
+          echo "## 📊 Realey Flow 5 Allure Report" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Report includes:" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Agent creates Auction listing" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Buyer bidder registration" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Buyer places bid below reserve" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Auction end wait" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Reserve Price Not Met" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Agent sends counter offer" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Buyer sends counter negotiation" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Agent declines negotiated offer" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Agent re-lists property" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Listing Type changed to Fixed Price" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Re-listed property published" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Step screenshots" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Recorded Playwright scenario video" >> "$GITHUB_STEP_SUMMARY"
+
+
+  # =========================================================
+  # FINAL STATUS
+  # =========================================================
+
+  final-status:
+    name: Final Flow 5 Test Status
+
+    if: always()
+
+    needs:
+      - run-flow5
+      - deploy-allure
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Workflow Summary
+        run: |
+          echo "Flow 5 automation workflow completed."

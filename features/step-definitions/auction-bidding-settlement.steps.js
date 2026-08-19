@@ -702,7 +702,7 @@ When(
 );
 
 // =====================================================
-// PAYMENT SUCCESS
+// PAYMENT SUCCESS + POST-PAYMENT SETTLEMENT
 // =====================================================
 
 Then(
@@ -713,6 +713,70 @@ Then(
 
     console.log(
       "Auction settlement payment completed successfully"
+    );
+  }
+);
+
+When(
+  "the Second Auction Buyer continues after Auction payment",
+  async function () {
+    await this.settlementPage
+      .continueAfterAuctionPayment();
+  }
+);
+
+When(
+  "the Second Auction Buyer continues through Auction personal details",
+  async function () {
+    await this.settlementPage
+      .continueAuctionPersonalDetails();
+  }
+);
+
+When(
+  "the Second Auction Buyer selects the Auction configured solicitor",
+  async function () {
+    await this.settlementPage
+      .selectSolicitor(
+        auctionFlowData.settlement
+          .solicitorSearch
+      );
+  }
+);
+
+When(
+  "the Second Auction Buyer selects the Auction configured mortgage broker",
+  async function () {
+    await this.settlementPage
+      .selectBroker(
+        auctionFlowData.settlement
+          .brokerSearch,
+        {
+          expectDeposit: false,
+        }
+      );
+  }
+);
+
+When(
+  "the Second Auction Buyer completes the Auction settlement",
+  async function () {
+    await this.settlementPage
+      .completeSettlement();
+  }
+);
+
+Then(
+  "the Auction settlement is completed successfully",
+  async function () {
+    await this.settlementPage
+      .verifySettlementCompleted(
+        auctionFlowData.expected
+          .settlementCompleted
+      );
+
+    console.log(
+      "Auction Flow 3 settlement completed successfully"
     );
   }
 );

@@ -575,64 +575,143 @@ class PricingSalePage {
   // =====================================================
   // AUCTION LOCATION
   // =====================================================
-  async selectAuctionLocation(
-    location = "Online"
-  ) {
-    const label =
-      this.page.getByText(
-        "Auction Location *",
-        {
-          exact: true,
-        }
-      );
+  async selectAuctionLocation(location = "Online") {
+  console.log(
+    `Selecting Auction Location: ${location}`
+  );
 
-    await expect(
-      label,
-      "Auction Location label should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+  // Wait until Auction-specific fields are rendered.
+  await expect(
+    this.startingPriceInput,
+    "Starting Price should be visible before selecting Auction Location"
+  ).toBeVisible({
+    timeout: 20_000,
+  });
 
-    const dropdown =
-      label.locator(
-        "xpath=following::button[@role='combobox'][1]"
-      );
+  // Listing Type is the first combobox.
+  // Auction Location is the next visible combobox.
+  const comboboxes =
+    this.page.getByRole("combobox");
 
-    await expect(
-      dropdown,
-      "Auction Location dropdown should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+  const count = await comboboxes.count();
 
-    await dropdown.click();
+  console.log(
+    `Visible/available combobox count: ${count}`
+  );
 
-    const onlineOption =
-      this.page.getByRole(
-        "option",
-        {
-          name: location,
-          exact: true,
-        }
-      );
+  let dropdown = null;
 
-    await expect(
-      onlineOption,
-      `"${location}" Auction Location option should be visible`
-    ).toBeVisible({
-      timeout: 10_000,
-    });
+  // Start from index 1 because index 0 is Listing Type.
+  for (let i = 1; i < count; i += 1) {
+    const candidate = comboboxes.nth(i);
 
-    await onlineOption.click();
+    if (
+      await candidate
+        .isVisible()
+        .catch(() => false)
+    ) {
+      dropdown = candidate;
+      break;
+    }
+  }
 
-    await expect(
-      dropdown
-    ).toContainText(location);
-
-    console.log(
-      `Auction Location selected: ${location}`
+  if (!dropdown) {
+    throw new Error(
+      "Auction Location dropdown could not be found."
     );
   }
+
+  await expect(
+    dropdown,
+    "Auction Location dropdown should be visible"
+  ).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await dropdown.scrollIntoViewIfNeeded();
+  await dropdown.click();
+
+  // First try proper role=option.
+  const roleOption =
+    this.page.getByRole("option", {
+      name: location,
+      exact: true,
+    });
+
+  if (
+    await roleOption
+      .isVisible()
+      .catch(() => false)
+  ) {
+    await roleOption.click();
+  } else {
+    // Radix/ShadCN fallback.
+    const radixOption =
+      this.page
+        .locator(
+          "[data-radix-popper-content-wrapper]"
+        )
+        .getByText(location, {
+          exact: true,
+        })
+        .last();
+
+    if (
+      await radixOption
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await radixOption.click();
+    } else {
+      // Final visible-text fallback.
+      const textOptions =
+        this.page.getByText(location, {
+          exact: true,
+        });
+
+      const optionCount =
+        await textOptions.count();
+
+      let selected = false;
+
+      for (
+        let i = optionCount - 1;
+        i >= 0;
+        i -= 1
+      ) {
+        const candidate =
+          textOptions.nth(i);
+
+        if (
+          await candidate
+            .isVisible()
+            .catch(() => false)
+        ) {
+          await candidate.click();
+          selected = true;
+          break;
+        }
+      }
+
+      if (!selected) {
+        throw new Error(
+          `Auction Location option "${location}" could not be found.`
+        );
+      }
+    }
+  }
+
+  await expect(
+    dropdown,
+    `Auction Location should be ${location}`
+  ).toContainText(location, {
+    timeout: 10_000,
+  });
+
+  console.log(
+    `Auction Location selected: ${location}`
+  );
+}
 
   // =====================================================
   // STARTING PRICE

@@ -330,40 +330,110 @@ class LoginPage {
      OTP PAGE
   ===================================================== */
 
-  async waitForOtpPage() {
+ async waitForOtpPage(timeoutMs = 45_000) {
+  console.log("Waiting for OTP verification page...");
+
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    // -----------------------------------------------
+    // Check whether OTP input is visible
+    // -----------------------------------------------
     const firstOtpInput = this.otpInputs.first();
 
-    const otpPageFound = await Promise.race([
-      firstOtpInput
-        .waitFor({
-          state: "visible",
-          timeout: 30_000,
-        })
-        .then(() => true)
-        .catch(() => false),
+    if (
+      await firstOtpInput
+        .isVisible()
+        .catch(() => false)
+    ) {
+      console.log("OTP input detected");
 
-      this.otpHeading
-        .waitFor({
-          state: "visible",
-          timeout: 30_000,
-        })
-        .then(() => true)
-        .catch(() => false),
-    ]);
+      await expect(
+        firstOtpInput,
+        "At least one OTP input should be visible"
+      ).toBeVisible({
+        timeout: 10_000,
+      });
 
-    if (!otpPageFound) {
-      throw new Error(
-        "OTP verification page did not appear after login."
-      );
+      return;
     }
 
-    await expect(
-      firstOtpInput,
-      "At least one OTP input should be visible"
-    ).toBeVisible({
-      timeout: 10_000,
-    });
+    // -----------------------------------------------
+    // Check OTP / verification heading
+    // -----------------------------------------------
+    if (
+      await this.otpHeading
+        .isVisible()
+        .catch(() => false)
+    ) {
+      console.log("OTP verification heading detected");
+
+      // Heading can render slightly before inputs
+      try {
+        await firstOtpInput.waitFor({
+          state: "visible",
+          timeout: 10_000,
+        });
+
+        console.log("OTP input appeared");
+        return;
+      } catch {
+        console.log(
+          "Verification heading visible, waiting for OTP input..."
+        );
+      }
+    }
+
+    // -----------------------------------------------
+    // Detect login error instead of waiting 45 sec
+    // -----------------------------------------------
+    if (
+      await this.errorMessage
+        .isVisible()
+        .catch(() => false)
+    ) {
+      const errorText =
+        await this.errorMessage
+          .innerText()
+          .catch(() => "");
+
+      if (errorText.trim()) {
+        throw new Error(
+          `Login failed before OTP page appeared: ${errorText}`
+        );
+      }
+    }
+
+    // -----------------------------------------------
+    // Debug current state
+    // -----------------------------------------------
+    await this.page.waitForTimeout(500);
   }
+
+  console.log(
+    "OTP page was not detected."
+  );
+
+  console.log(
+    "Current URL:",
+    this.page.url()
+  );
+
+  const bodyText = await this.page
+    .locator("body")
+    .innerText()
+    .catch(() => "");
+
+  console.log(
+    "Current page text:",
+    bodyText.substring(0, 1500)
+  );
+
+  throw new Error(
+    `OTP verification page did not appear after login. ` +
+      `Current URL: ${this.page.url()}`
+  );
+}
 
   async getVisibleOtpInputs() {
     const totalInputs = await this.otpInputs.count();
@@ -444,19 +514,45 @@ class LoginPage {
     }
   }
 
-  async submitOtp() {
-    await expect(
-      this.verifyOtpButton,
-      "OTP verification button should be visible"
-    ).toBeVisible();
+ async submitOtp() {
+  await expect(
+    this.verifyOtpButton,
+    "OTP verification button should be visible"
+  ).toBeVisible({
+    timeout: 20_000,
+  });
 
-    await expect(
-      this.verifyOtpButton,
-      "OTP verification button should be enabled"
-    ).toBeEnabled();
+  await expect(
+    this.verifyOtpButton,
+    "OTP verification button should be enabled"
+  ).toBeEnabled({
+    timeout: 20_000,
+  });
 
-    await this.verifyOtpButton.click();
-  }
+  console.log("Submitting OTP...");
+
+  await this.verifyOtpButton.click();
+
+  // Wait until OTP page actually redirects away.
+  await this.page.waitForURL(
+    (url) => !url.pathname.includes("/login"),
+    {
+      timeout: 30_000,
+    }
+  );
+
+  console.log(
+    "OTP verified. Redirected to:",
+    this.page.url()
+  );
+
+  // Allow dashboard React components to render.
+  await this.page.waitForLoadState(
+    "domcontentloaded"
+  );
+
+  await this.page.waitForTimeout(1500);
+}
 
   async completeOtpVerification(otp) {
     await this.enterOtp(otp);

@@ -181,52 +181,74 @@ class SettlementPage {
   // SELECT BROKER
   // =====================================================
 
-  async selectBroker(searchText) {
-    await expect(
-      this.browseBrokersButton,
-      "Browse Available Brokers button should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+  async selectBroker(
+  searchText,
+  {
+    expectDeposit = true,
+  } = {}
+) {
+  console.log(
+    `Selecting Mortgage Broker: ${searchText}`
+  );
 
-    await this.browseBrokersButton.click();
+  await expect(
+    this.browseBrokersButton,
+    "Browse Available Brokers button should be visible"
+  ).toBeVisible({
+    timeout: 20_000,
+  });
 
-    await expect(
-      this.professionalSearchInput,
-      "Professional search input should be visible"
-    ).toBeVisible({
-      timeout: 10_000,
-    });
+  await this.browseBrokersButton.click();
 
-    await this.professionalSearchInput.fill(searchText);
+  await expect(
+    this.professionalSearchInput,
+    "Professional search input should be visible"
+  ).toBeVisible({
+    timeout: 10_000,
+  });
 
-    const result = this.page
-      .locator("div")
-      .filter({
-        hasText: searchText,
-      })
-      .filter({
-        has: this.page.getByRole("button", {
-          name: "Select",
-          exact: true,
-        }),
-      })
-      .first();
+  await this.professionalSearchInput.fill(
+    searchText
+  );
 
-    const select = result.getByRole("button", {
+  const result = this.page
+    .locator("div")
+    .filter({
+      hasText: searchText,
+    })
+    .filter({
+      has: this.page.getByRole("button", {
+        name: "Select",
+        exact: true,
+      }),
+    })
+    .first();
+
+  const selectButton =
+    result.getByRole("button", {
       name: "Select",
       exact: true,
     });
 
-    await expect(
-      select,
-      `Broker "${searchText}" Select button should be visible`
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+  await expect(
+    selectButton,
+    `Broker "${searchText}" Select button should be visible`
+  ).toBeVisible({
+    timeout: 20_000,
+  });
 
-    await select.click();
+  await selectButton.click();
 
+  console.log(
+    `Mortgage Broker selected: ${searchText}`
+  );
+
+  // ================================================
+  // OFFER / FIXED PRICE
+  // Broker -> Continue -> Deposit Payment
+  // ================================================
+
+  if (expectDeposit) {
     await expect(
       this.continueButton,
       "Continue button should be visible after broker selection"
@@ -249,7 +271,48 @@ class SettlementPage {
     ).toBeVisible({
       timeout: 20_000,
     });
+
+    console.log(
+      "Broker completed -> Deposit Payment opened"
+    );
+
+    return;
   }
+
+  // ================================================
+  // AUCTION FLOW 3 / FLOW 4
+  // Deposit already paid
+  // Broker -> Complete Setup
+  // ================================================
+
+  const completeSetupButton =
+    this.page.getByRole("button", {
+      name: "Complete Setup",
+      exact: true,
+    });
+
+  await expect(
+    completeSetupButton,
+    "Complete Setup button should be visible after broker selection"
+  ).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await expect(
+    completeSetupButton,
+    "Complete Setup button should be enabled"
+  ).toBeEnabled({
+    timeout: 20_000,
+  });
+
+  await completeSetupButton.click();
+
+  console.log(
+    "Auction Complete Setup clicked"
+  );
+
+  await this.page.waitForTimeout(700);
+}
 
   // =====================================================
   // OLD COMMON PAYMENT FRAME
@@ -1084,6 +1147,101 @@ class SettlementPage {
   }
 
   // =====================================================
+  // AUCTION POST-PAYMENT CONTINUE
+  //
+  // Auction order:
+  // Payment Successful
+  // -> Continue
+  // -> Personal Details
+  // -> Continue
+  // -> Solicitor
+  // -> Broker
+  // =====================================================
+
+  async continueAfterAuctionPayment() {
+    console.log(
+      "Waiting for Auction Payment Successful before Continue..."
+    );
+
+    await this.verifyAuctionPaymentSuccessful();
+
+    await expect(
+      this.continueButton,
+      "Continue button should be visible after Auction payment"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expect(
+      this.continueButton,
+      "Continue button should be enabled after Auction payment"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
+
+    await this.continueButton.click();
+
+    console.log(
+      "Auction payment Continue clicked"
+    );
+
+    const personalDetails = this.page
+      .getByText("Personal Details", {
+        exact: true,
+      })
+      .first();
+
+    await expect(
+      personalDetails,
+      "Personal Details should open after Auction payment Continue"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+  }
+
+  async continueAuctionPersonalDetails() {
+    const personalDetails = this.page
+      .getByText("Personal Details", {
+        exact: true,
+      })
+      .first();
+
+    await expect(
+      personalDetails,
+      "Personal Details should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expect(
+      this.continueButton,
+      "Personal Details Continue button should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await expect(
+      this.continueButton,
+      "Personal Details Continue button should be enabled"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
+
+    await this.continueButton.click();
+
+    console.log(
+      "Auction Personal Details Continue clicked"
+    );
+
+    await expect(
+      this.solicitorHeading,
+      "Invite Your Solicitor should open after Personal Details"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+  }
+
+  // =====================================================
   // FIXED / OFFER PAYMENT SUCCESS
   // =====================================================
 
@@ -1102,16 +1260,68 @@ class SettlementPage {
     });
   }
 
-  // =====================================================
-  // COMPLETE SETTLEMENT
-  // =====================================================
 
   async completeSettlement() {
-    throw new Error(
-      "Complete Settlement locator is not configured yet. " +
-        "Add the final Complete Settlement button/page outerHTML."
-    );
+  const completeButton = this.page.getByRole("button", {
+    name: /Complete Settlement/i,
+  }).last();
+
+  await expect(
+    completeButton,
+    "Complete Settlement button should be visible"
+  ).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await expect(
+    completeButton,
+    "Complete Settlement button should be enabled"
+  ).toBeEnabled({
+    timeout: 20_000,
+  });
+
+  await completeButton.click();
+
+  // Support an optional confirmation modal without forcing one.
+  const dialog = this.page.getByRole("dialog").last();
+
+  if (await dialog.isVisible().catch(() => false)) {
+    const confirm = dialog.getByRole("button", {
+      name: /Confirm|Complete|Yes/i,
+    }).last();
+
+    if (await confirm.isVisible().catch(() => false)) {
+      await confirm.click();
+    }
   }
+
+  await this.page.waitForTimeout(700);
+}
+
+async verifySettlementCompleted(
+  expectedMessage = /Settlement Complete|Settlement Completed|Completed/i
+) {
+  const message = this.page
+    .getByText(expectedMessage)
+    .last();
+
+  if (await message.isVisible().catch(() => false)) {
+    await expect(message).toBeVisible();
+    return;
+  }
+
+  const completeButton = this.page.getByRole("button", {
+    name: /Complete Settlement/i,
+  }).last();
+
+  await expect(
+    completeButton,
+    "Complete Settlement button should disappear after completion"
+  ).not.toBeVisible({
+    timeout: 20_000,
+  });
+}
+
 }
 
 module.exports = {

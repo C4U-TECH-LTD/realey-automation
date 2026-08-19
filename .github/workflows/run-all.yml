@@ -1,4 +1,4 @@
-name: Run All - Fixed Price + Offer Price + Auction
+name: Run All - Flow 1 + Flow 2 +  Flow 3 + Flow 4 + Flow 5
 
 on:
   workflow_dispatch:
@@ -20,13 +20,13 @@ jobs:
   # =========================================================
 
   run-all:
-    name: Run Fixed Price + Offer Price + Auction
+    name: Run Fixed Price + Offer Price + Auction Flow 3 + Flow 4 + Flow 5
 
     runs-on: ubuntu-latest
 
-    # Auction includes waiting for the auction to end,
-    # so give the complete 3-flow run enough time.
-    timeout-minutes: 120
+    # Flow 3, Flow 4 and Flow 5 each include an Auction wait.
+    # Give the complete 5-flow run enough time.
+    timeout-minutes: 180
 
     env:
       # ===============================================
@@ -182,19 +182,51 @@ jobs:
           npx cucumber-js --tags "@offer-price"
 
       # =====================================================
-      # FLOW 3 - AUCTION
+      # FLOW 3 - AUCTION BIDDING & SETTLEMENT
       # =====================================================
 
-      - name: Run Flow 3 - Auction
-        id: auction-tests
+      - name: Run Flow 3 - Auction Bidding & Settlement
+        id: auction-flow3-tests
         continue-on-error: true
 
         run: |
           echo "============================================"
-          echo "STARTING FLOW 3 - AUCTION"
+          echo "STARTING FLOW 3 - AUCTION BIDDING & SETTLEMENT"
           echo "============================================"
 
-          npx cucumber-js --tags "@auction"
+          npx cucumber-js --tags "@auction and @bidding"
+
+      # =====================================================
+      # FLOW 4 - RESERVE NOT MET + COUNTER ACCEPTED + SETTLEMENT
+      # =====================================================
+
+      - name: Run Flow 4 - Reserve Not Met Counter Accepted Settlement
+        id: auction-flow4-tests
+        continue-on-error: true
+
+        run: |
+          echo "============================================"
+          echo "STARTING FLOW 4 - RESERVE NOT MET"
+          echo "COUNTER ACCEPTED + SETTLEMENT"
+          echo "============================================"
+
+          npx cucumber-js --tags "@reserve-not-met and @counter-offer and @settlement"
+
+      # =====================================================
+      # FLOW 5 - COUNTER REJECTED + RE-LIST FIXED PRICE
+      # =====================================================
+
+      - name: Run Flow 5 - Counter Rejected Re-list Fixed Price
+        id: auction-flow5-tests
+        continue-on-error: true
+
+        run: |
+          echo "============================================"
+          echo "STARTING FLOW 5 - COUNTER REJECTED"
+          echo "RE-LIST AS FIXED PRICE"
+          echo "============================================"
+
+          npx cucumber-js --tags "@counter-reject and @relist-fixed"
 
       # =====================================================
       # GENERATE COMBINED ALLURE REPORT
@@ -318,7 +350,7 @@ jobs:
           path: allure-report/
 
       # =====================================================
-      # DISPLAY ALL 3 RESULTS
+      # DISPLAY ALL 5 RESULTS
       # =====================================================
 
       - name: Display All Test Results
@@ -326,13 +358,15 @@ jobs:
 
         run: |
           echo ""
-          echo "============================================"
+          echo "============================================================"
           echo "REALEY ALL AUTOMATION RESULTS"
-          echo "============================================"
-          echo "Flow 1 - Fixed Price: ${{ steps.fixed-price-tests.outcome }}"
-          echo "Flow 2 - Offer Price: ${{ steps.offer-price-tests.outcome }}"
-          echo "Flow 3 - Auction:     ${{ steps.auction-tests.outcome }}"
-          echo "============================================"
+          echo "============================================================"
+          echo "Flow 1 - Fixed Price:                      ${{ steps.fixed-price-tests.outcome }}"
+          echo "Flow 2 - Offer Price:                      ${{ steps.offer-price-tests.outcome }}"
+          echo "Flow 3 - Auction Bidding & Settlement:     ${{ steps.auction-flow3-tests.outcome }}"
+          echo "Flow 4 - Reserve Not Met + Accepted:       ${{ steps.auction-flow4-tests.outcome }}"
+          echo "Flow 5 - Counter Rejected + Re-list Fixed: ${{ steps.auction-flow5-tests.outcome }}"
+          echo "============================================================"
 
       # =====================================================
       # GITHUB JOB SUMMARY
@@ -349,7 +383,9 @@ jobs:
           echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Flow 1 - Fixed Price | ${{ steps.fixed-price-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Flow 2 - Offer Price | ${{ steps.offer-price-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Flow 3 - Auction | ${{ steps.auction-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Flow 3 - Auction Bidding & Settlement | ${{ steps.auction-flow3-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Flow 4 - Reserve Not Met + Counter Accepted + Settlement | ${{ steps.auction-flow4-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Flow 5 - Counter Rejected + Re-list Fixed Price | ${{ steps.auction-flow5-tests.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
 
       # =====================================================
       # FAIL JOB IF ANY FLOW FAILED
@@ -359,17 +395,19 @@ jobs:
         if: |
           steps.fixed-price-tests.outcome == 'failure' ||
           steps.offer-price-tests.outcome == 'failure' ||
-          steps.auction-tests.outcome == 'failure'
+          steps.auction-flow3-tests.outcome == 'failure' ||
+          steps.auction-flow4-tests.outcome == 'failure' ||
+          steps.auction-flow5-tests.outcome == 'failure'
 
         run: |
-          echo "============================================"
+          echo "============================================================"
           echo "ONE OR MORE AUTOMATION FLOWS FAILED"
-          echo "============================================"
-
-          echo "Fixed Price: ${{ steps.fixed-price-tests.outcome }}"
-          echo "Offer Price: ${{ steps.offer-price-tests.outcome }}"
-          echo "Auction:     ${{ steps.auction-tests.outcome }}"
-
+          echo "============================================================"
+          echo "Flow 1 - Fixed Price:                      ${{ steps.fixed-price-tests.outcome }}"
+          echo "Flow 2 - Offer Price:                      ${{ steps.offer-price-tests.outcome }}"
+          echo "Flow 3 - Auction Bidding & Settlement:     ${{ steps.auction-flow3-tests.outcome }}"
+          echo "Flow 4 - Reserve Not Met + Accepted:       ${{ steps.auction-flow4-tests.outcome }}"
+          echo "Flow 5 - Counter Rejected + Re-list Fixed: ${{ steps.auction-flow5-tests.outcome }}"
           exit 1
 
 
@@ -429,6 +467,10 @@ jobs:
 
           echo "- Flow 3 - Auction Bidding & Settlement" >> "$GITHUB_STEP_SUMMARY"
 
+          echo "- Flow 4 - Reserve Not Met + Counter Accepted + Settlement" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Flow 5 - Counter Rejected + Re-list as Fixed Price" >> "$GITHUB_STEP_SUMMARY"
+
           echo "- Step screenshots" >> "$GITHUB_STEP_SUMMARY"
 
           echo "- Recorded Playwright scenario videos" >> "$GITHUB_STEP_SUMMARY"
@@ -459,4 +501,6 @@ jobs:
           echo "Flow 1: Fixed Price"
           echo "Flow 2: Offer Price"
           echo "Flow 3: Auction Bidding & Settlement"
+          echo "Flow 4: Reserve Not Met + Counter Accepted + Settlement"
+          echo "Flow 5: Counter Rejected + Re-list as Fixed Price"
           echo "============================================"
