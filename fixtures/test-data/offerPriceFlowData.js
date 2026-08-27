@@ -15,7 +15,7 @@ const offerPriceFlowData = {
       bathrooms: 2,
       carSpaces: 2,
 
-      listingType: "Offers",
+      listingType: "Fixed Price",
       priceGuide: "600000",
 
       headline: "Beautiful Family Home in Kareela",

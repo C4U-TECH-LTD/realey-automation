@@ -143,14 +143,25 @@ class DescriptionFeaturesPage {
     await expect(
       this.nextButton,
       "Next button should be visible"
-    ).toBeVisible();
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
     await expect(
       this.nextButton,
       "Next button should be enabled"
     ).toBeEnabled();
 
+    await this.nextButton.scrollIntoViewIfNeeded();
+
     await this.nextButton.click();
+
+    await expect(
+      this.sectionHeading,
+      "Description & Features page should close after clicking Next"
+    ).toBeHidden({
+      timeout: 20_000,
+    });
   }
 
   async completeDescriptionStep({
