@@ -1,4 +1,4 @@
-name: Flow 2-Offer Price-Counter Offer Negotiation & Settlement Completion
+name: Flow 2-Fixed Price-Counter Offer Negotiation & Settlement Completion
 
 on:
   workflow_dispatch:
