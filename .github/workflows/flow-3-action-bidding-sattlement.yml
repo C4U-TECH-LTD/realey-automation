@@ -1,4 +1,4 @@
-name: Flow 3-Auction-Bidding & Settlement Completion
+name: Flow 3-Auction Bidding & Settlement Completion
 
 on:
   workflow_dispatch:
@@ -10,22 +10,19 @@ permissions:
   actions: read
 
 concurrency:
-  group: realey-auction
+  group: realey-auction-bidding
   cancel-in-progress: false
 
 jobs:
   # =========================================================
-  # RUN AUCTION TEST
+  # RUN AUCTION BIDDING TEST
   # =========================================================
 
-  run-auction:
-    name: Run Auction Test
+  run-auction-bidding:
+    name: Run Auction Bidding Test
 
     runs-on: ubuntu-latest
 
-    # Auction itself can wait around 15 minutes,
-    # plus listing, two buyers, registration, bidding,
-    # settlement, reports and CI overhead.
     timeout-minutes: 60
 
     env:
@@ -145,6 +142,48 @@ jobs:
           google-chrome --version
 
       # =====================================================
+      # VERIFY REQUIRED SECRETS
+      # Does not print secret values
+      # =====================================================
+
+      - name: Verify Auction environment variables
+        run: |
+          node -e "
+          const required = [
+            'BASE_URL',
+            'AGENT_EMAIL',
+            'AGENT_PASSWORD',
+            'AGENT_OTP',
+            'GENERAL_USER_EMAIL',
+            'GENERAL_USER_PASSWORD',
+            'GENERAL_USER_OTP',
+            'AUCTION_BUYER_2_EMAIL',
+            'AUCTION_BUYER_2_PASSWORD',
+            'AUCTION_BUYER_2_OTP',
+            'TEST_CARD_NUMBER',
+            'TEST_CARD_EXPIRY',
+            'TEST_CARD_CVC'
+          ];
+
+          const missing = required.filter(
+            key => !process.env[key]
+          );
+
+          if (missing.length) {
+            console.error(
+              'Missing required GitHub Secrets:',
+              missing.join(', ')
+            );
+
+            process.exit(1);
+          }
+
+          console.log(
+            'All required Auction secrets are configured.'
+          );
+          "
+
+      # =====================================================
       # CLEAN OLD OUTPUT
       # =====================================================
 
@@ -161,16 +200,18 @@ jobs:
           rm -rf videos
 
       # =====================================================
-      # RUN ONLY AUCTION FLOW
+      # RUN ONLY FLOW 3
+      # @e2e @auction @bidding
       # =====================================================
 
-      - name: Run Auction Cucumber Test
+      - name: Run Auction Bidding Cucumber Test
         id: cucumber-tests
 
         continue-on-error: true
 
         run: |
-          npx cucumber-js --tags "@auction"
+          npx cucumber-js \
+            --tags "@e2e and @auction and @bidding"
 
       # =====================================================
       # GENERATE ALLURE REPORT
@@ -211,7 +252,7 @@ jobs:
         uses: actions/upload-artifact@v4
 
         with:
-          name: auction-cucumber-report
+          name: auction-bidding-cucumber-report
 
           path: reports/cucumber/
 
@@ -229,7 +270,7 @@ jobs:
         uses: actions/upload-artifact@v4
 
         with:
-          name: auction-allure-results
+          name: auction-bidding-allure-results
 
           path: allure-results/
 
@@ -247,7 +288,7 @@ jobs:
         uses: actions/upload-artifact@v4
 
         with:
-          name: auction-allure-html-report
+          name: auction-bidding-allure-html-report
 
           path: allure-report/
 
@@ -265,7 +306,7 @@ jobs:
         uses: actions/upload-artifact@v4
 
         with:
-          name: auction-cucumber-screenshots
+          name: auction-bidding-cucumber-screenshots
 
           path: screenshots/cucumber/
 
@@ -283,7 +324,7 @@ jobs:
         uses: actions/upload-artifact@v4
 
         with:
-          name: auction-cucumber-videos
+          name: auction-bidding-cucumber-videos
 
           path: videos/cucumber/
 
@@ -312,14 +353,15 @@ jobs:
       # DISPLAY TEST RESULT
       # =====================================================
 
-      - name: Display Auction Test Result
+      - name: Display Auction Bidding Test Result
         if: always()
 
         run: |
           echo ""
           echo "============================================"
-          echo "REALEY AUCTION AUTOMATION"
+          echo "REALEY AUCTION BIDDING AUTOMATION"
           echo "============================================"
+          echo "Tags: @e2e @auction @bidding"
           echo "Result: ${{ steps.cucumber-tests.outcome }}"
           echo "============================================"
 
@@ -327,11 +369,11 @@ jobs:
       # FAIL TEST JOB IF CUCUMBER FAILED
       # =====================================================
 
-      - name: Fail Job If Auction Test Failed
+      - name: Fail Job If Auction Bidding Test Failed
         if: steps.cucumber-tests.outcome == 'failure'
 
         run: |
-          echo "Auction Cucumber test failed."
+          echo "Auction Bidding Cucumber test failed."
 
           exit 1
 
@@ -341,12 +383,12 @@ jobs:
   # =========================================================
 
   deploy-allure:
-    name: Publish Auction Allure Report
+    name: Publish Auction Bidding Allure Report
 
     if: always()
 
     needs:
-      - run-auction
+      - run-auction-bidding
 
     runs-on: ubuntu-latest
 
@@ -370,14 +412,14 @@ jobs:
         run: |
           echo ""
           echo "============================================"
-          echo "AUCTION ALLURE REPORT"
+          echo "AUCTION BIDDING ALLURE REPORT"
           echo "============================================"
           echo "${{ steps.deployment.outputs.page_url }}"
           echo "============================================"
 
       - name: Add Allure Link To Job Summary
         run: |
-          echo "## 📊 Realey Auction Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 📊 Realey Auction Bidding Allure Report" >> "$GITHUB_STEP_SUMMARY"
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -387,15 +429,19 @@ jobs:
 
           echo "Report includes:" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Auction Cucumber scenario results" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Auction listing creation" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Buyer 1 bidder registration and bid" >> "$GITHUB_STEP_SUMMARY"
+          echo "- First bidder registration and bid" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Buyer 2 bidder registration and winning bid" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Second bidder registration and winning bid" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Auction end wait" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Auction completion" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Winning buyer settlement payment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Winning bidder settlement" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Deposit payment" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Solicitor and mortgage broker selection" >> "$GITHUB_STEP_SUMMARY"
 
           echo "- Step screenshots" >> "$GITHUB_STEP_SUMMARY"
 
@@ -407,12 +453,12 @@ jobs:
   # =========================================================
 
   final-status:
-    name: Final Auction Test Status
+    name: Final Auction Bidding Test Status
 
     if: always()
 
     needs:
-      - run-auction
+      - run-auction-bidding
       - deploy-allure
 
     runs-on: ubuntu-latest
@@ -420,4 +466,4 @@ jobs:
     steps:
       - name: Workflow Summary
         run: |
-          echo "Auction automation workflow completed."
+          echo "Auction Bidding automation workflow completed."
