@@ -65,17 +65,26 @@ class BidderRegisterPage {
     );
 
     // =====================================================
-    // PREVIEW + SAVE
+    // PREVIEW
     // =====================================================
     this.previewButton = page.getByRole("button", {
       name: "Preview",
       exact: true,
     });
 
-    this.saveButton = page.getByRole("button", {
-      name: "Save",
-      exact: true,
-    });
+    // =====================================================
+    // SAVE / SUBMIT / CONFIRM
+    //
+    // Do not depend only on exact "Save".
+    // Developer UI text may change.
+    // =====================================================
+    this.saveButton = page
+      .getByRole("button")
+      .filter({
+        hasText:
+          /save|submit|confirm|complete registration/i,
+      })
+      .last();
   }
 
   // =====================================================
@@ -105,10 +114,12 @@ class BidderRegisterPage {
     const context = this.page.context();
 
     const sourcePage = this.page;
+
     const [registrationTab] = await Promise.all([
       context.waitForEvent("page", {
         timeout: 20_000,
       }),
+
       this.registerToBidButton.click(),
     ]);
 
@@ -116,24 +127,33 @@ class BidderRegisterPage {
       "domcontentloaded"
     );
 
-    const registrationUrl = registrationTab.url();
+    const registrationUrl =
+      registrationTab.url();
 
-    // Playwright records one video per page. Continue the registration on the
-    // original scenario page, in the same context, so the single scenario video
-    // contains the complete Agent/Buyer journey instead of being split by tabs.
+    // -----------------------------------------------------
+    // Playwright records one video per page.
+    //
+    // Continue registration on original scenario page so
+    // the complete Agent/Buyer journey stays in one video.
+    // -----------------------------------------------------
     await registrationTab.close();
+
     await sourcePage.goto(registrationUrl, {
       waitUntil: "domcontentloaded",
       timeout: 30_000,
     });
+
     await sourcePage.bringToFront();
+
     this.setPage(sourcePage);
 
     console.log(
       `Auction registration opened on scenario page: ${this.page.url()}`
     );
 
-    // Verify we are on auction registration URL
+    // -----------------------------------------------------
+    // VERIFY AUCTION REGISTRATION URL
+    // -----------------------------------------------------
     await expect
       .poll(
         () => this.page.url(),
@@ -143,7 +163,9 @@ class BidderRegisterPage {
           timeout: 20_000,
         }
       )
-      .toMatch(/\/auction\/.*\/register\?token=/i);
+      .toMatch(
+        /\/auction\/.*\/register\?token=/i
+      );
 
     // -----------------------------------------------------
     // SECOND REGISTER TO BID
@@ -170,7 +192,9 @@ class BidderRegisterPage {
       "Second Register to Bid clicked"
     );
 
-    // Wait for actual bidder registration form
+    // -----------------------------------------------------
+    // WAIT FOR ACTUAL BIDDER REGISTRATION FORM
+    // -----------------------------------------------------
     await expect(
       this.contractOfSaleButton,
       "Contract of Sale should be visible on bidder registration form"
@@ -372,6 +396,7 @@ class BidderRegisterPage {
       Math.min(55, box.height * 0.5);
 
     const width = 32;
+
     const gap = 22;
 
     // =================================================
@@ -434,94 +459,92 @@ class BidderRegisterPage {
     );
   }
 
-
   // =====================================================
-// DRAW "PAL" WITH MOUSE
-// =====================================================
-async drawPalSignature() {
-  await expect(
-    this.signatureCanvas,
-    "Bidder Signature canvas should be visible"
-  ).toBeVisible({
-    timeout: 20_000,
-  });
+  // DRAW "PAL" WITH MOUSE
+  // =====================================================
+  async drawPalSignature() {
+    await expect(
+      this.signatureCanvas,
+      "Bidder Signature canvas should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
-  await this.signatureCanvas.scrollIntoViewIfNeeded();
+    await this.signatureCanvas
+      .scrollIntoViewIfNeeded();
 
-  const box =
-    await this.signatureCanvas.boundingBox();
+    const box =
+      await this.signatureCanvas.boundingBox();
 
-  if (!box) {
-    throw new Error(
-      "Unable to get Bidder Signature canvas position."
+    if (!box) {
+      throw new Error(
+        "Unable to get Bidder Signature canvas position."
+      );
+    }
+
+    console.log(
+      'Drawing bidder signature "PAL"...'
+    );
+
+    const startX =
+      box.x + Math.min(80, box.width * 0.08);
+
+    const centerY =
+      box.y + box.height / 2;
+
+    const height =
+      Math.min(55, box.height * 0.5);
+
+    const width = 32;
+
+    const gap = 22;
+
+    let x = startX;
+
+    // =================================================
+    // P
+    // =================================================
+    await this.drawStroke([
+      [x, centerY + height / 2],
+      [x, centerY - height / 2],
+      [x + width - 8, centerY - height / 2],
+      [x + width, centerY - height / 3],
+      [x + width, centerY - 5],
+      [x + width - 8, centerY],
+      [x, centerY],
+    ]);
+
+    // =================================================
+    // A
+    // =================================================
+    x += width + gap;
+
+    await this.drawStroke([
+      [x, centerY + height / 2],
+      [x + width / 2, centerY - height / 2],
+      [x + width, centerY + height / 2],
+    ]);
+
+    await this.drawStroke([
+      [x + 7, centerY + 5],
+      [x + width - 7, centerY + 5],
+    ]);
+
+    // =================================================
+    // L
+    // =================================================
+    x += width + gap;
+
+    await this.drawStroke([
+      [x, centerY - height / 2],
+      [x, centerY + height / 2],
+      [x + width, centerY + height / 2],
+    ]);
+
+    console.log(
+      'Bidder signature "PAL" completed'
     );
   }
-
-  console.log(
-    'Drawing bidder signature "PAL"...'
-  );
-
-  const startX =
-    box.x + Math.min(80, box.width * 0.08);
-
-  const centerY =
-    box.y + box.height / 2;
-
-  const height =
-    Math.min(55, box.height * 0.5);
-
-  const width = 32;
-  const gap = 22;
-
-  let x = startX;
-
-  // =================================================
-  // P
-  // =================================================
-
-  await this.drawStroke([
-    [x, centerY + height / 2],
-    [x, centerY - height / 2],
-    [x + width - 8, centerY - height / 2],
-    [x + width, centerY - height / 3],
-    [x + width, centerY - 5],
-    [x + width - 8, centerY],
-    [x, centerY],
-  ]);
-
-  // =================================================
-  // A
-  // =================================================
-
-  x += width + gap;
-
-  await this.drawStroke([
-    [x, centerY + height / 2],
-    [x + width / 2, centerY - height / 2],
-    [x + width, centerY + height / 2],
-  ]);
-
-  await this.drawStroke([
-    [x + 7, centerY + 5],
-    [x + width - 7, centerY + 5],
-  ]);
-
-  // =================================================
-  // L
-  // =================================================
-
-  x += width + gap;
-
-  await this.drawStroke([
-    [x, centerY - height / 2],
-    [x, centerY + height / 2],
-    [x + width, centerY + height / 2],
-  ]);
-
-  console.log(
-    'Bidder signature "PAL" completed'
-  );
-}
 
   // =====================================================
   // PRIVACY POLICY
@@ -546,6 +569,61 @@ async drawPalSignature() {
   }
 
   // =====================================================
+  // HELPER: FIND PREVIEW ACTION BUTTON
+  // =====================================================
+  getPreviewActionButton() {
+    return this.page
+      .getByRole("button")
+      .filter({
+        hasText:
+          /save|submit|confirm|complete registration/i,
+      })
+      .last();
+  }
+
+  // =====================================================
+  // HELPER: PRINT VISIBLE BUTTONS
+  // =====================================================
+  async printVisibleButtons() {
+    const buttons =
+      this.page.getByRole("button");
+
+    const count =
+      await buttons.count();
+
+    console.log(
+      `Total buttons found: ${count}`
+    );
+
+    for (
+      let index = 0;
+      index < count;
+      index += 1
+    ) {
+      const button =
+        buttons.nth(index);
+
+      const visible =
+        await button
+          .isVisible()
+          .catch(() => false);
+
+      if (!visible) {
+        continue;
+      }
+
+      const text =
+        await button
+          .innerText()
+          .catch(() => "");
+
+      console.log(
+        `Visible button ${index + 1}: "${text.trim()}"`
+      );
+    }
+  }
+
+  // =====================================================
   // PREVIEW
   // SAME TAB
   // =====================================================
@@ -560,157 +638,347 @@ async drawPalSignature() {
     await expect(
       this.previewButton,
       "Preview button should be enabled"
-    ).toBeEnabled();
-
-    console.log("Clicking Preview...");
-
-    await this.previewButton.click();
-
-    // Wait until Preview screen is ready
-    await expect(
-      this.saveButton,
-      "Save button should appear on Preview screen"
-    ).toBeVisible({
+    ).toBeEnabled({
       timeout: 20_000,
     });
 
+    await this.previewButton
+      .scrollIntoViewIfNeeded();
+
     console.log(
-      "Bidder registration Preview opened"
+      "Clicking Preview..."
     );
+
+    await this.previewButton.click();
+
+    console.log(
+      "Preview clicked"
+    );
+
+    // -----------------------------------------------------
+    // Give React/UI time to render Preview
+    // -----------------------------------------------------
+    await this.page.waitForTimeout(1000);
+
+    console.log(
+      "Current URL after Preview:",
+      this.page.url()
+    );
+
+    // -----------------------------------------------------
+    // IMPORTANT:
+    //
+    // Re-create locator after Preview because the DOM may
+    // have changed completely.
+    // -----------------------------------------------------
+    const previewActionButton =
+      this.getPreviewActionButton();
+
+    try {
+      await expect(
+        previewActionButton,
+        "Save/Submit/Confirm button should appear on Preview screen"
+      ).toBeVisible({
+        timeout: 20_000,
+      });
+
+      await expect(
+        previewActionButton,
+        "Preview action button should be enabled"
+      ).toBeEnabled({
+        timeout: 10_000,
+      });
+
+      // Store actual working locator.
+      this.saveButton =
+        previewActionButton;
+
+      const actionText =
+        await previewActionButton
+          .innerText()
+          .catch(() => "");
+
+      console.log(
+        "Bidder registration Preview opened"
+      );
+
+      console.log(
+        `Preview action button found: "${actionText.trim()}"`
+      );
+    } catch (error) {
+      console.log(
+        "====================================================="
+      );
+
+      console.log(
+        "PREVIEW DEBUG INFORMATION"
+      );
+
+      console.log(
+        "====================================================="
+      );
+
+      console.log(
+        "Preview opened but Save/Submit/Confirm button was not detected."
+      );
+
+      console.log(
+        "Current URL:",
+        this.page.url()
+      );
+
+      // ---------------------------------------------------
+      // Print every visible button.
+      // This will tell us the developer's current text.
+      // ---------------------------------------------------
+      await this.printVisibleButtons();
+
+      // ---------------------------------------------------
+      // Print page text.
+      // ---------------------------------------------------
+      const bodyText =
+        await this.page
+          .locator("body")
+          .innerText()
+          .catch(() => "");
+
+      console.log(
+        "====================================================="
+      );
+
+      console.log(
+        "PREVIEW PAGE TEXT"
+      );
+
+      console.log(
+        "====================================================="
+      );
+
+      console.log(
+        bodyText.substring(0, 3000)
+      );
+
+      console.log(
+        "====================================================="
+      );
+
+      throw error;
+    }
   }
 
   // =====================================================
-  // SAVE
+  // SAVE REGISTRATION
   // =====================================================
- async saveRegistration() {
-  await expect(
-    this.saveButton,
-    "Save button should be visible"
-  ).toBeVisible({
-    timeout: 20_000,
-  });
+  async saveRegistration() {
+    let saveButton =
+      this.saveButton;
 
-  await expect(
-    this.saveButton,
-    "Save button should be enabled"
-  ).toBeEnabled();
+    // -----------------------------------------------------
+    // Verify stored locator is still available.
+    // Preview UI may re-render.
+    // -----------------------------------------------------
+    let saveButtonVisible = false;
 
-  console.log(
-    "Clicking bidder registration Save..."
-  );
+    if (saveButton) {
+      saveButtonVisible =
+        await saveButton
+          .isVisible()
+          .catch(() => false);
+    }
 
-  await this.saveButton.click();
+    // -----------------------------------------------------
+    // Find button again if necessary.
+    // -----------------------------------------------------
+    if (!saveButtonVisible) {
+      console.log(
+        "Stored Save button locator is not visible. Searching again..."
+      );
 
-  console.log(
-    "Bidder registration Save clicked successfully"
-  );
+      saveButton =
+        this.getPreviewActionButton();
+    }
 
-  // Do NOT wait for the bid input here.
-  // Buyer 1 and Buyer 2 can have different UI timing/state
-  // after registration.
-  await this.page.waitForTimeout(1500);
+    try {
+      await expect(
+        saveButton,
+        "Bidder registration Save/Submit/Confirm button should be visible"
+      ).toBeVisible({
+        timeout: 20_000,
+      });
 
-  console.log(
-    "Current page after bidder registration Save:",
-    this.page.url()
-  );
-}
+      await expect(
+        saveButton,
+        "Bidder registration Save/Submit/Confirm button should be enabled"
+      ).toBeEnabled({
+        timeout: 20_000,
+      });
+    } catch (error) {
+      console.log(
+        "Unable to find registration Save/Submit/Confirm button."
+      );
+
+      console.log(
+        "Current URL:",
+        this.page.url()
+      );
+
+      await this.printVisibleButtons();
+
+      throw error;
+    }
+
+    await saveButton
+      .scrollIntoViewIfNeeded();
+
+    const buttonText =
+      await saveButton
+        .innerText()
+        .catch(() => "");
+
+    console.log(
+      `Clicking bidder registration action: "${buttonText.trim()}"`
+    );
+
+    await saveButton.click();
+
+    console.log(
+      "Bidder registration action clicked successfully"
+    );
+
+    // -----------------------------------------------------
+    // Do NOT wait for bid input here.
+    //
+    // Buyer 1 and Buyer 2 can have different UI timing/state
+    // after registration.
+    // -----------------------------------------------------
+    await this.page.waitForTimeout(1500);
+
+    console.log(
+      "Current page after bidder registration:",
+      this.page.url()
+    );
+  }
 
   // =====================================================
   // COMPLETE BIDDER REGISTRATION
   // =====================================================
-async registerAsBidder(
-  signatureName = "SIAM",
-  screenshot = null
-) {
-  console.log(
-    "===== BIDDER REGISTRATION START ====="
-  );
-
-  await this.openRegistration();
-
-  if (screenshot) {
-    await screenshot(
-      "Bidder - Registration Form Opened",
-      this.page
-    );
-  }
-
-  await this.acceptContractOfSale();
-
-  if (screenshot) {
-    await screenshot(
-      "Bidder - Contract Of Sale Accepted",
-      this.page
-    );
-  }
-
-  await this.acceptAuctionTerms();
-
-  if (screenshot) {
-    await screenshot(
-      "Bidder - Auction Terms Accepted",
-      this.page
-    );
-  }
-
-  await this.acceptSuccessfulBidderTerms();
-
-  if (screenshot) {
-    await screenshot(
-      "Bidder - Successful Bidder Terms Accepted",
-      this.page
-    );
-  }
-
-  if (
-    String(signatureName).toUpperCase() === "PAL"
+  async registerAsBidder(
+    signatureName = "SIAM",
+    screenshot = null
   ) {
-    await this.drawPalSignature();
-  } else {
-    await this.drawSiamSignature();
-  }
-
-  if (screenshot) {
-    await screenshot(
-      `Bidder - ${signatureName} Signature`,
-      this.page
+    console.log(
+      "===== BIDDER REGISTRATION START ====="
     );
-  }
 
-  await this.acceptPrivacyPolicy();
+    // =====================================================
+    // OPEN REGISTRATION
+    // =====================================================
+    await this.openRegistration();
 
-  if (screenshot) {
-    await screenshot(
-      "Bidder - Privacy Policy Accepted",
-      this.page
+    if (screenshot) {
+      await screenshot(
+        "Bidder - Registration Form Opened",
+        this.page
+      );
+    }
+
+    // =====================================================
+    // CONTRACT OF SALE
+    // =====================================================
+    await this.acceptContractOfSale();
+
+    if (screenshot) {
+      await screenshot(
+        "Bidder - Contract Of Sale Accepted",
+        this.page
+      );
+    }
+
+    // =====================================================
+    // AUCTION TERMS
+    // =====================================================
+    await this.acceptAuctionTerms();
+
+    if (screenshot) {
+      await screenshot(
+        "Bidder - Auction Terms Accepted",
+        this.page
+      );
+    }
+
+    // =====================================================
+    // SUCCESSFUL BIDDER TERMS
+    // =====================================================
+    await this.acceptSuccessfulBidderTerms();
+
+    if (screenshot) {
+      await screenshot(
+        "Bidder - Successful Bidder Terms Accepted",
+        this.page
+      );
+    }
+
+    // =====================================================
+    // SIGNATURE
+    // =====================================================
+    if (
+      String(signatureName).toUpperCase() ===
+      "PAL"
+    ) {
+      await this.drawPalSignature();
+    } else {
+      await this.drawSiamSignature();
+    }
+
+    if (screenshot) {
+      await screenshot(
+        `Bidder - ${signatureName} Signature`,
+        this.page
+      );
+    }
+
+    // =====================================================
+    // PRIVACY POLICY
+    // =====================================================
+    await this.acceptPrivacyPolicy();
+
+    if (screenshot) {
+      await screenshot(
+        "Bidder - Privacy Policy Accepted",
+        this.page
+      );
+    }
+
+    // =====================================================
+    // PREVIEW
+    // =====================================================
+    await this.openPreview();
+
+    if (screenshot) {
+      await screenshot(
+        "Bidder - Registration Preview",
+        this.page
+      );
+    }
+
+    // =====================================================
+    // SAVE
+    // =====================================================
+    await this.saveRegistration();
+
+    if (screenshot) {
+      await screenshot(
+        "Bidder - Registration Saved",
+        this.page
+      );
+    }
+
+    console.log(
+      "===== BIDDER REGISTRATION COMPLETED ====="
     );
+
+    return this.page;
   }
-
-  await this.openPreview();
-
-  if (screenshot) {
-    await screenshot(
-      "Bidder - Registration Preview",
-      this.page
-    );
-  }
-
-  await this.saveRegistration();
-
-  if (screenshot) {
-    await screenshot(
-      "Bidder - Registration Saved",
-      this.page
-    );
-  }
-
-  console.log(
-    "===== BIDDER REGISTRATION COMPLETED ====="
-  );
-
-  return this.page;
-}
 }
 
 module.exports = {
