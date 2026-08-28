@@ -142,48 +142,6 @@ jobs:
           google-chrome --version
 
       # =====================================================
-      # VERIFY REQUIRED SECRETS
-      # Does not print secret values
-      # =====================================================
-
-      - name: Verify Auction environment variables
-        run: |
-          node -e "
-          const required = [
-            'BASE_URL',
-            'AGENT_EMAIL',
-            'AGENT_PASSWORD',
-            'AGENT_OTP',
-            'GENERAL_USER_EMAIL',
-            'GENERAL_USER_PASSWORD',
-            'GENERAL_USER_OTP',
-            'AUCTION_BUYER_2_EMAIL',
-            'AUCTION_BUYER_2_PASSWORD',
-            'AUCTION_BUYER_2_OTP',
-            'TEST_CARD_NUMBER',
-            'TEST_CARD_EXPIRY',
-            'TEST_CARD_CVC'
-          ];
-
-          const missing = required.filter(
-            key => !process.env[key]
-          );
-
-          if (missing.length) {
-            console.error(
-              'Missing required GitHub Secrets:',
-              missing.join(', ')
-            );
-
-            process.exit(1);
-          }
-
-          console.log(
-            'All required Auction secrets are configured.'
-          );
-          "
-
-      # =====================================================
       # CLEAN OLD OUTPUT
       # =====================================================
 
@@ -200,7 +158,7 @@ jobs:
           rm -rf videos
 
       # =====================================================
-      # RUN ONLY FLOW 3
+      # RUN ONLY AUCTION BIDDING
       # @e2e @auction @bidding
       # =====================================================
 
@@ -210,8 +168,7 @@ jobs:
         continue-on-error: true
 
         run: |
-          npx cucumber-js \
-            --tags "@e2e and @auction and @bidding"
+          npx cucumber-js --tags "@e2e and @auction and @bidding"
 
       # =====================================================
       # GENERATE ALLURE REPORT
@@ -431,17 +388,23 @@ jobs:
 
           echo "- Auction listing creation" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- First bidder registration and bid" >> "$GITHUB_STEP_SUMMARY"
+          echo "- First Auction Buyer registration" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Second bidder registration and winning bid" >> "$GITHUB_STEP_SUMMARY"
+          echo "- First Auction Buyer bid" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Second Auction Buyer registration" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Second Auction Buyer winning bid" >> "$GITHUB_STEP_SUMMARY"
 
           echo "- Auction completion" >> "$GITHUB_STEP_SUMMARY"
 
           echo "- Winning bidder settlement" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Deposit payment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Auction deposit payment" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "- Solicitor and mortgage broker selection" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Solicitor selection" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Mortgage broker selection" >> "$GITHUB_STEP_SUMMARY"
 
           echo "- Step screenshots" >> "$GITHUB_STEP_SUMMARY"
 
