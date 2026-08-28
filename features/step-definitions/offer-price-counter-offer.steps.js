@@ -6,15 +6,11 @@ const {
 
 const {
   loginData,
-} = require(
-  "../../fixtures/test-data/loginData"
-);
+} = require("../../fixtures/test-data/loginData");
 
 const {
   offerPriceFlowData,
-} = require(
-  "../../fixtures/test-data/offerPriceFlowData"
-);
+} = require("../../fixtures/test-data/offerPriceFlowData");
 
 // =====================================================
 // HELPERS
@@ -89,6 +85,7 @@ When(
     // -------------------------------------------------
     // Property Location
     // -------------------------------------------------
+
     await this.propertyLocationPage
       .waitForPage();
 
@@ -106,6 +103,7 @@ When(
     // -------------------------------------------------
     // Property Details
     // -------------------------------------------------
+
     await this.propertyDetailsPage
       .waitForPage();
 
@@ -123,6 +121,7 @@ When(
     // -------------------------------------------------
     // Pricing & Sale
     // -------------------------------------------------
+
     await this.pricingSalePage
       .waitForPage();
 
@@ -142,6 +141,7 @@ When(
     // -------------------------------------------------
     // Description & Features
     // -------------------------------------------------
+
     await this.descriptionFeaturesPage
       .waitForPage();
 
@@ -166,6 +166,7 @@ When(
     // -------------------------------------------------
     // Listing Media
     // -------------------------------------------------
+
     await this.listingMediaPage
       .waitForPage();
 
@@ -208,8 +209,6 @@ Then(
 
 // =====================================================
 // SWITCH AGENT -> GENERAL USER
-// Unique text is used so it does not collide with the
-// existing Fixed Price step definition.
 // =====================================================
 
 When(
@@ -333,7 +332,10 @@ When(
   "the General User opens the Agent conversation",
   async function () {
     await this.conversationsPage
-      .openAgentConversation();
+      .openAgentConversation(
+        offerPriceFlowData.agent.listing
+          .expectedPropertyName
+      );
   }
 );
 
@@ -383,7 +385,10 @@ When(
   "the Agent opens the Buyer conversation",
   async function () {
     await this.conversationsPage
-      .openBuyerConversation();
+      .openBuyerConversation(
+        offerPriceFlowData.agent.listing
+          .expectedPropertyName
+      );
   }
 );
 
