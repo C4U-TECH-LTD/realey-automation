@@ -75,16 +75,12 @@ class BidderRegisterPage {
     // =====================================================
     // SAVE / SUBMIT / CONFIRM
     //
-    // Do not depend only on exact "Save".
-    // Developer UI text may change.
+    // Exact locator based on the current Preview DOM.
     // =====================================================
-    this.saveButton = page
-      .getByRole("button")
-      .filter({
-        hasText:
-          /save|submit|confirm|complete registration/i,
-      })
-      .last();
+    this.saveButton = page.getByRole("button", {
+      name: "Save",
+      exact: true,
+    });
   }
 
   // =====================================================
@@ -930,24 +926,16 @@ class BidderRegisterPage {
       await this.drawSiamSignature();
     }
 
-    if (screenshot) {
-      await screenshot(
-        `Bidder - ${signatureName} Signature`,
-        this.page
-      );
-    }
+    // IMPORTANT:
+    // Do not take any full-page screenshot after drawing the
+    // signature and before Preview. In this UI, full-page
+    // screenshot can cause the canvas signature to be cleared.
+    // The next screenshot is taken only after Preview opens.
 
     // =====================================================
     // PRIVACY POLICY
     // =====================================================
     await this.acceptPrivacyPolicy();
-
-    if (screenshot) {
-      await screenshot(
-        "Bidder - Privacy Policy Accepted",
-        this.page
-      );
-    }
 
     // =====================================================
     // PREVIEW
