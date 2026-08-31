@@ -365,10 +365,25 @@ Then(
 When(
   "I wait for the Auction Reserve Not Met auction to end",
   async function () {
-    await this.auctionPage
-      .waitForAuctionToEnd(
-        18 * 60 * 1000
-      );
+    console.log("Waiting for auction to actually end...");
+
+    // Wait until the auction has actually ended
+    await this.auctionPage.waitForAuctionToEnd(
+      18 * 60 * 1000
+    );
+
+    console.log("Auction has ended successfully.");
+
+    // EXTRA 1 minute AFTER auction end
+    console.log(
+      "Waiting an extra 1 minute after auction end..."
+    );
+
+    await this.page.waitForTimeout(60_000);
+
+    console.log(
+      "Extra 1 minute wait after auction end completed."
+    );
   }
 );
 
@@ -491,7 +506,10 @@ When(
   "the General User opens the Auction Agent conversation",
   async function () {
     await this.conversationsPage
-      .openAgentConversation();
+      .openAgentConversation(
+        auctionReserveNotMetFlowData.agent.listing
+          .expectedPropertyName
+      );
   }
 );
 

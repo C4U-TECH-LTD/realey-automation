@@ -27,13 +27,28 @@ const {
   "../../pages/AuctionCounterRejectedRelistPage"
 );
 
+// Auction flow can take a long time.
 setDefaultTimeout(20 * 60 * 1000);
 
+// =====================================================
+// PAGE HELPER
+// =====================================================
+
 function flow5Page(world) {
-  return new AuctionCounterRejectedRelistPage(world.page);
+  return new AuctionCounterRejectedRelistPage(
+    world.page
+  );
 }
 
+// =====================================================
+// SESSION HELPER
+// =====================================================
+
 async function clearCurrentSession(world) {
+  console.log(
+    "Flow 5: Clearing current user session..."
+  );
+
   await world.context.clearCookies();
 
   if (!world.page.isClosed()) {
@@ -43,7 +58,10 @@ async function clearCurrentSession(world) {
         sessionStorage.clear();
       });
     } catch (error) {
-      console.log("Flow 5 storage clear skipped:", error.message);
+      console.log(
+        "Flow 5 storage clear skipped:",
+        error.message
+      );
     }
   }
 
@@ -56,6 +74,11 @@ async function clearCurrentSession(world) {
       }
     );
   } catch (error) {
+    console.log(
+      "Flow 5 first login navigation failed:",
+      error.message
+    );
+
     await world.page.waitForTimeout(1000);
 
     await world.page.goto(
@@ -68,8 +91,19 @@ async function clearCurrentSession(world) {
   }
 }
 
-async function loginAs(world, account, accountName) {
-  if (!account?.email || !account?.password) {
+// =====================================================
+// LOGIN HELPER
+// =====================================================
+
+async function loginAs(
+  world,
+  account,
+  accountName
+) {
+  if (
+    !account?.email ||
+    !account?.password
+  ) {
     throw new Error(
       `${accountName} credentials are missing. ` +
         `Configure them in .env / GitHub Actions secrets.`
@@ -93,7 +127,9 @@ async function loginAs(world, account, accountName) {
 
   await world.loginPage.submitOtp();
 
-  console.log(`Flow 5 ${accountName} login completed`);
+  console.log(
+    `Flow 5 ${accountName} login completed`
+  );
 }
 
 // =====================================================
@@ -109,7 +145,8 @@ Given(
       "Agent"
     );
 
-    await this.dashboardPage.waitForDashboard();
+    await this.dashboardPage
+      .waitForDashboard();
   }
 );
 
@@ -146,13 +183,24 @@ When(
 
     await this.propertyDetailsPage
       .completeDetailsStep({
-        propertyType: listing.propertyType,
-        bedrooms: listing.bedrooms,
-        bathrooms: listing.bathrooms,
-        carSpaces: listing.carSpaces,
-        landSize: listing.landSize || "",
+        propertyType:
+          listing.propertyType,
+
+        bedrooms:
+          listing.bedrooms,
+
+        bathrooms:
+          listing.bathrooms,
+
+        carSpaces:
+          listing.carSpaces,
+
+        landSize:
+          listing.landSize || "",
+
         buildingSize:
           listing.buildingSize || "",
+
         yearBuilt:
           listing.yearBuilt || "",
       });
@@ -160,18 +208,28 @@ When(
     this.flow5AuctionSlot =
       await this.pricingSalePage
         .completeAuctionPricingStep({
-          listingType: listing.listingType,
-          reservePrice: listing.reservePrice,
-          depositPercent: listing.depositPercent,
+          listingType:
+            listing.listingType,
+
+          reservePrice:
+            listing.reservePrice,
+
+          depositPercent:
+            listing.depositPercent,
+
           auctionLocation:
             listing.auctionLocation,
+
           startingPrice:
             listing.startingPrice,
+
           minimumBidIncrement:
             listing.minimumBidIncrement,
+
           slotMinutes:
             auctionCounterRejectedRelistFlowData
               .auction.slotMinutes,
+
           durationMinutes:
             auctionCounterRejectedRelistFlowData
               .auction.durationMinutes,
@@ -181,7 +239,9 @@ When(
       .waitForPage();
 
     await this.descriptionFeaturesPage
-      .enterHeadline(listing.headline);
+      .enterHeadline(
+        listing.headline
+      );
 
     await this.descriptionFeaturesPage
       .enterDescription(
@@ -230,7 +290,9 @@ Then(
     await this.dashboardPage
       .openListingsMenu();
 
-    if (listing.expectedPropertyName) {
+    if (
+      listing.expectedPropertyName
+    ) {
       await this.dashboardPage
         .verifyListingVisibleByLocation(
           listing.expectedPropertyName
@@ -275,6 +337,7 @@ When(
         .registerAsBidder(
           auctionCounterRejectedRelistFlowData
             .buyer.signature,
+
           async (title, page) => {
             await takeCucumberScreenshot(
               this,
@@ -323,16 +386,27 @@ When(
         .agent.listing.reservePrice
     );
 
-    if (bidAmount >= reservePrice) {
+    if (
+      bidAmount >= reservePrice
+    ) {
       throw new Error(
         `Flow 5 requires bid < reserve price. ` +
           `Bid=${bidAmount}, reserve=${reservePrice}`
       );
     }
 
-    await this.auctionPage.placeBid(
-      String(bidAmount)
+    console.log(
+      `Flow 5 bid: ${bidAmount}`
     );
+
+    console.log(
+      `Flow 5 reserve: ${reservePrice}`
+    );
+
+    await this.auctionPage
+      .placeBid(
+        String(bidAmount)
+      );
   }
 );
 
@@ -345,16 +419,42 @@ Then(
 );
 
 // =====================================================
-// AUCTION END
+// WAIT FOR AUCTION END
 // =====================================================
 
 When(
   "I wait for the Auction Counter Rejected Relist auction to end",
   async function () {
+    console.log(
+      "Flow 5: Waiting for auction to actually end..."
+    );
+
+    // Maximum auction-end wait
     await this.auctionPage
       .waitForAuctionToEnd(
         18 * 60 * 1000
       );
+
+    console.log(
+      "Flow 5: Auction has ended successfully."
+    );
+
+    // -------------------------------------------------
+    // EXTRA 1 MINUTE AFTER AUCTION END
+    // -------------------------------------------------
+
+    console.log(
+      "Flow 5: Waiting an extra 1 minute after auction end..."
+    );
+
+    await this.page
+      .waitForTimeout(
+        60_000
+      );
+
+    console.log(
+      "Flow 5: Extra 1 minute wait completed."
+    );
   }
 );
 
@@ -362,7 +462,8 @@ Then(
   "the Auction Counter Rejected Relist auction has ended successfully",
   async function () {
     await expect(
-      this.auctionPage.auctionEndedText
+      this.auctionPage
+        .auctionEndedText
     ).toBeVisible({
       timeout: 10_000,
     });
@@ -385,7 +486,14 @@ Then(
         .isVisible()
         .catch(() => false)
     ) {
-      await expect(reserveNotMet).toBeVisible();
+      await expect(
+        reserveNotMet
+      ).toBeVisible();
+
+      console.log(
+        "Flow 5: Reserve Not Met status confirmed."
+      );
+
       return;
     }
 
@@ -454,7 +562,8 @@ Then(
     await this.agentBidsPage
       .verifyCounterOfferSent(
         auctionCounterRejectedRelistFlowData
-          .expected.counterOfferSent
+          .expected
+          .counterOfferSent
       );
   }
 );
@@ -471,11 +580,20 @@ When(
   }
 );
 
+// =====================================================
+// FIXED:
+// Pass expectedPropertyName to openAgentConversation()
+// =====================================================
+
 When(
   "the General User opens the Auction Agent conversation for the Counter Rejected Relist flow",
   async function () {
     await this.conversationsPage
-      .openAgentConversation();
+      .openAgentConversation(
+        auctionCounterRejectedRelistFlowData
+          .agent.listing
+          .expectedPropertyName
+      );
   }
 );
 
@@ -541,7 +659,8 @@ Then(
     await flow5Page(this)
       .verifyNegotiatedOfferDeclined(
         auctionCounterRejectedRelistFlowData
-          .expected.declined
+          .expected
+          .declined
       );
   }
 );
@@ -556,10 +675,13 @@ When(
     await flow5Page(this)
       .clickBackFromConversation();
 
-    const bidsTab = this.page
-      .getByRole("button", {
-        name: /^Bids\b/i,
-      });
+    const bidsTab =
+      this.page.getByRole(
+        "button",
+        {
+          name: /^Bids\b/i,
+        }
+      );
 
     if (
       await bidsTab
@@ -567,7 +689,9 @@ When(
         .catch(() => false)
     ) {
       await bidsTab.click();
-      await this.page.waitForTimeout(500);
+
+      await this.page
+        .waitForTimeout(500);
     } else {
       await this.agentBidsPage
         .openBids();
@@ -673,7 +797,9 @@ Then(
     await this.dashboardPage
       .openListingsMenu();
 
-    if (listing.expectedPropertyName) {
+    if (
+      listing.expectedPropertyName
+    ) {
       await this.dashboardPage
         .verifyListingVisibleByLocation(
           listing.expectedPropertyName
