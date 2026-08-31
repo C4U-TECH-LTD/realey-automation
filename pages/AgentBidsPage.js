@@ -73,7 +73,8 @@ class AgentBidsPage {
 
     console.log("Bids tab opened");
 
-    await this.page.waitForTimeout(700);
+    await this.page.waitForLoadState("domcontentloaded");
+    await this.page.waitForTimeout(1200);
   }
 
   // =====================================================
@@ -91,7 +92,7 @@ class AgentBidsPage {
      * Fixture:
      * "Degraves Street, Melbourne"
      *
-     * UI:
+     * Short name:
      * "Degraves Street"
      */
     return String(propertyName)
@@ -100,10 +101,83 @@ class AgentBidsPage {
   }
 
   // =====================================================
+  // ESCAPE REGEX
+  // =====================================================
+
+  escapeRegex(value) {
+    return String(value).replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+  }
+
+  // =====================================================
+  // GET PROPERTY TITLE LOCATOR
+  // =====================================================
+
+  getPropertyTitles(propertyName) {
+    if (!propertyName) {
+      throw new Error(
+        "Property name is required."
+      );
+    }
+
+    const shortPropertyName =
+      this.getShortPropertyName(propertyName);
+
+    const escapedPropertyName =
+      this.escapeRegex(shortPropertyName);
+
+    /*
+     * Partial + case-insensitive match.
+     *
+     * Will match:
+     *
+     * Degraves Street
+     * Degraves Street, Melbourne
+     * 12 Degraves Street
+     */
+    return this.page.getByText(
+      new RegExp(escapedPropertyName, "i")
+    );
+  }
+
+  // =====================================================
+  // DEBUG CURRENT PAGE
+  // =====================================================
+
+  async debugCurrentPage(label = "PAGE DEBUG") {
+    const bodyText = await this.page
+      .locator("body")
+      .innerText()
+      .catch(() => "");
+
+    console.log(
+      `========== ${label} ==========`
+    );
+
+    console.log(
+      "Current URL:",
+      this.page.url()
+    );
+
+    console.log(
+      bodyText.substring(0, 5000)
+    );
+
+    console.log(
+      "====================================="
+    );
+  }
+
+  // =====================================================
   // FIND PROPERTY ACTION BUTTON
   // =====================================================
 
-  async propertyActionButton(propertyName, buttonName) {
+  async propertyActionButton(
+    propertyName,
+    buttonName
+  ) {
     if (!propertyName) {
       throw new Error(
         "Property name is required to locate the bid action."
@@ -116,22 +190,23 @@ class AgentBidsPage {
     const buttonRegex =
       buttonName instanceof RegExp
         ? buttonName
-        : new RegExp(`^${buttonName}$`, "i");
+        : new RegExp(
+            `^${this.escapeRegex(buttonName)}$`,
+            "i"
+          );
 
     console.log(
       `Looking for action "${buttonRegex}" on property "${shortPropertyName}"`
     );
 
-    // -----------------------------------------------------
-    // Find every matching property title
-    // -----------------------------------------------------
-
-    const propertyTitles = this.page.getByText(
-      shortPropertyName,
-      {
-        exact: true,
-      }
+    await this.page.waitForLoadState(
+      "domcontentloaded"
     );
+
+    await this.page.waitForTimeout(1000);
+
+    const propertyTitles =
+      this.getPropertyTitles(propertyName);
 
     const propertyCount =
       await propertyTitles.count();
@@ -141,24 +216,27 @@ class AgentBidsPage {
     );
 
     if (propertyCount === 0) {
+      await this.debugCurrentPage(
+        "PROPERTY ACTION DEBUG"
+      );
+
       throw new Error(
-        `Property "${shortPropertyName}" was not found in Offers & Bids.`
+        `Property "${shortPropertyName}" was not found in Offers & Bids. ` +
+          `Current URL: ${this.page.url()}`
       );
     }
 
     // -----------------------------------------------------
-    // There may be multiple cards with same property
-    //
-    // Example:
-    //
-    // Degraves Street - Reserve not met - Start negotiation
-    // Degraves Street - Archived
-    // Degraves Street - Reserve not met - Archived
+    // Multiple property title matches may exist.
     //
     // We only want the card containing the requested action.
     // -----------------------------------------------------
 
-    for (let i = 0; i < propertyCount; i++) {
+    for (
+      let i = 0;
+      i < propertyCount;
+      i++
+    ) {
       const propertyTitle =
         propertyTitles.nth(i);
 
@@ -182,17 +260,18 @@ class AgentBidsPage {
       const cardWithButton =
         propertyTitle.locator(
           "xpath=ancestor::*[" +
-            "self::div or self::article" +
+            "self::div or self::article or self::section" +
             "][" +
             ".//button" +
             "][1]"
         );
 
-      if (
+      const cardVisible =
         await cardWithButton
           .isVisible()
-          .catch(() => false)
-      ) {
+          .catch(() => false);
+
+      if (cardVisible) {
         const scopedButton =
           cardWithButton
             .getByRole("button", {
@@ -200,11 +279,12 @@ class AgentBidsPage {
             })
             .first();
 
-        if (
+        const scopedVisible =
           await scopedButton
             .isVisible()
-            .catch(() => false)
-        ) {
+            .catch(() => false);
+
+        if (scopedVisible) {
           console.log(
             `Action found inside immediate card at index ${i}`
           );
@@ -215,52 +295,53 @@ class AgentBidsPage {
 
       // ---------------------------------------------------
       // Wider ancestor fallback
-      //
-      // Current UI:
-      // property title is in card header
-      // action button is lower in the same outer card.
       // ---------------------------------------------------
 
-      const widerButton =
+      const widerCard =
         propertyTitle.locator(
           "xpath=ancestor::*[" +
-            "self::div or self::article" +
+            "self::div or self::article or self::section" +
             "][" +
-            ".//button[contains(" +
-            "translate(normalize-space(.)," +
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
-            "'abcdefghijklmnopqrstuvwxyz')," +
-            "'start negotiation'" +
-            ")]" +
-            "][1]" +
-            "//button[contains(" +
-            "translate(normalize-space(.)," +
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
-            "'abcdefghijklmnopqrstuvwxyz')," +
-            "'start negotiation'" +
-            ")]"
-        )
-        .first();
-
-      if (
-        await widerButton
-          .isVisible()
-          .catch(() => false)
-      ) {
-        console.log(
-          `Action found inside wider property card at index ${i}`
+            ".//button" +
+            "][1]"
         );
 
-        return widerButton;
+      const widerButtons =
+        widerCard.getByRole("button", {
+          name: buttonRegex,
+        });
+
+      const widerCount =
+        await widerButtons.count();
+
+      if (widerCount > 0) {
+        for (
+          let j = 0;
+          j < widerCount;
+          j++
+        ) {
+          const widerButton =
+            widerButtons.nth(j);
+
+          const widerVisible =
+            await widerButton
+              .isVisible()
+              .catch(() => false);
+
+          if (widerVisible) {
+            console.log(
+              `Action found inside wider property card at index ${i}`
+            );
+
+            return widerButton;
+          }
+        }
       }
     }
 
-    // -----------------------------------------------------
-    // Do NOT blindly use first global action.
-    //
-    // Multiple auctions may exist, so clicking a global
-    // .first() could open negotiation for wrong property.
-    // -----------------------------------------------------
+    await this.debugCurrentPage(
+      "PROPERTY ACTION NOT FOUND DEBUG"
+    );
 
     throw new Error(
       `Could not find action "${buttonRegex}" for property "${shortPropertyName}".`
@@ -286,15 +367,26 @@ class AgentBidsPage {
     );
 
     // -----------------------------------------------------
-    // Find all matching property titles
+    // Wait for Bids page content
     // -----------------------------------------------------
 
-    const propertyTitles = this.page.getByText(
-      shortPropertyName,
-      {
-        exact: true,
-      }
+    await this.page.waitForLoadState(
+      "domcontentloaded"
     );
+
+    await this.page.waitForTimeout(1500);
+
+    console.log(
+      "Current Bids URL:",
+      this.page.url()
+    );
+
+    // -----------------------------------------------------
+    // Find property using partial + case-insensitive match
+    // -----------------------------------------------------
+
+    const propertyTitles =
+      this.getPropertyTitles(propertyName);
 
     const count =
       await propertyTitles.count();
@@ -304,8 +396,13 @@ class AgentBidsPage {
     );
 
     if (count === 0) {
+      await this.debugCurrentPage(
+        "BIDS PAGE DEBUG"
+      );
+
       throw new Error(
-        `Property "${shortPropertyName}" was not found in Bids.`
+        `Property "${shortPropertyName}" was not found in Bids. ` +
+          `Current URL: ${this.page.url()}`
       );
     }
 
@@ -313,12 +410,17 @@ class AgentBidsPage {
     // Find correct ACTIVE card containing:
     //
     // Property name
-    // + Start negotiation
+    // +
+    // Start negotiation
     //
-    // This automatically ignores Archived cards.
+    // Archived cards will automatically be ignored.
     // -----------------------------------------------------
 
-    for (let i = 0; i < count; i++) {
+    for (
+      let i = 0;
+      i < count;
+      i++
+    ) {
       const propertyTitle =
         propertyTitles.nth(i);
 
@@ -339,10 +441,10 @@ class AgentBidsPage {
       // Find nearest ancestor containing Start negotiation
       // ---------------------------------------------------
 
-      const startButton =
+      const card =
         propertyTitle.locator(
           "xpath=ancestor::*[" +
-            "self::div or self::article" +
+            "self::div or self::article or self::section" +
             "][" +
             ".//button[contains(" +
             "translate(normalize-space(.)," +
@@ -350,15 +452,28 @@ class AgentBidsPage {
             "'abcdefghijklmnopqrstuvwxyz')," +
             "'start negotiation'" +
             ")]" +
-            "][1]" +
-            "//button[contains(" +
-            "translate(normalize-space(.)," +
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
-            "'abcdefghijklmnopqrstuvwxyz')," +
-            "'start negotiation'" +
-            ")]"
-        )
-        .first();
+            "][1]"
+        );
+
+      const cardVisible =
+        await card
+          .isVisible()
+          .catch(() => false);
+
+      if (!cardVisible) {
+        console.log(
+          `No active negotiation card found at index ${i}`
+        );
+
+        continue;
+      }
+
+      const startButton =
+        card
+          .getByRole("button", {
+            name: /^Start negotiation$/i,
+          })
+          .first();
 
       const buttonVisible =
         await startButton
@@ -381,31 +496,18 @@ class AgentBidsPage {
       // Optional Reserve Not Met check
       // ---------------------------------------------------
 
-      const card =
-        propertyTitle.locator(
-          "xpath=ancestor::*[" +
-            "self::div or self::article" +
-            "][" +
-            ".//button[contains(" +
-            "translate(normalize-space(.)," +
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
-            "'abcdefghijklmnopqrstuvwxyz')," +
-            "'start negotiation'" +
-            ")]" +
-            "][1]"
-        );
-
       const reserveNotMet =
         card.getByText(
           /Reserve\s*(?:Price\s*)?not\s*met/i
         );
 
-      if (
+      const reserveNotMetVisible =
         await reserveNotMet
           .first()
           .isVisible()
-          .catch(() => false)
-      ) {
+          .catch(() => false);
+
+      if (reserveNotMetVisible) {
         console.log(
           "Reserve Not Met status confirmed"
         );
@@ -436,7 +538,7 @@ class AgentBidsPage {
       );
 
       // ---------------------------------------------------
-      // Verify counter amount input opens
+      // Verify negotiation form opens
       // ---------------------------------------------------
 
       await expect(
@@ -457,8 +559,13 @@ class AgentBidsPage {
     // No matching active card found
     // -----------------------------------------------------
 
+    await this.debugCurrentPage(
+      "START NEGOTIATION DEBUG"
+    );
+
     throw new Error(
-      `Could not find an active "${shortPropertyName}" card containing Start negotiation.`
+      `Could not find an active "${shortPropertyName}" card containing Start negotiation. ` +
+        `Current URL: ${this.page.url()}`
     );
   }
 
@@ -491,7 +598,6 @@ class AgentBidsPage {
     // -----------------------------------------------------
     // Remove non-digit characters
     //
-    // Example:
     // "$7,500,000" -> "7500000"
     // -----------------------------------------------------
 
@@ -537,6 +643,9 @@ class AgentBidsPage {
       timeout: 10_000,
     });
 
+    await this.sendAndOpenChatButton
+      .scrollIntoViewIfNeeded();
+
     await this.sendAndOpenChatButton.click();
 
     console.log(
@@ -579,11 +688,12 @@ class AgentBidsPage {
           )
           .last();
 
-      if (
+      const amountVisible =
         await amountMessage
           .isVisible()
-          .catch(() => false)
-      ) {
+          .catch(() => false);
+
+      if (amountVisible) {
         await expect(
           amountMessage
         ).toBeVisible();
@@ -605,11 +715,12 @@ class AgentBidsPage {
         .getByText(expectedMessage)
         .last();
 
-    if (
+    const genericVisible =
       await genericMessage
         .isVisible()
-        .catch(() => false)
-    ) {
+        .catch(() => false);
+
+    if (genericVisible) {
       await expect(
         genericMessage
       ).toBeVisible();
@@ -649,191 +760,193 @@ class AgentBidsPage {
   // OPEN BIDDER CHAT
   // =====================================================
 
- async openBidderChat(propertyName = "") {
-  if (!propertyName) {
-    throw new Error(
-      "Property name is required to open bidder chat."
-    );
-  }
-
-  const shortPropertyName =
-    this.getShortPropertyName(propertyName);
-
-  console.log(
-    `Looking for Open chat for property: ${shortPropertyName}`
-  );
-
-  // -----------------------------------------------------
-  // First confirm we are on a page containing Open chat
-  // -----------------------------------------------------
-
-  const globalOpenChatButtons =
-    this.page.getByRole("button", {
-      name: "Open chat",
-      exact: true,
-    });
-
-  const globalCount =
-    await globalOpenChatButtons.count();
-
-  console.log(
-    `Total Open chat buttons found: ${globalCount}`
-  );
-
-  if (globalCount === 0) {
-    throw new Error(
-      `No "Open chat" button exists on the current Agent Bids page. ` +
-      `Current URL: ${this.page.url()}`
-    );
-  }
-
-  // -----------------------------------------------------
-  // Find all matching property titles.
-  //
-  // Fixture:
-  // Degraves Street, Melbourne
-  //
-  // UI:
-  // Degraves Street
-  // -----------------------------------------------------
-
-  const propertyTitles =
-    this.page.getByText(
-      shortPropertyName,
-      {
-        exact: true,
-      }
-    );
-
-  const propertyCount =
-    await propertyTitles.count();
-
-  console.log(
-    `Found ${propertyCount} "${shortPropertyName}" property card(s)`
-  );
-
-  if (propertyCount === 0) {
-    throw new Error(
-      `Property "${shortPropertyName}" was not found in Agent Bids.`
-    );
-  }
-
-  // -----------------------------------------------------
-  // Multiple Degraves Street cards may exist.
-  //
-  // Find the one whose ancestor contains Open chat.
-  // -----------------------------------------------------
-
-  for (
-    let i = 0;
-    i < propertyCount;
-    i++
+  async openBidderChat(
+    propertyName = ""
   ) {
-    const propertyTitle =
-      propertyTitles.nth(i);
-
-    const visible =
-      await propertyTitle
-        .isVisible()
-        .catch(() => false);
-
-    if (!visible) {
-      continue;
+    if (!propertyName) {
+      throw new Error(
+        "Property name is required to open bidder chat."
+      );
     }
+
+    const shortPropertyName =
+      this.getShortPropertyName(propertyName);
 
     console.log(
-      `Checking ${shortPropertyName} card index ${i}`
+      `Looking for Open chat for property: ${shortPropertyName}`
     );
 
-    // Find nearest property container
-    // containing an Open chat button.
-    const card =
-      propertyTitle.locator(
-        "xpath=ancestor::*[" +
-          "self::div or self::article" +
-          "][" +
-          ".//button[" +
-          "contains(" +
-          "translate(normalize-space(.)," +
-          "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
-          "'abcdefghijklmnopqrstuvwxyz')," +
-          "'open chat'" +
-          ")" +
-          "]" +
-          "][1]"
+    await this.page.waitForLoadState(
+      "domcontentloaded"
+    );
+
+    await this.page.waitForTimeout(1000);
+
+    // -----------------------------------------------------
+    // Confirm Open chat exists somewhere on current page
+    // -----------------------------------------------------
+
+    const globalOpenChatButtons =
+      this.page.getByRole("button", {
+        name: /^Open chat$/i,
+      });
+
+    const globalCount =
+      await globalOpenChatButtons.count();
+
+    console.log(
+      `Total Open chat buttons found: ${globalCount}`
+    );
+
+    if (globalCount === 0) {
+      await this.debugCurrentPage(
+        "OPEN CHAT DEBUG"
       );
 
-    const cardVisible =
-      await card
-        .isVisible()
-        .catch(() => false);
-
-    if (!cardVisible) {
-      console.log(
-        `Card index ${i} has no Open chat button`
+      throw new Error(
+        `No "Open chat" button exists on the current Agent Bids page. ` +
+          `Current URL: ${this.page.url()}`
       );
-
-      continue;
     }
 
-    const openChatButton =
-      card
-        .getByRole("button", {
-          name: "Open chat",
-          exact: true,
-        })
-        .first();
+    // -----------------------------------------------------
+    // Find property using reusable partial matcher
+    // -----------------------------------------------------
 
-    const buttonVisible =
+    const propertyTitles =
+      this.getPropertyTitles(propertyName);
+
+    const propertyCount =
+      await propertyTitles.count();
+
+    console.log(
+      `Found ${propertyCount} matching "${shortPropertyName}" property title(s)`
+    );
+
+    if (propertyCount === 0) {
+      await this.debugCurrentPage(
+        "OPEN CHAT PROPERTY DEBUG"
+      );
+
+      throw new Error(
+        `Property "${shortPropertyName}" was not found in Agent Bids. ` +
+          `Current URL: ${this.page.url()}`
+      );
+    }
+
+    // -----------------------------------------------------
+    // Multiple matching cards may exist.
+    //
+    // Find the one whose ancestor contains Open chat.
+    // -----------------------------------------------------
+
+    for (
+      let i = 0;
+      i < propertyCount;
+      i++
+    ) {
+      const propertyTitle =
+        propertyTitles.nth(i);
+
+      const visible =
+        await propertyTitle
+          .isVisible()
+          .catch(() => false);
+
+      if (!visible) {
+        continue;
+      }
+
+      console.log(
+        `Checking ${shortPropertyName} card index ${i}`
+      );
+
+      const card =
+        propertyTitle.locator(
+          "xpath=ancestor::*[" +
+            "self::div or self::article or self::section" +
+            "][" +
+            ".//button[contains(" +
+            "translate(normalize-space(.)," +
+            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
+            "'abcdefghijklmnopqrstuvwxyz')," +
+            "'open chat'" +
+            ")]" +
+            "][1]"
+        );
+
+      const cardVisible =
+        await card
+          .isVisible()
+          .catch(() => false);
+
+      if (!cardVisible) {
+        console.log(
+          `Card index ${i} has no Open chat button`
+        );
+
+        continue;
+      }
+
+      const openChatButton =
+        card
+          .getByRole("button", {
+            name: /^Open chat$/i,
+          })
+          .first();
+
+      const buttonVisible =
+        await openChatButton
+          .isVisible()
+          .catch(() => false);
+
+      if (!buttonVisible) {
+        console.log(
+          `Open chat not visible in card index ${i}`
+        );
+
+        continue;
+      }
+
+      console.log(
+        `Correct Open chat found for ${shortPropertyName}`
+      );
+
+      await expect(
+        openChatButton,
+        `Open chat should be visible for "${shortPropertyName}"`
+      ).toBeVisible({
+        timeout: 20_000,
+      });
+
       await openChatButton
-        .isVisible()
-        .catch(() => false);
+        .scrollIntoViewIfNeeded();
 
-    if (!buttonVisible) {
+      await openChatButton.click();
+
       console.log(
-        `Open chat not visible in card index ${i}`
+        `Open chat clicked successfully for ${shortPropertyName}`
       );
 
-      continue;
+      await this.page.waitForTimeout(700);
+
+      return;
     }
 
-    console.log(
-      `Correct Open chat found for ${shortPropertyName}`
+    // -----------------------------------------------------
+    // Diagnostic failure
+    // -----------------------------------------------------
+
+    await this.debugCurrentPage(
+      "OPEN BIDDER CHAT DEBUG"
     );
 
-    await expect(
-      openChatButton,
-      `Open chat should be visible for "${shortPropertyName}"`
-    ).toBeVisible({
-      timeout: 20_000,
-    });
-
-    await openChatButton
-      .scrollIntoViewIfNeeded();
-
-    await openChatButton.click();
-
-    console.log(
-      `Open chat clicked successfully for ${shortPropertyName}`
+    throw new Error(
+      `Found ${globalCount} Open chat button(s), ` +
+        `but none belonged to "${shortPropertyName}". ` +
+        `Current URL: ${this.page.url()}`
     );
-
-    await this.page.waitForTimeout(
-      700
-    );
-
-    return;
   }
-
-  // -----------------------------------------------------
-  // Diagnostic error
-  // -----------------------------------------------------
-
-  throw new Error(
-    `Found ${globalCount} Open chat button(s), ` +
-    `but none belonged to "${shortPropertyName}". ` +
-    `Current URL: ${this.page.url()}`
-  );
-}
 }
 
 module.exports = {
