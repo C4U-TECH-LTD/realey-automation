@@ -160,7 +160,7 @@ class BidderRegisterPage {
         }
       )
       .toMatch(
-        /\/auction\/.*\/register\?token=/i
+        /\/auction\/.*\/register\/?\?token=/i
       );
 
     // -----------------------------------------------------
