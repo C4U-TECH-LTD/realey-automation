@@ -161,7 +161,7 @@ jobs:
         continue-on-error: true
 
         run: |
-          npx cucumber-js features/e2e/fixed-price-direct-offer.feature
+          npx cucumber-js --tags "@flow-1"
 
       # =====================================================
       # GENERATE ALLURE REPORT
