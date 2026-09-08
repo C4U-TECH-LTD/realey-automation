@@ -1,7 +1,7 @@
 @e2e @all-flows @flow-7 @fixed-price @direct-offer @settlement @sales-instructions @notifications
-Feature: Fixed Price Direct Offer Sales Instructions
+Feature: Flow 7 - Fixed Price Direct Offer Sales Instructions
 
-  Scenario: Sales Instructions become available only after settlement completion and are sent once
+  Scenario: Flow 7 - Sales Instructions become available only after settlement completion and are sent once
     Given the agent is logged in for the Fixed Price E2E flow
 
     When the agent creates and publishes a Fixed Price listing

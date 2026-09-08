@@ -1,7 +1,7 @@
 @e2e @all-flows @flow-3 @auction @bidding
-Feature: Auction Bidding and Settlement
+Feature: Flow 3 - Auction Bidding and Settlement
 
-  Scenario: Two bidders place bids and the winning bidder proceeds to settlement
+  Scenario: Flow 3 - Two bidders place bids and the winning bidder proceeds to settlement
     Given the agent is logged in for the Auction E2E flow
 
     When the agent creates and publishes an Auction listing

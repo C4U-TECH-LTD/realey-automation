@@ -1,7 +1,7 @@
 @e2e @all-flows @flow-2 @offer-price @counter-offer
-Feature: Offer Price Counter Offer Negotiation and Settlement
+Feature: Flow 2 - Offer Price Counter Offer Negotiation and Settlement
 
-  Scenario: Counter offer negotiation, acceptance and deposit payment
+  Scenario: Flow 2 - Counter offer negotiation, acceptance and deposit payment
     Given the agent is logged in for the Offer Price E2E flow
 
     When the agent creates and publishes an Offer Price listing

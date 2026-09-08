@@ -1,7 +1,7 @@
 @e2e @all-flows @flow-6 @fixed-price @direct-offer @settlement @exchange @document-signing
-Feature: Fixed Price Direct Offer Settlement Exchange and Document Signing
+Feature: Flow 6 - Fixed Price Direct Offer Settlement Exchange and Document Signing
 
-  Scenario: Complete settlement exchange document signing and confirm settlement date
+  Scenario: Flow 6 - Complete settlement exchange document signing and confirm settlement date
     Given the agent is logged in for the Fixed Price E2E flow
 
     When the agent creates and publishes a Fixed Price listing

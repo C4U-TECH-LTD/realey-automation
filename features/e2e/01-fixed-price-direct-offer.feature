@@ -1,7 +1,7 @@
 @e2e @all-flows @flow-1 @fixed-price @direct-offer
-Feature: Fixed Price Direct Offer Acceptance and Settlement
+Feature: Flow 1 - Fixed Price Direct Offer Acceptance and Settlement
 
-  Scenario: Direct offer acceptance and deposit payment
+  Scenario: Flow 1 - Direct offer acceptance and deposit payment
     Given the agent is logged in for the Fixed Price E2E flow
 
     When the agent creates and publishes a Fixed Price listing

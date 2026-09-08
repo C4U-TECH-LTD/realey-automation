@@ -1,7 +1,7 @@
 @e2e @all-flows @flow-4 @auction @reserve-not-met @counter-offer @settlement
-Feature: Auction Reserve Price Not Met Counter Offer Negotiation and Settlement
+Feature: Flow 4 - Auction Reserve Price Not Met Counter Offer Negotiation and Settlement
 
-  Scenario: Reserve price not met, counter negotiation accepted and settlement completed
+  Scenario: Flow 4 - Reserve price not met, counter negotiation accepted and settlement completed
     Given the agent is logged in for the Auction Reserve Not Met E2E flow
 
     When the agent creates and publishes an Auction listing for the Reserve Not Met flow

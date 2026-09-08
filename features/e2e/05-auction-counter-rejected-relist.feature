@@ -1,7 +1,7 @@
 @e2e @all-flows @flow-5 @auction @reserve-not-met @counter-reject @relist-fixed
-Feature: Auction Reserve Price Not Met Counter Rejection and Fixed Price Relisting
+Feature: Flow 5 - Auction Reserve Price Not Met Counter Rejection and Fixed Price Relisting
 
-  Scenario: Reserve price not met, buyer counter rejected and property re-listed as Fixed Price
+  Scenario: Flow 5 - Reserve price not met, buyer counter rejected and property re-listed as Fixed Price
     Given the agent is logged in for the Auction Counter Rejected Relist E2E flow
 
     When the agent creates and publishes an Auction listing for the Counter Rejected Relist flow
