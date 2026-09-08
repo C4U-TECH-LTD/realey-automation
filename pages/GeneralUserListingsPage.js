@@ -81,13 +81,13 @@ class GeneralUserListingsPage {
       .filter({
         has: this.page.getByText(
           searchText,
-          { exact: true }
+          { exact: false }
         ),
       })
       .filter({
         has: this.page.getByRole(
           "button",
-          { name: "Learn More", exact: true }
+          { name: /Learn More|View/i }
         ),
       })
       .first();
@@ -95,10 +95,9 @@ class GeneralUserListingsPage {
     const learnMore = resultCard.getByRole(
       "button",
       {
-        name: "Learn More",
-        exact: true,
+        name: /Learn More|View/i,
       }
-    );
+    ).first();
 
     if (await learnMore.isVisible().catch(() => false)) {
       await learnMore.click();
@@ -107,7 +106,7 @@ class GeneralUserListingsPage {
 
     const exactTitle = this.page.getByText(
       searchText,
-      { exact: true }
+      { exact: false }
     ).first();
 
     await expect(

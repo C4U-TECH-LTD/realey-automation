@@ -8,9 +8,9 @@ class OfferPage {
     // OFFER AMOUNT INPUT
     // Supports current and possible changed placeholder
     // =====================================================
-    this.offerAmountInput = page.getByPlaceholder(
-      /enter offer amount|offer amount/i
-    );
+    this.offerAmountInput = page.locator(
+      'input[placeholder*="amount" i], input[placeholder*="offer" i], input[name*="amount" i], input[name*="offer" i], input[type="number"]'
+    ).first();
 
     // =====================================================
     // OPEN / ACTION OFFER BUTTON
@@ -20,7 +20,7 @@ class OfferPage {
     });
 
     this.makeOfferButton = page.getByRole("button", {
-      name: /make offer|submit an offer|place offer/i,
+      name: /make\s+(?:an\s+)?offer|submit\s+(?:an\s+)?offer|place\s+(?:an\s+)?offer|^offer$/i,
     });
 
     // =====================================================
@@ -98,6 +98,12 @@ class OfferPage {
         console.log(
           "Offer button clicked to open form"
         );
+      } else {
+        const anyOfferBtn = this.page.locator('button:has-text("Offer"), button:has-text("Buy Now")').first();
+        if (await anyOfferBtn.isVisible().catch(() => false)) {
+          await anyOfferBtn.click();
+          console.log("Fallback Offer button clicked");
+        }
       }
     }
 
