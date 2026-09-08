@@ -93,8 +93,8 @@ async function saveAndAttachScreenshot(world, stepName, suffix = "after-step") {
   try {
     const screenshot = await page.screenshot({
       path: screenshotPath,
-      fullPage: true,
-      timeout: 30_000,
+      fullPage: false,
+      timeout: 5_000,
     });
 
     await world.attach(screenshot, "image/png");
