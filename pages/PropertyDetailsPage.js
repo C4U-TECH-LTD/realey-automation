@@ -152,22 +152,12 @@ class PropertyDetailsPage {
       timeout: 20_000,
     });
 
-    const stepCounterVisible = await this.stepCounter
-      .isVisible()
-      .catch(() => false);
-
-    const detailsTextVisible = await this.detailsStepText
-      .isVisible()
-      .catch(() => false);
-
-    if (!stepCounterVisible && !detailsTextVisible) {
-      throw new Error(
-        [
-          "Property Details step was not detected.",
-          `Current URL: ${this.page.url()}`,
-        ].join("\n")
-      );
-    }
+    await expect(
+      this.stepCounter,
+      "Property Details step counter (Step 2 of 5) should be visible"
+    ).toBeVisible({
+      timeout: 20_000,
+    });
 
     await expect(
       this.nextButton,

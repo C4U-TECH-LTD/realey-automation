@@ -7,7 +7,7 @@ const { expect } = require("@playwright/test");
 
 const {
   settlementExchangeFlowData,
-} = require("../test-data/settlementExchangeFlowData");
+} = require("../../fixtures/test-data/settlementExchangeFlowData");
 
 
 // =====================================================

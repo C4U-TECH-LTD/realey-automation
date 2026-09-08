@@ -481,12 +481,39 @@ class SettlementPage {
     );
   }
 
+  async selectCardTabIfNeeded() {
+    const pageCardTabs = [
+      this.page.getByRole("tab", { name: /^Card$/i }),
+      this.page.locator('button, [role="tab"], div').filter({ hasText: /^Card$/i }),
+      this.page.locator('button, [role="tab"], div').filter({ hasText: /Card/i }),
+    ];
+
+    for (const cardTab of pageCardTabs) {
+      if (await cardTab.first().isVisible().catch(() => false)) {
+        console.log("Found 'Card' tab on page. Clicking to switch from PayTo to Card...");
+        await cardTab.first().click({ force: true });
+        await this.page.waitForTimeout(1_000);
+        return;
+      }
+    }
+
+    for (const frame of this.page.frames()) {
+      const frameCardTab = frame
+        .locator('button, [role="tab"], div')
+        .filter({ hasText: /^Card$/i })
+        .first();
+
+      if (await frameCardTab.isVisible().catch(() => false)) {
+        console.log("Found 'Card' tab in frame. Clicking...");
+        await frameCardTab.click({ force: true });
+        await this.page.waitForTimeout(1_000);
+        return;
+      }
+    }
+  }
+
   // =====================================================
   // FIXED PRICE PAYMENT FRAME
-  //
-  // NEW FIX:
-  // Fixed Price waits for Stripe to load instead of
-  // checking the frame only one time.
   // =====================================================
 
   async findFixedPaymentFrame(
@@ -501,11 +528,13 @@ class SettlementPage {
     while (
       Date.now() - startedAt < timeoutMs
     ) {
+      await this.selectCardTabIfNeeded();
+
       const frames = this.page.frames();
 
       for (const frame of frames) {
         const cardNumber = frame.locator(
-          '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+          '#payment-numberInput, input[name="number"], input[name="cardNumber"], input[aria-label*="Card number" i], input[placeholder*="Card number" i]'
         );
 
         if (
@@ -522,7 +551,7 @@ class SettlementPage {
         }
       }
 
-      await this.page.waitForTimeout(500);
+      await this.page.waitForTimeout(1_000);
     }
 
     console.log(
@@ -668,6 +697,11 @@ class SettlementPage {
     // =================================================
 
     const submitCandidates = [
+      this.page
+        .locator('button')
+        .filter({ hasText: /^Pay\s*\$/i })
+        .last(),
+
       this.page
         .locator('button[type="submit"]')
         .last(),
@@ -865,6 +899,8 @@ class SettlementPage {
       Date.now() - startedAt <
       timeoutMs
     ) {
+      await this.selectCardTabIfNeeded(this.page);
+
       // ===============================================
       // MAIN PAGE
       // ===============================================
@@ -893,6 +929,8 @@ class SettlementPage {
       for (
         const frame of this.page.frames()
       ) {
+        await this.selectCardTabIfNeeded(frame);
+
         const card = frame.locator(
           '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
         );
@@ -1055,7 +1093,7 @@ class SettlementPage {
     // =================================================
 
     const payButtonRegex =
-      /^Pay\s+\$[\d,]+(?:\.\d{1,2})?\s+AUD$/i;
+      /^Pay\s+\$[\d,]+(?:\.\d{1,2})?(?:\s+AUD)?$/i;
 
     const pagePayButton =
       this.page.getByRole(
@@ -1068,7 +1106,7 @@ class SettlementPage {
     let payButton =
       pagePayButton;
 
-    const pagePayVisible =
+    let pagePayVisible =
       await pagePayButton
         .isVisible()
         .catch(() => false);
@@ -1081,6 +1119,11 @@ class SettlementPage {
             name: payButtonRegex,
           }
         );
+      pagePayVisible = await payButton.isVisible().catch(() => false);
+    }
+
+    if (!pagePayVisible) {
+      payButton = paymentRoot.locator('button:has-text("Pay")').first();
     }
 
     await expect(

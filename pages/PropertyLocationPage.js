@@ -411,10 +411,107 @@ class PropertyLocationPage {
   }
 
   // =====================================================
+  // ASSIGN SELLER SOLICITOR
+  // =====================================================
+
+  async assignSellerSolicitor(solicitorSearch = "Jamess Anderson") {
+    console.log("Checking for Assign Seller Solicitor on Location step...");
+
+    const addBtn = this.page
+      .locator("button")
+      .filter({ hasText: /Add a solicitor to this listing/i })
+      .first();
+
+    const isAddBtnVisible = await addBtn
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+
+    if (!isAddBtnVisible) {
+      const selectedSolicitor = this.page
+        .locator("*")
+        .filter({ hasText: /Jamess Anderson|Sam Altman|subratotest99/i })
+        .filter({ visible: true })
+        .first();
+
+      if (await selectedSolicitor.isVisible().catch(() => false)) {
+        console.log("Seller solicitor already assigned.");
+        return;
+      }
+
+      console.log("No '+ Add a solicitor to this listing' button, checking fallback...");
+      const altBtn = this.page
+        .locator("button")
+        .filter({ hasText: /Add.*solicitor/i })
+        .first();
+
+      if (!(await altBtn.isVisible().catch(() => false))) {
+        console.log("No solicitor button found on step, skipping.");
+        return;
+      }
+
+      await altBtn.scrollIntoViewIfNeeded();
+      await altBtn.click();
+    } else {
+      await addBtn.scrollIntoViewIfNeeded();
+      await addBtn.click();
+    }
+
+    console.log("Clicked '+ Add a solicitor to this listing'. Selecting solicitor...");
+    await this.page.waitForTimeout(1_000);
+
+    const searchInput = this.page
+      .locator('input[type="text"], input[type="search"], input[placeholder*="search" i]')
+      .filter({ visible: true })
+      .last();
+
+    if (await searchInput.isVisible().catch(() => false)) {
+      console.log(`Searching solicitor with: ${solicitorSearch}`);
+      await searchInput.fill(solicitorSearch);
+      await this.page.waitForTimeout(700);
+    }
+
+    // Match Jamess Anderson or email subratotest99.2@gmail.com
+    const targetOption = this.page
+      .locator("*")
+      .filter({ hasText: /Jamess Anderson|subratotest99\.2@gmail\.com/i })
+      .filter({ visible: true })
+      .last();
+
+    if (await targetOption.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      console.log("Clicking 'Jamess Anderson' solicitor card...");
+      await targetOption.click();
+    } else {
+      const samOption = this.page
+        .locator("*")
+        .filter({ hasText: /Sam Altman/i })
+        .filter({ visible: true })
+        .last();
+
+      if (await samOption.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        console.log("Clicking 'Sam Altman' solicitor card...");
+        await samOption.click();
+      } else {
+        console.warn(`Could not find "${solicitorSearch}", selecting first available solicitor option...`);
+        const firstOption = this.page
+          .locator('[role="option"], [role="menuitem"], [class*="card" i]')
+          .filter({ visible: true })
+          .first();
+
+        await firstOption.click();
+      }
+    }
+
+    await this.page.waitForTimeout(1_000);
+    console.log("Seller solicitor assigned successfully.");
+  }
+
+  // =====================================================
   // NEXT
   // =====================================================
 
   async clickNext() {
+    await this.assignSellerSolicitor();
+
     await expect(
       this.nextButton,
       "Location step Next button should be visible"

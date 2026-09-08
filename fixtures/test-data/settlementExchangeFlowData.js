@@ -108,13 +108,16 @@ const settlementExchangeFlowData = {
 
   sellerSolicitor: {
     email:
-      "seller.solicitor@test.com",
+      process.env.SELLER_SOLICITOR_EMAIL || "subratotest99.2@gmail.com",
 
     password:
-      "Test@123",
+      process.env.SELLER_SOLICITOR_PASSWORD || "Test12345@",
 
     otp:
-      "123456",
+      process.env.SELLER_SOLICITOR_OTP || "123456",
+
+    name:
+      "Jamess Anderson",
   },
 
   // =====================================================

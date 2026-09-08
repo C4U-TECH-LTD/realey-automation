@@ -160,14 +160,24 @@ Before(async function ({ pickle }) {
   console.log(`Headless: ${headless}`);
   console.log(`Slow Mo: ${slowMo}ms`);
 
-  this.browser = await chromium.launch({
-    channel: "chrome",
-    headless,
-    slowMo,
-    args: headless
-      ? ["--disable-dev-shm-usage", "--no-sandbox"]
-      : ["--start-maximized"],
-  });
+  const launchArgs = headless
+    ? ["--disable-dev-shm-usage", "--no-sandbox"]
+    : ["--start-maximized", "--window-position=0,0", "--activate-on-launch"];
+
+  try {
+    this.browser = await chromium.launch({
+      channel: "chrome",
+      headless,
+      slowMo,
+      args: launchArgs,
+    });
+  } catch (_) {
+    this.browser = await chromium.launch({
+      headless,
+      slowMo,
+      args: launchArgs,
+    });
+  }
 
   this.context = await this.browser.newContext({
     baseURL: this.baseURL || process.env.BASE_URL || "https://uat.realey.au/",
@@ -185,6 +195,7 @@ Before(async function ({ pickle }) {
 
   this.page = await this.context.newPage();
   configurePage(this.page);
+  await this.page.bringToFront().catch(() => {});
 
   // Keep the original scenario page and video reference for the whole scenario.
   // Auction registration is normalized back onto this page so one video contains

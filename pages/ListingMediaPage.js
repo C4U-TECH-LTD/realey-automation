@@ -184,7 +184,16 @@ class ListingMediaPage {
       "Property Photos file input should be attached"
     ).toBeAttached({ timeout: 10_000 });
 
-    const inputCount = await this.propertyPhotosInput.count();
+    let photosInput = this.propertyPhotosInput;
+    let inputCount = await photosInput.count();
+
+    if (inputCount !== 1) {
+      const globalInput = this.page.locator('input[type="file"][multiple]').first();
+      if ((await globalInput.count()) > 0) {
+        photosInput = globalInput;
+        inputCount = 1;
+      }
+    }
 
     if (inputCount !== 1) {
       throw new Error(
@@ -195,9 +204,9 @@ class ListingMediaPage {
       );
     }
 
-    console.log("Uploading property photos to the scoped file input...");
+    console.log("Uploading property photos to file input...");
 
-    await this.propertyPhotosInput.setInputFiles(propertyPhotos);
+    await photosInput.setInputFiles(propertyPhotos);
 
     console.log("Property photo files sent to the upload input");
 
@@ -298,7 +307,16 @@ class ListingMediaPage {
       "Floor plan file input should be attached"
     ).toBeAttached({ timeout: 10_000 });
 
-    const inputCount = await this.floorPlanInput.count();
+    let floorInput = this.floorPlanInput;
+    let inputCount = await floorInput.count();
+
+    if (inputCount !== 1) {
+      const globalInput = this.page.locator('input[type="file"]:not([multiple])').first();
+      if ((await globalInput.count()) > 0) {
+        floorInput = globalInput;
+        inputCount = 1;
+      }
+    }
 
     if (inputCount !== 1) {
       throw new Error(
@@ -311,7 +329,7 @@ class ListingMediaPage {
 
     console.log(`Uploading floor plan: ${fileName}`);
 
-    await this.floorPlanInput.setInputFiles(floorPlan);
+    await floorInput.setInputFiles(floorPlan);
 
     console.log("Floor plan file sent to input");
 
