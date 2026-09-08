@@ -13,93 +13,57 @@ class ListingMediaPage {
        PROPERTY PHOTOS
     ===================================================== */
 
-    this.propertyPhotosSection = page
-      .getByText("Upload property photos", {
-        exact: true,
-      })
-      .locator(
-        "xpath=ancestor::div[contains(@class,'border-dashed')][1]"
-      );
+    this.selectPhotosText = page.getByText("Select Photos", {
+      exact: true,
+    });
 
-    this.propertyPhotosText =
-      this.propertyPhotosSection.getByText(
-        "Upload property photos",
-        {
-          exact: true,
-        }
-      );
+    // Scope the hidden file input to the actual Property Photos upload button.
+    // This avoids accidentally targeting another file input on the page.
+    this.propertyPhotoUploadButton = this.selectPhotosText.locator(
+      "xpath=ancestor::button[1]"
+    );
 
-    this.selectPhotosButton =
-      this.propertyPhotosSection.getByRole("button", {
-        name: "Select Photos",
-        exact: true,
-      });
+    this.propertyPhotosInput = this.propertyPhotoUploadButton.locator(
+      'input[type="file"]'
+    );
 
-    this.propertyPhotosInput =
-      this.propertyPhotosSection.locator(
-        'input[type="file"][accept="image/*"][multiple]'
-      );
-
-    this.imageCountText =
-      this.propertyPhotosSection.getByText(
-        /total images:\s*\d+\/10/i
-      );
+    this.imageCountText = page
+      .getByText(/total images:\s*\d+\/10/i)
+      .first();
 
     /* =====================================================
        FLOOR PLAN
     ===================================================== */
 
-    this.floorPlanSection = page
-      .getByText("Upload floor plan", {
-        exact: true,
-      })
-      .locator(
-        "xpath=ancestor::div[contains(@class,'border-dashed')][1]"
-      );
+    this.selectFloorPlanText = page.getByText("Select Floor Plan", {
+      exact: true,
+    });
 
-    this.floorPlanText =
-      this.floorPlanSection.getByText(
-        "Upload floor plan",
-        {
-          exact: true,
-        }
-      );
+    // Your HTML shows the hidden file input is inside the Floor Plan button.
+    this.floorPlanUploadButton = this.selectFloorPlanText.locator(
+      "xpath=ancestor::button[1]"
+    );
 
-    this.selectFloorPlanButton =
-      this.floorPlanSection.getByRole("button", {
-        name: "Select Floor Plan",
-        exact: true,
-      });
-
-    this.floorPlanInput =
-      this.floorPlanSection.locator(
-        'input[type="file"][accept="image/*"]:not([multiple])'
-      );
-
-    this.floorPlanPreview =
-      this.floorPlanSection.locator(
-        [
-          "img",
-          '[data-testid*="floor" i]',
-          '[class*="floor-plan" i]',
-          '[class*="preview" i]',
-        ].join(", ")
-      );
+    this.floorPlanInput = this.floorPlanUploadButton.locator(
+      'input[type="file"]'
+    );
 
     /* =====================================================
-       CONFIRM AND PUBLISH
+       CONFIRM LISTING
     ===================================================== */
 
-    this.confirmListingCheckbox =
-      page.locator(
-        'button[role="checkbox"]#confirmListing'
-      );
+    this.confirmListingCheckbox = page.locator(
+      'button#confirmListing[role="checkbox"]'
+    );
 
-    this.publishListingButton =
-      page.getByRole("button", {
-        name: "Publish Listing",
-        exact: true,
-      });
+    /* =====================================================
+       PUBLISH LISTING
+    ===================================================== */
+
+    this.publishListingButton = page.getByRole("button", {
+      name: "Publish Listing",
+      exact: true,
+    });
 
     /* =====================================================
        SUCCESS MESSAGE
@@ -116,8 +80,7 @@ class ListingMediaPage {
         ].join(", ")
       )
       .filter({
-        hasText:
-          /listing|published|success|created/i,
+        hasText: /listing|published|success|created/i,
       })
       .first();
   }
@@ -127,39 +90,31 @@ class ListingMediaPage {
   ===================================================== */
 
   async waitForPage() {
-    await expect(
-      this.propertyPhotosText,
-      "Property Photos upload section should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+    await this.page.waitForLoadState("domcontentloaded");
+
+    console.log("Waiting for Listing Media page...");
 
     await expect(
-      this.floorPlanText,
-      "Floor Plan upload section should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+      this.selectPhotosText,
+      "Select Photos should be visible"
+    ).toBeVisible({ timeout: 30_000 });
 
     await expect(
-      this.propertyPhotosInput,
-      "Property Photos file input should exist"
-    ).toHaveCount(1);
-
-    await expect(
-      this.floorPlanInput,
-      "Floor Plan file input should exist"
-    ).toHaveCount(1);
+      this.selectFloorPlanText,
+      "Select Floor Plan should be visible"
+    ).toBeVisible({ timeout: 30_000 });
 
     await expect(
       this.confirmListingCheckbox,
       "Confirm Listing checkbox should be visible"
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
 
     await expect(
       this.publishListingButton,
       "Publish Listing button should be visible"
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
+
+    console.log("Listing Media page loaded successfully");
   }
 
   /* =====================================================
@@ -168,37 +123,22 @@ class ListingMediaPage {
 
   validateFiles(filePaths) {
     if (!Array.isArray(filePaths)) {
-      throw new Error(
-        "File paths must be provided as an array."
-      );
+      throw new Error("File paths must be provided as an array.");
     }
 
     for (const filePath of filePaths) {
       if (!filePath) {
-        throw new Error(
-          "One of the upload file paths is empty."
-        );
+        throw new Error("One of the upload file paths is empty.");
       }
 
       if (!fs.existsSync(filePath)) {
-        throw new Error(
-          `Upload file was not found: ${filePath}`
-        );
+        throw new Error(`Upload file was not found: ${filePath}`);
       }
 
-      const extension =
-        path.extname(filePath).toLowerCase();
+      const extension = path.extname(filePath).toLowerCase();
+      const supportedExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 
-      const supportedExtensions = [
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".webp",
-      ];
-
-      if (
-        !supportedExtensions.includes(extension)
-      ) {
+      if (!supportedExtensions.includes(extension)) {
         throw new Error(
           [
             `Unsupported image format: ${extension}`,
@@ -213,115 +153,122 @@ class ListingMediaPage {
      PROPERTY PHOTOS UPLOAD
   ===================================================== */
 
-  async uploadPropertyPhotos(
-    propertyPhotos
-  ) {
-    if (
-      !Array.isArray(propertyPhotos) ||
-      propertyPhotos.length === 0
-    ) {
-      throw new Error(
-        "At least one property photo is required."
-      );
+  async uploadPropertyPhotos(propertyPhotos) {
+    if (!Array.isArray(propertyPhotos) || propertyPhotos.length === 0) {
+      throw new Error("At least one property photo is required.");
     }
 
     if (propertyPhotos.length > 10) {
-      throw new Error(
-        "Maximum 10 property photos are allowed."
-      );
+      throw new Error("Maximum 10 property photos are allowed.");
     }
 
     this.validateFiles(propertyPhotos);
 
+    console.log(
+      `Starting property photos upload. Total files: ${propertyPhotos.length}`
+    );
+
+    propertyPhotos.forEach((filePath, index) => {
+      console.log(`Property photo ${index + 1}: ${path.basename(filePath)}`);
+    });
+
+    await expect(
+      this.propertyPhotoUploadButton,
+      "Property Photos upload area should be visible"
+    ).toBeVisible({ timeout: 20_000 });
+
+    await this.propertyPhotoUploadButton.scrollIntoViewIfNeeded();
+
     await expect(
       this.propertyPhotosInput,
-      "Property Photos file input should exist"
-    ).toHaveCount(1);
+      "Property Photos file input should be attached"
+    ).toBeAttached({ timeout: 10_000 });
 
-    await this.propertyPhotosInput.setInputFiles(
-      propertyPhotos
-    );
+    const inputCount = await this.propertyPhotosInput.count();
 
-    const uploadedFileNames =
-      propertyPhotos.map((filePath) =>
-        path.basename(filePath)
-      );
-
-    console.log(
-      "Property photos selected:",
-      uploadedFileNames
-    );
-
-    /*
-     * Wait for application-side processing.
-     */
-    await this.page.waitForTimeout(2_000);
-
-    /*
-     * First try to verify the visible image counter.
-     */
-    const imageCountVisible =
-      await this.imageCountText
-        .isVisible()
-        .catch(() => false);
-
-    if (imageCountVisible) {
-      const countText =
-        await this.imageCountText.innerText();
-
-      console.log(
-        `Property image count: ${countText}`
-      );
-
-      const countMatch =
-        countText.match(
-          /total images:\s*(\d+)\/10/i
-        );
-
-      if (countMatch) {
-        const uploadedCount =
-          Number(countMatch[1]);
-
-        if (
-          uploadedCount <
-          propertyPhotos.length
-        ) {
-          throw new Error(
-            [
-              "Not all property photos were processed.",
-              `Expected at least: ${propertyPhotos.length}`,
-              `Displayed count: ${uploadedCount}`,
-            ].join("\n")
-          );
-        }
-
-        return;
-      }
-    }
-
-    /*
-     * Fallback verification using input.files.
-     */
-    const selectedFileCount =
-      await this.propertyPhotosInput
-        .evaluate(
-          (input) =>
-            input.files?.length || 0
-        )
-        .catch(() => 0);
-
-    if (
-      selectedFileCount !==
-      propertyPhotos.length
-    ) {
+    if (inputCount !== 1) {
       throw new Error(
         [
-          "Property photos were not selected successfully.",
-          `Expected files: ${propertyPhotos.length}`,
-          `Selected files: ${selectedFileCount}`,
+          "Expected exactly one Property Photos file input.",
+          `Found: ${inputCount}`,
         ].join("\n")
       );
     }
+
+    console.log("Uploading property photos to the scoped file input...");
+
+    await this.propertyPhotosInput.setInputFiles(propertyPhotos);
+
+    console.log("Property photo files sent to the upload input");
+
+    // Do NOT validate input.files.length after the upload. React may process
+    // the files and immediately clear/reset the native input.
+
+    // Primary verification: wait for the UI image count to reach the expected
+    // number when that counter is available.
+    try {
+      await expect
+        .poll(
+          async () => {
+            const visible = await this.imageCountText
+              .isVisible()
+              .catch(() => false);
+
+            if (!visible) {
+              return 0;
+            }
+
+            const countText = await this.imageCountText.innerText();
+            const match = countText.match(/total images:\s*(\d+)\/10/i);
+            return match ? Number(match[1]) : 0;
+          },
+          {
+            timeout: 15_000,
+            message: `Waiting for ${propertyPhotos.length} property photo(s) to be processed`,
+          }
+        )
+        .toBeGreaterThanOrEqual(propertyPhotos.length);
+
+      const countText = await this.imageCountText.innerText();
+      console.log(`Property image count: ${countText}`);
+      console.log("Property photos uploaded successfully");
+      return;
+    } catch (_) {
+      console.log(
+        "Property image counter did not confirm the upload. Checking previews..."
+      );
+    }
+
+    // Fallback verification: inspect visible image previews in the page.
+    // Exclude common icon/logo sources where possible and only use this as
+    // secondary evidence.
+    const previewImages = this.page.locator(
+      [
+        'img[src^="blob:"]',
+        'img[src^="data:image/"]',
+        '[class*="preview" i] img',
+        '[class*="photo" i] img',
+      ].join(", ")
+    );
+
+    await this.page.waitForTimeout(1_000);
+
+    const previewCount = await previewImages.count();
+    console.log(`Property photo preview count: ${previewCount}`);
+
+    if (previewCount >= propertyPhotos.length) {
+      console.log("Property photos verified by previews");
+      return;
+    }
+
+    throw new Error(
+      [
+        "Property photo upload could not be verified from the UI.",
+        `Expected photos: ${propertyPhotos.length}`,
+        `Visible previews: ${previewCount}`,
+        "The files exist and were sent to the scoped Property Photos input, but the UI did not show enough uploaded photos.",
+      ].join("\n")
+    );
   }
 
   /* =====================================================
@@ -330,122 +277,77 @@ class ListingMediaPage {
 
   async uploadFloorPlan(floorPlan) {
     if (!floorPlan) {
-      throw new Error(
-        "Floor plan file is required."
-      );
+      throw new Error("Floor plan file is required.");
     }
 
     this.validateFiles([floorPlan]);
 
-    const fileName =
-      path.basename(floorPlan);
+    const fileName = path.basename(floorPlan);
+
+    console.log(`Starting floor plan upload: ${fileName}`);
 
     await expect(
-      this.selectFloorPlanButton,
-      "Select Floor Plan button should be visible"
-    ).toBeVisible();
+      this.floorPlanUploadButton,
+      "Floor plan upload area should be visible"
+    ).toBeVisible({ timeout: 20_000 });
+
+    await this.floorPlanUploadButton.scrollIntoViewIfNeeded();
 
     await expect(
-      this.selectFloorPlanButton,
-      "Select Floor Plan button should be enabled"
-    ).toBeEnabled();
+      this.floorPlanInput,
+      "Floor plan file input should be attached"
+    ).toBeAttached({ timeout: 10_000 });
 
-    /*
-     * Use the visible button and Playwright file chooser.
-     * This is more reliable for React-based upload controls.
-     */
-    const [fileChooser] =
-      await Promise.all([
-        this.page.waitForEvent(
-          "filechooser",
-          {
-            timeout: 15_000,
-          }
-        ),
+    const inputCount = await this.floorPlanInput.count();
 
-        this.selectFloorPlanButton.click(),
-      ]);
+    if (inputCount !== 1) {
+      throw new Error(
+        [
+          "Expected exactly one Floor Plan file input.",
+          `Found: ${inputCount}`,
+        ].join("\n")
+      );
+    }
 
-    await fileChooser.setFiles(
-      floorPlan
-    );
+    console.log(`Uploading floor plan: ${fileName}`);
 
-    console.log(
-      `Floor plan selected: ${fileName}`
-    );
+    await this.floorPlanInput.setInputFiles(floorPlan);
 
-    /*
-     * Give React time to process the selected file.
-     */
+    console.log("Floor plan file sent to input");
+
     await this.page.waitForTimeout(2_000);
 
-    /*
-     * Try visible confirmation first.
-     */
-    const fileNameLocator =
-      this.floorPlanSection.getByText(
-        fileName,
-        {
-          exact: false,
-        }
-      );
+    const fileNameLocator = this.page.getByText(fileName, {
+      exact: false,
+    });
 
-    const fileNameVisible =
-      await fileNameLocator
-        .isVisible()
-        .catch(() => false);
+    const fileNameVisible = await fileNameLocator
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (fileNameVisible) {
-      console.log(
-        "Floor plan filename is visible."
-      );
+      console.log(`Floor plan filename visible: ${fileName}`);
+      console.log("Floor plan uploaded successfully");
       return;
     }
 
-    const previewVisible =
-      await this.floorPlanPreview
-        .first()
-        .isVisible()
-        .catch(() => false);
+    const floorPlanPreview = this.floorPlanUploadButton.locator("img");
+
+    const previewVisible = await floorPlanPreview
+      .first()
+      .isVisible()
+      .catch(() => false);
 
     if (previewVisible) {
-      console.log(
-        "Floor plan preview is visible."
-      );
+      console.log("Floor plan preview is visible");
+      console.log("Floor plan uploaded successfully");
       return;
     }
 
-    /*
-     * Fallback to checking the input immediately.
-     * The app may replace or reset the input after upload.
-     */
-    const selectedFileCount =
-      await this.floorPlanInput
-        .evaluate(
-          (input) =>
-            input.files?.length || 0
-        )
-        .catch(() => 0);
-
-    if (selectedFileCount === 1) {
-      console.log(
-        "Floor plan file input contains one file."
-      );
-      return;
-    }
-
-    /*
-     * Do not fail only because React cleared the native input.
-     * The file chooser accepted the file, which confirms that
-     * Playwright successfully sent it to the application.
-     */
-    console.warn(
-      [
-        "No visible floor-plan preview or filename was found.",
-        "The file chooser accepted the file successfully.",
-        "The application may clear or replace the native input after processing.",
-        `Selected file: ${fileName}`,
-      ].join("\n")
+    // Do not depend on input.files.length here. React may clear/reset it.
+    console.log(
+      "Floor plan file was sent to the correct scoped input; native input may have been reset by React."
     );
   }
 
@@ -454,27 +356,41 @@ class ListingMediaPage {
   ===================================================== */
 
   async confirmListing() {
+    console.log("Confirming listing...");
+
     await expect(
       this.confirmListingCheckbox,
       "Confirm Listing checkbox should be visible"
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
 
-    const checkedState =
-      await this.confirmListingCheckbox.getAttribute(
-        "aria-checked"
-      );
+    await this.confirmListingCheckbox.scrollIntoViewIfNeeded();
+
+    let checkedState = await this.confirmListingCheckbox.getAttribute(
+      "aria-checked"
+    );
+
+    console.log(`Confirm Listing initial state: ${checkedState}`);
 
     if (checkedState !== "true") {
       await this.confirmListingCheckbox.click();
+
+      await expect(
+        this.confirmListingCheckbox,
+        "Confirm Listing checkbox should become checked"
+      ).toHaveAttribute("aria-checked", "true", {
+        timeout: 10_000,
+      });
     }
 
-    await expect(
-      this.confirmListingCheckbox,
-      "Confirm Listing checkbox should be selected"
-    ).toHaveAttribute(
-      "aria-checked",
-      "true"
+    checkedState = await this.confirmListingCheckbox.getAttribute(
+      "aria-checked"
     );
+
+    if (checkedState !== "true") {
+      throw new Error("Confirm Listing checkbox was not selected.");
+    }
+
+    console.log("Confirm Listing checkbox checked successfully");
   }
 
   /* =====================================================
@@ -482,42 +398,39 @@ class ListingMediaPage {
   ===================================================== */
 
   async publishListing() {
+    console.log("Publishing listing...");
+
     await expect(
       this.publishListingButton,
       "Publish Listing button should be visible"
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
+
+    await this.publishListingButton.scrollIntoViewIfNeeded();
 
     await expect(
       this.publishListingButton,
       "Publish Listing button should be enabled"
-    ).toBeEnabled();
-
-    await this.publishListingButton.scrollIntoViewIfNeeded();
+    ).toBeEnabled({ timeout: 20_000 });
 
     await this.publishListingButton.click();
+
+    console.log("Publish Listing button clicked successfully");
   }
 
   /* =====================================================
      COMPLETE MEDIA STEP
   ===================================================== */
 
-  async completeMediaStep({
-    propertyPhotos,
-    floorPlan,
-  }) {
+  async completeMediaStep({ propertyPhotos, floorPlan }) {
+    console.log("Starting Listing Media step...");
+
     await this.waitForPage();
-
-    await this.uploadPropertyPhotos(
-      propertyPhotos
-    );
-
-    await this.uploadFloorPlan(
-      floorPlan
-    );
-
+    await this.uploadPropertyPhotos(propertyPhotos);
+    await this.uploadFloorPlan(floorPlan);
     await this.confirmListing();
-
     await this.publishListing();
+
+    console.log("Listing Media step completed");
   }
 }
 

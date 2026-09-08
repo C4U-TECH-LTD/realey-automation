@@ -297,7 +297,7 @@ When(
   "the General User pays the deposit",
   async function () {
     await this.settlementPage
-      .payDeposit(
+      .payFixedDeposit(
         listingData.fixedPriceFlow
           .payment
       );

@@ -1,0 +1,433 @@
+name: Flow 4-Auction Reserve Not Met Counter Offer & Settlement
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: realey-auction-reserve-not-met
+  cancel-in-progress: false
+
+jobs:
+  # =========================================================
+  # RUN AUCTION RESERVE NOT MET TEST
+  # =========================================================
+
+  run-auction-reserve-not-met:
+    name: Run Auction Reserve Not Met Test
+
+    runs-on: ubuntu-latest
+
+    # Flow includes auction duration + extra 1 minute wait
+    timeout-minutes: 60
+
+    env:
+      # ===============================================
+      # GITHUB MODE
+      # ===============================================
+
+      CI: "true"
+
+      HEADLESS: "true"
+
+      SLOW_MO: "0"
+
+      # ===============================================
+      # APPLICATION
+      # ===============================================
+
+      BASE_URL: ${{ secrets.BASE_URL }}
+
+      # ===============================================
+      # AGENT
+      # ===============================================
+
+      AGENT_EMAIL: ${{ secrets.AGENT_EMAIL }}
+      AGENT_PASSWORD: ${{ secrets.AGENT_PASSWORD }}
+      AGENT_OTP: ${{ secrets.AGENT_OTP }}
+
+      # ===============================================
+      # GENERAL USER / AUCTION BUYER
+      # ===============================================
+
+      GENERAL_USER_EMAIL: ${{ secrets.GENERAL_USER_EMAIL }}
+      GENERAL_USER_PASSWORD: ${{ secrets.GENERAL_USER_PASSWORD }}
+      GENERAL_USER_OTP: ${{ secrets.GENERAL_USER_OTP }}
+
+      # ===============================================
+      # PAYMENT
+      # ===============================================
+
+      TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER }}
+      TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY }}
+      TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC }}
+
+    steps:
+      # =====================================================
+      # CHECKOUT
+      # =====================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # =====================================================
+      # NODE
+      # =====================================================
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+
+        with:
+          node-version: 24
+          cache: npm
+
+      # =====================================================
+      # INSTALL DEPENDENCIES
+      # =====================================================
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      # =====================================================
+      # INSTALL PLAYWRIGHT
+      # =====================================================
+
+      - name: Install Playwright Browser
+        run: |
+          npx playwright install --with-deps chromium
+
+      # =====================================================
+      # INSTALL GOOGLE CHROME
+      # Because hooks.js uses channel: "chrome"
+      # =====================================================
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            ./google-chrome-stable_current_amd64.deb
+
+      # =====================================================
+      # VERIFY ENVIRONMENT
+      # =====================================================
+
+      - name: Verify environment
+        run: |
+          node --version
+
+          npm --version
+
+          npx playwright --version
+
+          npx cucumber-js --version
+
+          npx allure --version
+
+          google-chrome --version
+
+      # =====================================================
+      # CLEAN OLD OUTPUT
+      # =====================================================
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+
+          rm -rf allure-report
+
+          rm -rf reports/cucumber
+
+          rm -rf screenshots/cucumber
+
+          rm -rf videos
+
+      # =====================================================
+      # RUN ONLY FLOW 4
+      # @e2e @auction @reserve-not-met @counter-offer @settlement
+      # =====================================================
+
+      - name: Run Auction Reserve Not Met Cucumber Test
+        id: cucumber-tests
+
+        continue-on-error: true
+
+        run: |
+          npx cucumber-js --tags "@e2e and @auction and @reserve-not-met and @counter-offer and @settlement"
+
+      # =====================================================
+      # GENERATE ALLURE REPORT
+      # =====================================================
+
+      - name: Generate Allure Report
+        if: always()
+
+        run: |
+          if [ -d "allure-results" ] && \
+             [ "$(ls -A allure-results 2>/dev/null)" ]; then
+
+            echo "Generating Allure report..."
+
+            npx allure generate \
+              allure-results \
+              --clean \
+              -o allure-report
+
+          else
+
+            echo "No Allure results generated."
+
+            mkdir -p allure-report
+
+            echo "<h1>No Allure results generated</h1>" \
+              > allure-report/index.html
+
+          fi
+
+      # =====================================================
+      # CUCUMBER REPORT
+      # =====================================================
+
+      - name: Upload Cucumber Report
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: auction-reserve-not-met-cucumber-report
+
+          path: reports/cucumber/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # ALLURE RAW RESULTS
+      # =====================================================
+
+      - name: Upload Allure Raw Results
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: auction-reserve-not-met-allure-results
+
+          path: allure-results/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # ALLURE HTML REPORT
+      # =====================================================
+
+      - name: Upload Allure HTML Report
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: auction-reserve-not-met-allure-html-report
+
+          path: allure-report/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # SCREENSHOTS
+      # =====================================================
+
+      - name: Upload Screenshots
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: auction-reserve-not-met-cucumber-screenshots
+
+          path: screenshots/cucumber/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # RECORDED VIDEOS
+      # =====================================================
+
+      - name: Upload Test Videos
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: auction-reserve-not-met-cucumber-videos
+
+          path: videos/cucumber/
+
+          retention-days: 30
+
+          if-no-files-found: warn
+
+      # =====================================================
+      # GITHUB PAGES
+      # =====================================================
+
+      - name: Configure GitHub Pages
+        if: always()
+
+        uses: actions/configure-pages@v5
+
+      - name: Upload Allure Report To GitHub Pages
+        if: always()
+
+        uses: actions/upload-pages-artifact@v4
+
+        with:
+          path: allure-report/
+
+      # =====================================================
+      # DISPLAY TEST RESULT
+      # =====================================================
+
+      - name: Display Auction Reserve Not Met Test Result
+        if: always()
+
+        run: |
+          echo ""
+          echo "======================================================"
+          echo "REALEY AUCTION RESERVE NOT MET AUTOMATION"
+          echo "======================================================"
+          echo "Tags: @e2e @auction @reserve-not-met @counter-offer @settlement"
+          echo "Result: ${{ steps.cucumber-tests.outcome }}"
+          echo "======================================================"
+
+      # =====================================================
+      # FAIL TEST JOB IF CUCUMBER FAILED
+      # =====================================================
+
+      - name: Fail Job If Auction Reserve Not Met Test Failed
+        if: steps.cucumber-tests.outcome == 'failure'
+
+        run: |
+          echo "Auction Reserve Not Met Cucumber test failed."
+
+          exit 1
+
+
+  # =========================================================
+  # DEPLOY ALLURE REPORT
+  # =========================================================
+
+  deploy-allure:
+    name: Publish Auction Reserve Not Met Allure Report
+
+    if: always()
+
+    needs:
+      - run-auction-reserve-not-met
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy Allure Report
+        id: deployment
+
+        uses: actions/deploy-pages@v4
+
+      - name: Show Allure Report URL
+        run: |
+          echo ""
+          echo "======================================================"
+          echo "AUCTION RESERVE NOT MET ALLURE REPORT"
+          echo "======================================================"
+          echo "${{ steps.deployment.outputs.page_url }}"
+          echo "======================================================"
+
+      - name: Add Allure Link To Job Summary
+        run: |
+          echo "## 📊 Realey Auction Reserve Not Met Allure Report" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Report includes:" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Auction listing creation" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- General User bidder registration" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Bid below reserve price" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Auction completion" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Reserve price not met verification" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Agent Start negotiation" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Agent counter offer" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- General User counter negotiation" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Agent bidder chat" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Negotiated offer acceptance" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- General User settlement" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Auction deposit payment" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Solicitor selection" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Mortgage broker selection" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Step screenshots" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- Recorded Playwright scenario video" >> "$GITHUB_STEP_SUMMARY"
+
+
+  # =========================================================
+  # FINAL STATUS
+  # =========================================================
+
+  final-status:
+    name: Final Auction Reserve Not Met Test Status
+
+    if: always()
+
+    needs:
+      - run-auction-reserve-not-met
+      - deploy-allure
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Workflow Summary
+        run: |
+          echo "Auction Reserve Not Met automation workflow completed."
