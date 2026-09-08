@@ -1,4 +1,4 @@
-@e2e @fixed-price @direct-offer @settlement @exchange @document-signing
+@e2e @all-flows @flow-6 @fixed-price @direct-offer @settlement @exchange @document-signing
 Feature: Fixed Price Direct Offer Settlement Exchange and Document Signing
 
   Scenario: Complete settlement exchange document signing and confirm settlement date

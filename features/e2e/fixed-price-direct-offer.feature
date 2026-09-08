@@ -1,4 +1,4 @@
-@e2e @fixed-price @direct-offer @flow-1
+@e2e @all-flows @flow-1 @fixed-price @direct-offer
 Feature: Fixed Price Direct Offer Acceptance and Settlement
 
   Scenario: Direct offer acceptance and deposit payment

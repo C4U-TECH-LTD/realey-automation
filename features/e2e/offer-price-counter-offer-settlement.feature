@@ -1,4 +1,4 @@
-@e2e @offer-price @counter-offer
+@e2e @all-flows @flow-2 @offer-price @counter-offer
 Feature: Offer Price Counter Offer Negotiation and Settlement
 
   Scenario: Counter offer negotiation, acceptance and deposit payment

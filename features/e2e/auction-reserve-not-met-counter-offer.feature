@@ -1,4 +1,4 @@
-@e2e @auction @reserve-not-met @counter-offer @settlement
+@e2e @all-flows @flow-4 @auction @reserve-not-met @counter-offer @settlement
 Feature: Auction Reserve Price Not Met Counter Offer Negotiation and Settlement
 
   Scenario: Reserve price not met, counter negotiation accepted and settlement completed

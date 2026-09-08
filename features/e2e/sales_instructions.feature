@@ -1,4 +1,4 @@
-@e2e @fixed-price @direct-offer @settlement @sales-instructions @notifications
+@e2e @all-flows @flow-7 @fixed-price @direct-offer @settlement @sales-instructions @notifications
 Feature: Fixed Price Direct Offer Sales Instructions
 
   Scenario: Sales Instructions become available only after settlement completion and are sent once

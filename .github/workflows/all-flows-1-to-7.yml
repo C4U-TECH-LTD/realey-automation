@@ -1,0 +1,230 @@
+name: All Flows (Flow 1 to 7) - Full E2E Suite
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: realey-all-flows
+  cancel-in-progress: false
+
+jobs:
+  run-all-flows:
+    name: Run All Flows Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      CI: "true"
+      HEADLESS: "true"
+      SLOW_MO: "0"
+
+      BASE_URL: ${{ secrets.BASE_URL }}
+
+      AGENT_EMAIL: ${{ secrets.AGENT_EMAIL }}
+      AGENT_PASSWORD: ${{ secrets.AGENT_PASSWORD }}
+      AGENT_OTP: ${{ secrets.AGENT_OTP }}
+
+      GENERAL_USER_EMAIL: ${{ secrets.GENERAL_USER_EMAIL }}
+      GENERAL_USER_PASSWORD: ${{ secrets.GENERAL_USER_PASSWORD }}
+      GENERAL_USER_OTP: ${{ secrets.GENERAL_USER_OTP }}
+
+      AUCTION_BUYER_2_EMAIL: ${{ secrets.AUCTION_BUYER_2_EMAIL }}
+      AUCTION_BUYER_2_PASSWORD: ${{ secrets.AUCTION_BUYER_2_PASSWORD }}
+      AUCTION_BUYER_2_OTP: ${{ secrets.AUCTION_BUYER_2_OTP }}
+
+      BUYER_SOLICITOR_EMAIL: ${{ secrets.BUYER_SOLICITOR_EMAIL }}
+      BUYER_SOLICITOR_PASSWORD: ${{ secrets.BUYER_SOLICITOR_PASSWORD }}
+      BUYER_SOLICITOR_OTP: ${{ secrets.BUYER_SOLICITOR_OTP }}
+
+      SELLER_SOLICITOR_EMAIL: ${{ secrets.SELLER_SOLICITOR_EMAIL }}
+      SELLER_SOLICITOR_PASSWORD: ${{ secrets.SELLER_SOLICITOR_PASSWORD }}
+      SELLER_SOLICITOR_OTP: ${{ secrets.SELLER_SOLICITOR_OTP }}
+
+      VENDOR_EMAIL: ${{ secrets.VENDOR_EMAIL }}
+      VENDOR_PASSWORD: ${{ secrets.VENDOR_PASSWORD }}
+      VENDOR_OTP: ${{ secrets.VENDOR_OTP }}
+
+      TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER }}
+      TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY }}
+      TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Install Playwright Browser
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+
+      - name: Verify environment
+        run: |
+          node --version
+          npm --version
+          npx playwright --version
+          npx cucumber-js --version
+          npx allure --version
+          google-chrome --version
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+          rm -rf allure-report
+          rm -rf reports/cucumber
+          rm -rf screenshots/cucumber
+          rm -rf videos
+
+      - name: Run All Flows Cucumber Test
+        id: cucumber-tests
+        continue-on-error: true
+        run: |
+          npx cucumber-js --tags "@all-flows"
+
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "Generating Allure report..."
+            npx allure generate allure-results --clean -o allure-report
+          else
+            echo "No Allure results generated."
+            mkdir -p allure-report
+            echo "<h1>No Allure results generated</h1>" > allure-report/index.html
+          fi
+
+      - name: Upload Cucumber Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report
+          path: reports/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure Raw Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-html-report
+          path: allure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-screenshots
+          path: screenshots/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Test Videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-videos
+          path: videos/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Configure GitHub Pages
+        if: always()
+        uses: actions/configure-pages@v5
+
+      - name: Upload Allure Report To GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: allure-report/
+
+      - name: Display All Flows Test Result
+        if: always()
+        run: |
+          echo ""
+          echo "============================================"
+          echo "REALEY ALL FLOWS AUTOMATION (1 TO 7)"
+          echo "============================================"
+          echo "Result: ${{ steps.cucumber-tests.outcome }}"
+          echo "============================================"
+
+      - name: Fail Job If Tests Failed
+        if: steps.cucumber-tests.outcome == 'failure'
+        run: |
+          echo "All Flows Cucumber test suite had failures."
+          exit 1
+
+  deploy-allure:
+    name: Publish Allure Report
+    if: always()
+    needs:
+      - run-all-flows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Allure Report
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Show Allure Report URL
+        run: |
+          echo ""
+          echo "============================================"
+          echo "ALLURE REPORT"
+          echo "============================================"
+          echo "${{ steps.deployment.outputs.page_url }}"
+          echo "============================================"
+
+      - name: Add Allure Link To Job Summary
+        run: |
+          echo "## 📊 Realey All Flows Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+
+  final-status:
+    name: Final Test Status
+    if: always()
+    needs:
+      - run-all-flows
+      - deploy-allure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow Summary
+        run: |
+          echo "All Flows (1 to 7) automation workflow completed."

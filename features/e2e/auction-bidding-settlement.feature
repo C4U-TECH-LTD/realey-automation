@@ -1,4 +1,4 @@
-@e2e @auction @bidding
+@e2e @all-flows @flow-3 @auction @bidding
 Feature: Auction Bidding and Settlement
 
   Scenario: Two bidders place bids and the winning bidder proceeds to settlement

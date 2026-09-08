@@ -161,7 +161,7 @@ jobs:
         continue-on-error: true
 
         run: |
-          npx cucumber-js --tags "@e2e and @auction and @reserve-not-met and @counter-offer and @settlement"
+          npx cucumber-js --tags "@flow-4"
 
       # =====================================================
       # GENERATE ALLURE REPORT

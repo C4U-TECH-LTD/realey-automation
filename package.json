@@ -27,7 +27,23 @@
 
     "test:cucumber:regression": "cucumber-js --tags \"@regression\"",
 
-    "test:fixed-price": "cucumber-js --tags \"@fixed-price\"",
+    "test:fixed-price": "cucumber-js --tags \"@flow-1\"",
+
+    "test:flow-1": "cucumber-js --tags \"@flow-1\"",
+
+    "test:flow-2": "cucumber-js --tags \"@flow-2\"",
+
+    "test:flow-3": "cucumber-js --tags \"@flow-3\"",
+
+    "test:flow-4": "cucumber-js --tags \"@flow-4\"",
+
+    "test:flow-5": "cucumber-js --tags \"@flow-5\"",
+
+    "test:flow-6": "cucumber-js --tags \"@flow-6\"",
+
+    "test:flow-7": "cucumber-js --tags \"@flow-7\"",
+
+    "test:all-flows": "cucumber-js --tags \"@all-flows\"",
 
     "report:generate": "allure generate allure-results --clean -o allure-report",
 

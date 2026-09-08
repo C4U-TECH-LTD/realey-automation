@@ -1,4 +1,4 @@
-@e2e @auction @reserve-not-me @counter-reject @relist-fixed
+@e2e @all-flows @flow-5 @auction @reserve-not-met @counter-reject @relist-fixed
 Feature: Auction Reserve Price Not Met Counter Rejection and Fixed Price Relisting
 
   Scenario: Reserve price not met, buyer counter rejected and property re-listed as Fixed Price
