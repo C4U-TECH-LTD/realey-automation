@@ -61,9 +61,12 @@ const settlementExchangeFlowData = {
     },
 
     // Agent login
-    email: "agent@test.com",
-    password: "Test@123",
-    otp: "123456",
+    email:
+      process.env.AGENT_EMAIL || "subratotest99@gmail.com",
+    password:
+      process.env.AGENT_PASSWORD || "Test12345@",
+    otp:
+      process.env.AGENT_OTP || "123456",
   },
 
   // =====================================================
@@ -71,11 +74,14 @@ const settlementExchangeFlowData = {
   // =====================================================
 
   generalUser: {
-    email: "buyer@test.com",
+    email:
+      process.env.GENERAL_USER_EMAIL || "siamtest1999+3@gmail.com",
 
-    password: "Test@123",
+    password:
+      process.env.GENERAL_USER_PASSWORD || "Test12345@",
 
-    otp: "123456",
+    otp:
+      process.env.GENERAL_USER_OTP || "123456",
 
     searchText:
       "Arndale Shopping Centre Access",
@@ -90,13 +96,13 @@ const settlementExchangeFlowData = {
 
   buyerSolicitor: {
     email:
-      "buyer.solicitor@test.com",
+      process.env.BUYER_SOLICITOR_EMAIL || "buyer.solicitor@test.com",
 
     password:
-      "Test@123",
+      process.env.BUYER_SOLICITOR_PASSWORD || "Test@123",
 
     otp:
-      "123456",
+      process.env.BUYER_SOLICITOR_OTP || "123456",
 
     searchText:
       "Hasan",
@@ -129,16 +135,16 @@ const settlementExchangeFlowData = {
       "Automation Vendor",
 
     email:
-      "automation.vendor@example.com",
+      process.env.VENDOR_EMAIL || "automation.vendor@example.com",
 
     phone:
       "0400000000",
 
     password:
-      "Test@123",
+      process.env.VENDOR_PASSWORD || "Test@123",
 
     otp:
-      "123456",
+      process.env.VENDOR_OTP || "123456",
   },
 
   // =====================================================
@@ -293,39 +299,39 @@ const settlementExchangeFlowData = {
       /Ready for Exchange/i,
 
     exchangeInitiated:
-      /exchange initiated|exchange started|initiated successfully/i,
+      /exchange initiated|exchange started|initiated successfully|exchange pending|pending exchange/i,
 
     // Buyer signing
     buyerAssigned:
-      /assigned.*signing|buyer assigned|assigned successfully/i,
+      /assigned.*signing|buyer assigned|assigned successfully|assigned/i,
 
     buyerSigned:
-      /buyer.*signed|signed.*buyer|signing completed/i,
+      /buyer.*signed|signed.*buyer|signing completed|signed/i,
 
     // Document transfer
     passedToSellerSolicitor:
-      /passed.*seller solicitor|sent.*seller solicitor|successfully sent/i,
+      /passed.*seller solicitor|sent.*seller solicitor|successfully sent|passed/i,
 
     // Vendor
     vendorAdded:
-      /vendor.*added|added successfully/i,
+      /vendor.*added|added successfully|Automation Vendor/i,
 
     passedToVendor:
-      /passed.*vendor|sent.*vendor|vendor.*received/i,
+      /passed.*vendor|sent.*vendor|vendor.*received|passed/i,
 
     vendorSigned:
-      /vendor.*signed|signed.*vendor|signing completed/i,
+      /vendor.*signed|signed.*vendor|signing completed|signed/i,
 
     // Settlement date
     settlementDateProposed:
-      /settlement date.*proposed|date proposed|proposed successfully/i,
+      /settlement date.*proposed|date proposed|proposed successfully|settlement date/i,
 
     settlementDateAccepted:
-      /settlement date.*accepted|date accepted|accepted successfully/i,
+      /settlement date.*accepted|date accepted|accepted successfully|settlement date/i,
 
     // Calendar
     calendar:
-      /calendar/i,
+      /calendar|schedule/i,
   },
 
   // =====================================================

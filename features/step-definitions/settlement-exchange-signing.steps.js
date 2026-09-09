@@ -13,6 +13,14 @@ const {
   salesInstructionsFlowData,
 } = require("../../fixtures/test-data/salesInstructionsFlowData");
 
+const {
+  loginData,
+} = require("../../fixtures/test-data/loginData");
+
+const {
+  LoginPage,
+} = require("../../pages/LoginPage");
+
 
 // =====================================================
 // HELPERS
@@ -95,99 +103,20 @@ async function login(worldOrPage, user) {
     );
   }
 
-  const loginUrl = (process.env.BASE_URL || "https://uat.realey.au").replace(/\/$/, "") + "/login";
+  const loginPage = worldOrPage.loginPage || new LoginPage(page);
+  const loginPath = loginData?.application?.loginPath || "/login";
 
-  if (!page.url().includes("/login")) {
-    await page.goto(loginUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 30_000,
-    });
+  await loginPage.goto(loginPath);
+  await loginPage.login(user.email, user.password);
+
+  if (user.otp) {
+    await loginPage.waitForOtpPage();
+    await loginPage.enterOtp(user.otp);
+    await loginPage.submitOtp();
   }
 
-  await waitForPage(page);
-
-  const emailInput = page
-    .locator(
-      'input[type="email"], input[name="email"], input[placeholder*="email" i]'
-    )
-    .first();
-
-  const passwordInput = page
-    .locator(
-      'input[type="password"], input[name="password"]'
-    )
-    .first();
-
-  await expect(emailInput).toBeVisible({
-    timeout:
-      settlementExchangeFlowData
-        .timeouts
-        .navigation,
-  });
-
-  await emailInput.fill(
-    user.email
-  );
-
-  await passwordInput.fill(
-    user.password
-  );
-
-  const loginButton = page
-    .getByRole("button", {
-      name: /login|log in|sign in/i,
-    })
-    .first();
-
-  await expect(loginButton).toBeVisible();
-
-  await loginButton.click();
-
-  await page.waitForLoadState(
-    "domcontentloaded"
-  );
-
-  /*
-   * OTP support
-   *
-   * If the role has an OTP configured and
-   * an OTP input is visible, fill it.
-   */
-  if (user.otp) {
-    const otpInput = page
-      .locator(
-        'input[name="otp"], input[placeholder*="otp" i], input[autocomplete="one-time-code"]'
-      )
-      .first();
-
-    const otpVisible =
-      await otpInput
-        .isVisible({ timeout: 5000 })
-        .catch(() => false);
-
-    if (otpVisible) {
-      await otpInput.fill(
-        user.otp
-      );
-
-      const verifyButton = page
-        .getByRole("button", {
-          name: /verify|continue|submit/i,
-        })
-        .first();
-
-      if (
-        await verifyButton
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await verifyButton.click();
-
-        await page.waitForLoadState(
-          "domcontentloaded"
-        );
-      }
-    }
+  if (typeof worldOrPage.initialisePageObjects === "function") {
+    worldOrPage.initialisePageObjects();
   }
 }
 
@@ -208,6 +137,17 @@ async function switchRole(
 async function openSettlementCard(worldOrPage, specificTitle = null) {
   const page = worldOrPage.page || worldOrPage;
 
+  // 1. Close any modal dialog that may be blocking the view
+  const modalClose = page
+    .getByRole("dialog")
+    .getByRole("button", { name: /close/i })
+    .first();
+  if (await modalClose.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await modalClose.click();
+    await page.waitForTimeout(500);
+  }
+
+  // 2. Ensure we are on the Settlements tab
   if (!page.url().includes("settlement")) {
     const settlementsTab = page
       .getByRole("link", { name: /settlements/i })
@@ -215,12 +155,16 @@ async function openSettlementCard(worldOrPage, specificTitle = null) {
       .or(page.getByText(/^settlements$/i))
       .first();
 
-    if (await settlementsTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await settlementsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
       await settlementsTab.click();
-      await waitForPage(page);
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(1000);
     }
   }
 
+  // 3. Scroll to the matching settlement card without clicking "View Details"
+  // (Action buttons like "Initiate Exchange", "Set date", etc. are on the card itself,
+  // whereas "View Details" opens a read-only popup that obscures action buttons)
   const candidateTitles = [
     specificTitle,
     worldOrPage.createdListingTitle,
@@ -234,45 +178,30 @@ async function openSettlementCard(worldOrPage, specificTitle = null) {
   for (const title of candidateTitles) {
     const titleLocator = page.getByText(title, { exact: false }).first();
 
-    if (await titleLocator.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const cardContainer = titleLocator.locator(
-        'xpath=ancestor::div[.//button[contains(., "View Details")] or .//a[contains(., "View Details")]][1]'
-      );
-      const viewDetailsBtn = cardContainer
-        .locator('button, a, [role="button"]')
-        .filter({ hasText: /view details/i })
-        .first();
-
-      if (await viewDetailsBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await viewDetailsBtn.click();
-        await waitForPage(page);
-        return;
-      }
-
-      await titleLocator.click();
-      await waitForPage(page);
+    if (await titleLocator.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await titleLocator.scrollIntoViewIfNeeded().catch(() => {});
       return;
     }
   }
 
-  const firstViewDetails = page
-    .locator('button, a, [role="button"]')
-    .filter({ hasText: /view details/i })
+  // If not visible initially, filter using the property search input
+  const searchInput = page
+    .locator('input[placeholder*="Search by property title" i], input[placeholder*="search" i]')
     .first();
 
-  if (await firstViewDetails.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await firstViewDetails.click();
-    await waitForPage(page);
-    return;
-  }
+  if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const query = specificTitle || worldOrPage.createdListingTitle || "Arndale Shopping Centre Access";
+    await searchInput.fill(query);
+    await page.waitForTimeout(1000);
 
-  const firstSettlement = page
-    .locator('table tbody tr, [data-testid*="settlement"]')
-    .first();
+    for (const title of candidateTitles) {
+      const titleLocator = page.getByText(title, { exact: false }).first();
 
-  if (await firstSettlement.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await firstSettlement.click();
-    await waitForPage(page);
+      if (await titleLocator.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await titleLocator.scrollIntoViewIfNeeded().catch(() => {});
+        return;
+      }
+    }
   }
 }
 
@@ -598,13 +527,13 @@ When(
     const confirm = page
       .getByRole("button", {
         name:
-          /confirm|continue|yes/i,
+          /confirm|continue|yes|initiate/i,
       })
       .first();
 
     if (
       await confirm
-        .isVisible()
+        .isVisible({ timeout: 2000 })
         .catch(() => false)
     ) {
       await confirm.click();
@@ -723,11 +652,22 @@ When(
   async function () {
     const page = this.page;
 
-    const documents = page
-      .getByText(
-        /settlement documents|sign documents|documents/i
-      )
+    let documents = page
+      .getByRole("link", { name: /documents/i })
+      .or(page.getByRole("button", { name: /documents|sign/i }))
+      .or(page.getByText(/settlement documents|sign documents|documents/i))
       .first();
+
+    if (!(await documents.isVisible({ timeout: 3000 }).catch(() => false))) {
+      const docsNav = page.getByRole("link", { name: /^documents$/i }).first();
+      if (await docsNav.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await docsNav.click();
+        await waitForPage(page);
+      }
+      documents = page
+        .getByText(/settlement documents|sign documents|documents/i)
+        .first();
+    }
 
     await expect(
       documents
@@ -928,12 +868,35 @@ When(
   async function () {
     const page = this.page;
 
-    const addVendorButton = page
+    let addVendorButton = page
       .getByRole("button", {
         name:
           /add vendor/i,
       })
       .first();
+
+    if (!(await addVendorButton.isVisible({ timeout: 3000 }).catch(() => false))) {
+      const viewDetailsBtn = page
+        .locator('button, a, [role="button"]')
+        .filter({ hasText: /view details/i })
+        .first();
+      if (await viewDetailsBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await viewDetailsBtn.click();
+        await page.waitForTimeout(1000);
+      }
+      const contactsTab = page
+        .getByRole("tab", { name: /contacts/i })
+        .or(page.getByText(/contacts/i))
+        .first();
+      if (await contactsTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await contactsTab.click();
+      }
+      addVendorButton = page
+        .getByRole("button", {
+          name: /add vendor/i,
+        })
+        .first();
+    }
 
     await expect(
       addVendorButton
@@ -1121,11 +1084,22 @@ When(
   async function () {
     const page = this.page;
 
-    const documents = page
-      .getByText(
-        /settlement documents|sign documents|documents/i
-      )
+    let documents = page
+      .getByRole("link", { name: /documents/i })
+      .or(page.getByRole("button", { name: /documents|sign/i }))
+      .or(page.getByText(/settlement documents|sign documents|documents/i))
       .first();
+
+    if (!(await documents.isVisible({ timeout: 3000 }).catch(() => false))) {
+      const docsNav = page.getByRole("link", { name: /^documents$/i }).first();
+      if (await docsNav.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await docsNav.click();
+        await waitForPage(page);
+      }
+      documents = page
+        .getByText(/settlement documents|sign documents|documents/i)
+        .first();
+    }
 
     await expect(
       documents
@@ -1258,34 +1232,6 @@ When(
   async function () {
     const page = this.page;
 
-    const proposeButton = page
-      .getByRole("button", {
-        name:
-          /propose settlement date|settlement date/i,
-      })
-      .first();
-
-    await expect(
-      proposeButton
-    ).toBeVisible({
-      timeout:
-        settlementExchangeFlowData
-          .timeouts
-          .action,
-    });
-
-    await proposeButton.click();
-
-    const dateInput = page
-      .locator(
-        'input[type="date"], input[name*="settlement" i], input[placeholder*="date" i]'
-      )
-      .first();
-
-    await expect(
-      dateInput
-    ).toBeVisible();
-
     const configuredDate =
       settlementExchangeFlowData
         .settlementDate
@@ -1298,7 +1244,6 @@ When(
      * HTML date input requires:
      * YYYY-MM-DD
      */
-
     const parts =
       configuredDate.split("/");
 
@@ -1307,22 +1252,81 @@ When(
         ? `${parts[2]}-${parts[1]}-${parts[0]}`
         : configuredDate;
 
-    await dateInput.fill(
-      htmlDate
-    );
+    // Check if date input is already rendered directly on the settlement card
+    let dateInput = page
+      .locator(
+        'input[type="date"], input[placeholder*="yyyy" i], input[name*="settlement" i], input[placeholder*="date" i]'
+      )
+      .first();
 
-    const submitButton = page
+    if (await dateInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await dateInput.fill(htmlDate);
+
+      const setDateBtn = page
+        .getByRole("button", {
+          name: /set date|propose|confirm|submit/i,
+        })
+        .first();
+
+      await setDateBtn.click();
+    } else {
+      const proposeButton = page
+        .getByRole("button", {
+          name:
+            /propose settlement date|settlement date|set date/i,
+        })
+        .first();
+
+      await expect(
+        proposeButton
+      ).toBeVisible({
+        timeout:
+          settlementExchangeFlowData
+            .timeouts
+            .action,
+      });
+
+      await proposeButton.click();
+
+      dateInput = page
+        .locator(
+          'input[type="date"], input[placeholder*="yyyy" i], input[name*="settlement" i], input[placeholder*="date" i]'
+        )
+        .first();
+
+      await expect(
+        dateInput
+      ).toBeVisible({
+        timeout: 5000,
+      });
+
+      await dateInput.fill(
+        htmlDate
+      );
+
+      const submitButton = page
+        .getByRole("button", {
+          name:
+            /propose|submit|confirm|set date/i,
+        })
+        .last();
+
+      await expect(
+        submitButton
+      ).toBeVisible();
+
+      await submitButton.click();
+    }
+
+    const confirm = page
       .getByRole("button", {
-        name:
-          /propose|submit|confirm/i,
+        name: /confirm|yes|continue/i,
       })
-      .last();
+      .first();
 
-    await expect(
-      submitButton
-    ).toBeVisible();
-
-    await submitButton.click();
+    if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await confirm.click();
+    }
 
     this.proposedSettlementDate =
       configuredDate;
@@ -1464,11 +1468,9 @@ Then(
     const page = this.page;
 
     const calendarLink = page
-      .getByText(
-        settlementExchangeFlowData
-          .expected
-          .calendar
-      )
+      .getByRole("link", { name: /calendar|schedule/i })
+      .or(page.getByRole("button", { name: /calendar|schedule/i }))
+      .or(page.getByText(settlementExchangeFlowData.expected.calendar))
       .first();
 
     await expect(
