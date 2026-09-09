@@ -65,11 +65,14 @@ const salesInstructionsFlowData = {
   // =====================================================
 
   generalUser: {
-    email: "buyer@test.com",
+    email:
+      process.env.GENERAL_USER_EMAIL || "siamtest1999+3@gmail.com",
 
-    password: "Test@123",
+    password:
+      process.env.GENERAL_USER_PASSWORD || "Test12345@",
 
-    otp: "123456",
+    otp:
+      process.env.GENERAL_USER_OTP || "123456",
 
     searchText:
       "Arndale Shopping Centre Access",

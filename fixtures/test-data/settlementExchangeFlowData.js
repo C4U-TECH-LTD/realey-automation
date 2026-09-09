@@ -96,13 +96,16 @@ const settlementExchangeFlowData = {
 
   buyerSolicitor: {
     email:
-      process.env.BUYER_SOLICITOR_EMAIL || "buyer.solicitor@test.com",
+      process.env.BUYER_SOLICITOR_EMAIL || "siamtest1999+2@gmail.com",
 
     password:
-      process.env.BUYER_SOLICITOR_PASSWORD || "Test@123",
+      process.env.BUYER_SOLICITOR_PASSWORD || "Test12345@",
 
     otp:
       process.env.BUYER_SOLICITOR_OTP || "123456",
+
+    name:
+      "Hasan Siam",
 
     searchText:
       "Hasan",
@@ -132,16 +135,16 @@ const settlementExchangeFlowData = {
 
   vendor: {
     name:
-      "Automation Vendor",
+      "Daniel Carter",
 
     email:
-      process.env.VENDOR_EMAIL || "automation.vendor@example.com",
+      process.env.VENDOR_EMAIL || "subratotest99.3@gmail.com",
 
     phone:
       "0400000000",
 
     password:
-      process.env.VENDOR_PASSWORD || "Test@123",
+      process.env.VENDOR_PASSWORD || "Test12345@",
 
     otp:
       process.env.VENDOR_OTP || "123456",
