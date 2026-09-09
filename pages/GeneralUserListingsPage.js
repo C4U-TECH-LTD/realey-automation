@@ -76,37 +76,53 @@ class GeneralUserListingsPage {
   async openFirstMatchingListing(searchText) {
     await this.search(searchText);
 
-    const resultCard = this.page
+    // 1. Wait for "Loading properties..." indicator to disappear
+    await this.page
+      .getByText(/loading properties/i)
+      .waitFor({ state: "hidden", timeout: 30_000 })
+      .catch(() => {});
+
+    // 2. Wait for at least one "Learn More" button to appear in search results
+    const learnMoreButtons = this.page.getByRole("button", {
+      name: "Learn More",
+      exact: true,
+    });
+
+    // Option A: Find Learn More within a card containing the search text
+    const matchingCard = this.page
       .locator("div")
       .filter({
-        has: this.page.getByText(
-          searchText,
-          { exact: false }
-        ),
+        has: learnMoreButtons,
       })
       .filter({
-        has: this.page.getByRole(
-          "button",
-          { name: /Learn More|View/i }
-        ),
+        hasText: searchText,
       })
       .first();
 
-    const learnMore = resultCard.getByRole(
-      "button",
-      {
-        name: /Learn More|View/i,
-      }
-    ).first();
+    const cardButton = matchingCard.getByRole("button", {
+      name: "Learn More",
+      exact: true,
+    });
 
-    if (await learnMore.isVisible().catch(() => false)) {
-      await learnMore.click();
+    if (await cardButton.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      await cardButton.scrollIntoViewIfNeeded().catch(() => {});
+      await cardButton.click();
+      await this.page.waitForLoadState("domcontentloaded");
       return;
     }
 
+    // Option B: Click the first Learn More button in search results (the newly published listing)
+    if (await learnMoreButtons.first().isVisible({ timeout: 10_000 }).catch(() => false)) {
+      await learnMoreButtons.first().scrollIntoViewIfNeeded().catch(() => {});
+      await learnMoreButtons.first().click();
+      await this.page.waitForLoadState("domcontentloaded");
+      return;
+    }
+
+    // Option C: Exact title match on the card (MUST be exact: true so it never clicks "Showing results for...")
     const exactTitle = this.page.getByText(
       searchText,
-      { exact: false }
+      { exact: true }
     ).first();
 
     await expect(
@@ -116,7 +132,9 @@ class GeneralUserListingsPage {
       timeout: 20_000,
     });
 
+    await exactTitle.scrollIntoViewIfNeeded().catch(() => {});
     await exactTitle.click();
+    await this.page.waitForLoadState("domcontentloaded");
   }
 }
 

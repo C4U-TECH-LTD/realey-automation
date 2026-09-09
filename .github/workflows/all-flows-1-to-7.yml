@@ -99,15 +99,7 @@ jobs:
         id: cucumber-tests
         continue-on-error: true
         run: |
-          npx cucumber-js \
-            features/e2e/01-fixed-price-direct-offer.feature \
-            features/e2e/02-offer-price-counter-offer-settlement.feature \
-            features/e2e/03-auction-bidding-settlement.feature \
-            features/e2e/04-auction-reserve-not-met-counter-offer.feature \
-            features/e2e/05-auction-counter-rejected-relist.feature \
-            features/e2e/06-settlement_exchange_signing.feature \
-            features/e2e/07-sales_instructions.feature \
-            --tags "@all-flows"
+          npx cucumber-js --tags "@all-flows"
 
       - name: Generate Allure Report
         if: always()
