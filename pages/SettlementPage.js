@@ -481,33 +481,41 @@ class SettlementPage {
     );
   }
 
-  async selectCardTabIfNeeded() {
-    const pageCardTabs = [
-      this.page.getByRole("tab", { name: /^Card$/i }),
-      this.page.locator('button, [role="tab"], div').filter({ hasText: /^Card$/i }),
-      this.page.locator('button, [role="tab"], div').filter({ hasText: /Card/i }),
-    ];
+  async selectCardTabIfNeeded(target) {
+    const scopes = target ? [target] : [...this.page.frames(), this.page];
 
-    for (const cardTab of pageCardTabs) {
-      if (await cardTab.first().isVisible().catch(() => false)) {
-        console.log("Found 'Card' tab on page. Clicking to switch from PayTo to Card...");
-        await cardTab.first().click({ force: true });
-        await this.page.waitForTimeout(1_000);
-        return;
+    for (const scope of scopes) {
+      const isPage = scope === this.page;
+      let cardTabCandidates = [];
+
+      if (isPage) {
+        const modal = this.page.locator('div[role="dialog"], [class*="modal"], [class*="fixed inset-0"]').first();
+        if (!(await modal.isVisible().catch(() => false))) continue;
+
+        cardTabCandidates = [
+          modal.getByRole("tab", { name: /card/i }),
+          modal.locator('button:has-text("Card"), [role="tab"]:has-text("Card")'),
+          modal.locator('button, [role="tab"]').filter({ hasText: /^\s*Card\s*$/i }),
+        ];
+      } else {
+        cardTabCandidates = [
+          scope.getByRole("tab", { name: /card/i }),
+          scope.locator('#tab-card, [id*="card" i][role="tab"]'),
+          scope.locator('button[id*="card" i], button[aria-controls*="card" i]'),
+          scope.locator('button:has-text("Card"), [role="tab"]:has-text("Card")'),
+          scope.locator('button, [role="tab"]').filter({ hasText: /^\s*Card\s*$/i }),
+          scope.getByText(/^\s*Card\s*$/i),
+        ];
       }
-    }
 
-    for (const frame of this.page.frames()) {
-      const frameCardTab = frame
-        .locator('button, [role="tab"], div')
-        .filter({ hasText: /^Card$/i })
-        .first();
-
-      if (await frameCardTab.isVisible().catch(() => false)) {
-        console.log("Found 'Card' tab in frame. Clicking...");
-        await frameCardTab.click({ force: true });
-        await this.page.waitForTimeout(1_000);
-        return;
+      for (const candidate of cardTabCandidates) {
+        if (await candidate.first().isVisible().catch(() => false)) {
+          const text = await candidate.first().innerText().catch(() => "Card");
+          console.log(`Found Card tab in ${isPage ? "modal" : "frame"}: "${text.trim()}". Clicking to switch to Card...`);
+          await candidate.first().click({ force: true });
+          await this.page.waitForTimeout(1_000);
+          return;
+        }
       }
     }
   }
@@ -528,8 +536,6 @@ class SettlementPage {
     while (
       Date.now() - startedAt < timeoutMs
     ) {
-      await this.selectCardTabIfNeeded();
-
       const frames = this.page.frames();
 
       for (const frame of frames) {
@@ -551,6 +557,7 @@ class SettlementPage {
         }
       }
 
+      await this.selectCardTabIfNeeded();
       await this.page.waitForTimeout(1_000);
     }
 
@@ -618,15 +625,15 @@ class SettlementPage {
       );
 
     const cardNumber = frame.locator(
-      '#payment-numberInput, input[name="number"], input[aria-label="Card number"]'
+      '#payment-numberInput, input[name="number"], input[name="cardNumber"], input[aria-label*="Card number" i], input[placeholder*="Card number" i]'
     );
 
     const expiry = frame.locator(
-      '#payment-expiryInput, input[name="expiry"], input[aria-label="Expiration date"]'
+      '#payment-expiryInput, input[name="expiry"], input[name="exp-date"], input[aria-label*="Expiration date" i], input[placeholder*="MM / YY" i], input[placeholder*="Expiration" i]'
     );
 
     const cvc = frame.locator(
-      '#payment-cvcInput, input[name="cvc"], input[aria-label="Security code"]'
+      '#payment-cvcInput, input[name="cvc"], input[name="cvv"], input[aria-label*="Security code" i], input[placeholder*="CVC" i]'
     );
 
     // =================================================
