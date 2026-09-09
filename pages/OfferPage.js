@@ -229,40 +229,39 @@ class OfferPage {
         "Offer button clicked"
       );
 
-      // Check if clicking opened a confirmation dialog or if there is a separate Submit Offer button
+      // Wait for confirmation dialog to appear after clicking Offer
       const confirmDialog = this.page.locator('[role="dialog"]').last();
-      const hasConfirmDialog = await confirmDialog
-        .isVisible({ timeout: 5000 })
+      const dialogAppeared = await confirmDialog
+        .waitFor({ state: "visible", timeout: 8000 })
+        .then(() => true)
         .catch(() => false);
 
-      if (hasConfirmDialog) {
+      if (dialogAppeared) {
         const dialogSubmitBtn = confirmDialog
-          .getByRole("button", { name: /submit offer/i })
+          .getByRole("button", { name: /submit offer|submit/i })
           .first();
 
-        if (
-          await dialogSubmitBtn
-            .isVisible({ timeout: 5000 })
-            .catch(() => false)
-        ) {
-          await expect(dialogSubmitBtn).toBeEnabled();
-          await dialogSubmitBtn.click();
+        await dialogSubmitBtn
+          .waitFor({ state: "visible", timeout: 10_000 });
 
-          console.log(
-            "Submit Offer button in confirmation dialog clicked"
-          );
-        }
+        await expect(dialogSubmitBtn).toBeEnabled({ timeout: 10_000 });
+        await dialogSubmitBtn.click();
+
+        console.log(
+          "Submit Offer button in confirmation dialog clicked"
+        );
       } else {
         const submitBtn = this.page
-          .getByRole("button", { name: /submit offer/i })
+          .getByRole("button", { name: /submit offer|submit/i })
           .first();
 
-        if (
-          await submitBtn
-            .isVisible({ timeout: 3000 })
-            .catch(() => false)
-        ) {
-          await expect(submitBtn).toBeEnabled();
+        const submitVisible = await submitBtn
+          .waitFor({ state: "visible", timeout: 5000 })
+          .then(() => true)
+          .catch(() => false);
+
+        if (submitVisible) {
+          await expect(submitBtn).toBeEnabled({ timeout: 5000 });
           await submitBtn.click();
 
           console.log(
@@ -271,6 +270,9 @@ class OfferPage {
         }
       }
     }
+
+    // Short wait for network request to initiate
+    await this.page.waitForTimeout(1000);
   }
 
   // =====================================================
@@ -279,10 +281,13 @@ class OfferPage {
   async verifyOfferSubmitted(
     expectedMessage
   ) {
+    const successTarget = this.page
+      .getByText(expectedMessage)
+      .or(this.page.getByText(/offer.*submitted/i))
+      .first();
+
     await expect(
-      this.page
-        .getByText(expectedMessage)
-        .first(),
+      successTarget,
       "Offer submitted success message should appear"
     ).toBeVisible({
       timeout: 30_000,

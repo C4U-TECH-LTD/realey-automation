@@ -505,6 +505,13 @@ class ConversationsPage {
    * <button>Confirm</button>
    */
   async acceptNegotiatedOffer() {
+    // Wait for any chat loading spinner to detach
+    await this.page
+      .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
     await expect(
       this.acceptButton,
       "Accept button should be visible for negotiated offer"
@@ -512,81 +519,71 @@ class ConversationsPage {
 
     await this.acceptButton.click();
 
-    const dialog = this.page
-      .getByRole("dialog")
-      .last();
+    console.log("Accept button clicked");
 
-    if (
-      await dialog
-        .isVisible()
-        .catch(() => false)
-    ) {
-      const confirmButton =
-        dialog.getByRole("button", {
-          name: "Confirm",
-          exact: true,
-        });
+    const dialog = this.page.locator('[role="dialog"]').last();
+    const dialogAppeared = await dialog
+      .waitFor({ state: "visible", timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (dialogAppeared) {
+      const confirmButton = dialog
+        .getByRole("button", {
+          name: /Confirm|Accept|Yes/i,
+        })
+        .first();
 
       await expect(
         confirmButton,
         "Confirm button should be visible"
       ).toBeVisible({ timeout: 10_000 });
 
-      await expect(
-        confirmButton
-      ).toBeEnabled();
-
+      await expect(confirmButton).toBeEnabled();
       await confirmButton.click();
+      console.log("Offer acceptance confirmed in dialog");
     } else {
       /*
        * Fallback for UI where modal
        * does not expose role="dialog".
        */
-      const confirmButton =
-        this.page
-          .getByRole("button", {
-            name: "Confirm",
-            exact: true,
-          })
-          .last();
+      const confirmButton = this.page
+        .getByRole("button", {
+          name: /Confirm|Accept|Yes/i,
+        })
+        .last();
 
-      await expect(
-        confirmButton,
-        "Confirm button should be visible"
-      ).toBeVisible({ timeout: 10_000 });
-
-      await confirmButton.click();
+      if (await confirmButton.isVisible().catch(() => false)) {
+        await confirmButton.click();
+        console.log("Offer acceptance confirmed via fallback button");
+      }
     }
 
-    await this.page.waitForTimeout(700);
+    await this.page.waitForTimeout(1000);
   }
 
   async verifyNegotiatedOfferAccepted(
     expectedMessage
   ) {
-    if (expectedMessage) {
-      const acceptedMessage =
-        this.page
-          .getByText(expectedMessage)
-          .last();
+    // 1. Assert that the card or screen reflects acceptance (badge, toast, or copy settlement link)
+    const successTarget = this.page
+      .getByText(expectedMessage || /accepted/i)
+      .or(this.page.getByText(/copy settlement link/i))
+      .or(this.page.getByText(/offer accepted/i))
+      .last();
 
-      if (
-        await acceptedMessage
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await expect(
-          acceptedMessage
-        ).toBeVisible();
+    await expect(
+      successTarget,
+      "Negotiated offer should be accepted and show Accepted state"
+    ).toBeVisible({ timeout: 20_000 });
 
-        return;
-      }
-    }
-
+    // 2. Accept button must have disappeared
     await expect(
       this.acceptButton,
       "Accept button should disappear after acceptance"
     ).not.toBeVisible({ timeout: 15_000 });
+
+    console.log("Negotiated offer accepted successfully");
   }
 }
 

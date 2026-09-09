@@ -72,6 +72,20 @@ class SettlementPage {
   // =====================================================
 
   async start() {
+    const startBtn = this.page.getByRole("button", {
+      name: /start settlement|continue settlement/i,
+    }).first();
+
+    if (
+      await startBtn
+        .waitFor({ state: "visible", timeout: 4000 })
+        .then(() => true)
+        .catch(() => false)
+    ) {
+      await startBtn.click();
+      console.log("Start Settlement button clicked");
+    }
+
     await expect(
       this.settlementHeading,
       "Property Settlement Process should be visible"
