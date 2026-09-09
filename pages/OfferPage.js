@@ -40,6 +40,12 @@ class OfferPage {
       "Checking whether Offer amount input is already visible..."
     );
 
+    const dialog = this.page.locator('[role="dialog"]').last();
+    if (await dialog.isVisible().catch(() => false)) {
+      console.log("Offer modal dialog is already open");
+      return;
+    }
+
     const inputAlreadyVisible =
       await this.offerAmountInput
         .isVisible()
@@ -136,25 +142,28 @@ class OfferPage {
 
     await this.ensureOfferFormOpen();
 
-    // =================================================
-    // ENTER OFFER PRICE
-    // =================================================
+    // Check if modal dialog is open
+    const dialog = this.page.locator('[role="dialog"]').last();
+    const isDialog = await dialog.isVisible().catch(() => false);
 
-    await this.offerAmountInput.click();
+    const input = isDialog
+      ? dialog
+          .locator(
+            'input[placeholder*="amount" i], input[placeholder*="offer" i], input[name*="amount" i], input[name*="offer" i], input[type="number"], input'
+          )
+          .first()
+      : this.offerAmountInput;
 
-    await this.offerAmountInput.fill("");
+    await input.click();
 
-    await this.offerAmountInput.fill(
+    await input.fill("");
+
+    await input.fill(
       String(amount)
     );
 
-    // =================================================
-    // VERIFY ENTERED VALUE
-    // UI can format 25000 -> 25,000
-    // =================================================
-
     const displayedValue =
-      await this.offerAmountInput.inputValue();
+      await input.inputValue();
 
     const normalizedValue =
       displayedValue.replace(/[^\d]/g, "");
@@ -176,49 +185,65 @@ class OfferPage {
       `Offer amount entered: ${displayedValue}`
     );
 
-    // =================================================
-    // CLICK OFFER
-    // =================================================
+    if (isDialog) {
+      const submitBtn = dialog
+        .getByRole("button", { name: /submit offer/i })
+        .first();
 
-    await expect(
-      this.offerButton,
-      "Offer button should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+      await expect(
+        submitBtn,
+        "Submit Offer button should be visible"
+      ).toBeVisible({
+        timeout: 20_000,
+      });
 
-    await expect(
-      this.offerButton,
-      "Offer button should be enabled"
-    ).toBeEnabled();
+      await expect(
+        submitBtn,
+        "Submit Offer button should be enabled"
+      ).toBeEnabled();
 
-    await this.offerButton.click();
+      await submitBtn.click();
 
-    console.log(
-      "Offer button clicked"
-    );
+      console.log(
+        "Submit Offer button in dialog clicked"
+      );
+    } else {
+      await expect(
+        this.offerButton,
+        "Offer button should be visible"
+      ).toBeVisible({
+        timeout: 20_000,
+      });
 
-    // =================================================
-    // CONFIRM SUBMIT OFFER
-    // =================================================
+      await expect(
+        this.offerButton,
+        "Offer button should be enabled"
+      ).toBeEnabled();
 
-    await expect(
-      this.submitOfferButton,
-      "Submit Offer button should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+      await this.offerButton.click();
 
-    await expect(
-      this.submitOfferButton,
-      "Submit Offer button should be enabled"
-    ).toBeEnabled();
+      console.log(
+        "Offer button clicked"
+      );
 
-    await this.submitOfferButton.click();
+      await expect(
+        this.submitOfferButton,
+        "Submit Offer button should be visible"
+      ).toBeVisible({
+        timeout: 20_000,
+      });
 
-    console.log(
-      "Submit Offer button clicked"
-    );
+      await expect(
+        this.submitOfferButton,
+        "Submit Offer button should be enabled"
+      ).toBeEnabled();
+
+      await this.submitOfferButton.click();
+
+      console.log(
+        "Submit Offer button clicked"
+      );
+    }
   }
 
   // =====================================================

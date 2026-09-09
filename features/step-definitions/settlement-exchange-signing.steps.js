@@ -374,6 +374,7 @@ When(
 Then(
   "the settlement process is completed successfully",
   async function () {
+    this._settlementCompleted = true;
     if (this.settlementPage) {
       await this.settlementPage.verifySettlementCompleted(
         settlementExchangeFlowData.expected.settlementCompleted
