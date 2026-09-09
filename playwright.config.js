@@ -72,15 +72,16 @@ module.exports = defineConfig({
 
     ignoreHTTPSErrors: false,
 
-    launchOptions: process.env.CI
+    launchOptions: (process.env.CI || process.env.HEADLESS === "true")
       ? {
+          slowMo: Number(process.env.SLOW_MO || 0),
           args: [
             '--disable-dev-shm-usage',
             '--no-sandbox',
           ],
         }
       : {
-          slowMo: 500,
+          slowMo: Number(process.env.SLOW_MO || 500),
           args: ['--start-maximized'],
         },
   },
