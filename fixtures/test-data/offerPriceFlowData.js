@@ -7,7 +7,7 @@ const offerPriceFlowData = {
   agent: {
     listing: {
       addressSearchText: "b",
-      expectedPropertyName: "Bates Drive, Kareela",
+      expectedPropertyName: "Bourke Street, Melbourne",
      
 
       propertyType: "House",
@@ -18,7 +18,7 @@ const offerPriceFlowData = {
       listingType: "Fixed Price",
       priceGuide: "600000",
 
-      headline: "Beautiful Family Home in Kareela",
+      headline: "Beautiful Family Home in Melbourne",
 
       propertyDescription:
         "A spacious and modern family home located in the desirable Kareela area. " +
@@ -60,7 +60,7 @@ const offerPriceFlowData = {
     password: process.env.GENERAL_USER_PASSWORD,
     otp: process.env.GENERAL_USER_OTP,
 
-    searchText: "Bates Drive",
+    searchText: "Bourke Street",
 
     // Buyer initial offer
     offerAmount: "500000",
