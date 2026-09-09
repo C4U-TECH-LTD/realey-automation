@@ -154,7 +154,7 @@ Before(async function ({ pickle }) {
 
   const isGitHub = process.env.CI === "true";
   const headless = isGitHub || process.env.HEADLESS === "true";
-  const slowMo = isGitHub ? 0 : Number(process.env.SLOW_MO || 500);
+  const slowMo = (isGitHub || headless) ? 0 : Number(process.env.SLOW_MO || 500);
 
   console.log(`Execution mode: ${isGitHub ? "GitHub Actions" : "Local"}`);
   console.log(`Headless: ${headless}`);
