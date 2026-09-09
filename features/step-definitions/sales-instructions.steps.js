@@ -32,9 +32,20 @@ const deliveryChannels = Object.values(
 // =====================================================
 
 async function getSalesInstructionsButton(page) {
-  return page
+  const roleButton = page
     .getByRole("button", {
       name: /sales instructions/i,
+    })
+    .first();
+
+  if (await roleButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+    return roleButton;
+  }
+
+  return page
+    .locator('button, a, [role="button"]')
+    .filter({
+      hasText: /sales instructions/i,
     })
     .first();
 }

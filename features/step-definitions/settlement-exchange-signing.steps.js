@@ -42,46 +42,49 @@ async function clickButton(page, name) {
 }
 
 
-async function logoutIfNeeded(page) {
-  const profileButton = page
-    .getByRole("button", {
-      name: /profile|account|user|menu/i,
-    })
-    .first();
+async function clearCurrentSession(worldOrPage) {
+  const page = worldOrPage.page || worldOrPage;
+  const context =
+    worldOrPage.context ||
+    (worldOrPage.page ? worldOrPage.page.context() : (page.context ? page.context() : null));
 
-  const profileVisible =
-    await profileButton
-      .isVisible()
-      .catch(() => false);
-
-  if (!profileVisible) {
-    return;
+  if (context && typeof context.clearCookies === "function") {
+    await context.clearCookies().catch(() => {});
   }
 
-  await profileButton.click();
+  if (page && !page.isClosed()) {
+    try {
+      await page.evaluate(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+      });
+    } catch (_) {}
+  }
 
-  const logoutButton = page
-    .getByText(
-      /logout|log out|sign out/i
-    )
-    .first();
-
-  const logoutVisible =
-    await logoutButton
-      .isVisible()
-      .catch(() => false);
-
-  if (logoutVisible) {
-    await logoutButton.click();
-
-    await page.waitForLoadState(
-      "domcontentloaded"
-    );
+  const loginUrl = (process.env.BASE_URL || "https://uat.realey.au").replace(/\/$/, "") + "/login";
+  try {
+    await page.goto(loginUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
+  } catch (_) {
+    await page.waitForTimeout(1000);
+    await page.goto(loginUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
   }
 }
 
 
-async function login(page, user) {
+async function logoutIfNeeded(worldOrPage) {
+  await clearCurrentSession(worldOrPage);
+}
+
+
+async function login(worldOrPage, user) {
+  const page = worldOrPage.page || worldOrPage;
+
   if (
     !user ||
     !user.email ||
@@ -92,10 +95,14 @@ async function login(page, user) {
     );
   }
 
-  await page.goto(
-    process.env.BASE_URL ||
-      "https://uat.realey.au/"
-  );
+  const loginUrl = (process.env.BASE_URL || "https://uat.realey.au").replace(/\/$/, "") + "/login";
+
+  if (!page.url().includes("/login")) {
+    await page.goto(loginUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
+  }
 
   await waitForPage(page);
 
@@ -155,7 +162,7 @@ async function login(page, user) {
 
     const otpVisible =
       await otpInput
-        .isVisible()
+        .isVisible({ timeout: 5000 })
         .catch(() => false);
 
     if (otpVisible) {
@@ -186,122 +193,94 @@ async function login(page, user) {
 
 
 async function switchRole(
-  page,
+  worldOrPage,
   user
 ) {
-  await logoutIfNeeded(page);
+  await logoutIfNeeded(worldOrPage);
 
   await login(
-    page,
+    worldOrPage,
     user
   );
+}
+
+
+async function openSettlementCard(worldOrPage, specificTitle = null) {
+  const page = worldOrPage.page || worldOrPage;
+
+  if (!page.url().includes("settlement")) {
+    const settlementsTab = page
+      .getByRole("link", { name: /settlements/i })
+      .or(page.getByRole("button", { name: /settlements/i }))
+      .or(page.getByText(/^settlements$/i))
+      .first();
+
+    if (await settlementsTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await settlementsTab.click();
+      await waitForPage(page);
+    }
+  }
+
+  const candidateTitles = [
+    specificTitle,
+    worldOrPage.createdListingTitle,
+    salesInstructionsFlowData?.agent?.listing?.expectedPropertyName,
+    settlementExchangeFlowData?.agent?.listing?.expectedPropertyName,
+    salesInstructionsFlowData?.generalUser?.searchText,
+    settlementExchangeFlowData?.generalUser?.searchText,
+    "Arndale Shopping Centre Access",
+  ].filter(Boolean);
+
+  for (const title of candidateTitles) {
+    const titleLocator = page.getByText(title, { exact: false }).first();
+
+    if (await titleLocator.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const cardContainer = titleLocator.locator(
+        'xpath=ancestor::div[.//button[contains(., "View Details")] or .//a[contains(., "View Details")]][1]'
+      );
+      const viewDetailsBtn = cardContainer
+        .locator('button, a, [role="button"]')
+        .filter({ hasText: /view details/i })
+        .first();
+
+      if (await viewDetailsBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await viewDetailsBtn.click();
+        await waitForPage(page);
+        return;
+      }
+
+      await titleLocator.click();
+      await waitForPage(page);
+      return;
+    }
+  }
+
+  const firstViewDetails = page
+    .locator('button, a, [role="button"]')
+    .filter({ hasText: /view details/i })
+    .first();
+
+  if (await firstViewDetails.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await firstViewDetails.click();
+    await waitForPage(page);
+    return;
+  }
+
+  const firstSettlement = page
+    .locator('table tbody tr, [data-testid*="settlement"]')
+    .first();
+
+  if (await firstSettlement.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await firstSettlement.click();
+    await waitForPage(page);
+  }
 }
 
 
 async function openCreatedSettlement(
   world
 ) {
-  const page = world.page;
-
-  const settlements = page
-    .getByText(
-      /settlements?/i
-    )
-    .first();
-
-  const settlementsVisible =
-    await settlements
-      .isVisible()
-      .catch(() => false);
-
-  if (settlementsVisible) {
-    await settlements.click();
-
-    await waitForPage(page);
-  }
-
-  const listingTitle =
-    world.createdListingTitle ||
-    settlementExchangeFlowData
-      .agent
-      .listing
-      .expectedPropertyName;
-
-  const listing = page
-    .getByText(
-      listingTitle,
-      {
-        exact: false,
-      }
-    )
-    .first();
-
-  const listingVisible =
-    await listing
-      .isVisible()
-      .catch(() => false);
-
-  if (listingVisible) {
-    await listing.click();
-
-    await waitForPage(page);
-
-    return;
-  }
-
-  /*
-   * Fallback if exact property title is
-   * not shown on Settlement page.
-   */
-  const searchText =
-    settlementExchangeFlowData
-      .generalUser
-      .searchText;
-
-  const searchListing = page
-    .getByText(
-      searchText,
-      {
-        exact: false,
-      }
-    )
-    .first();
-
-  const searchVisible =
-    await searchListing
-      .isVisible()
-      .catch(() => false);
-
-  if (searchVisible) {
-    await searchListing.click();
-
-    await waitForPage(page);
-
-    return;
-  }
-
-  /*
-   * Last fallback:
-   * open the first settlement row.
-   */
-  const firstSettlement = page
-    .locator(
-      'table tbody tr, [data-testid*="settlement"]'
-    )
-    .first();
-
-  await expect(
-    firstSettlement
-  ).toBeVisible({
-    timeout:
-      settlementExchangeFlowData
-        .timeouts
-        .navigation,
-  });
-
-  await firstSettlement.click();
-
-  await waitForPage(page);
+  await openSettlementCard(world);
 }
 
 
@@ -410,46 +389,7 @@ When(
 When(
   "the Agent opens the settlement for the created Fixed Price listing",
   async function () {
-    const page = this.page;
-
-    const possibleTitles = [
-      this.createdListingTitle,
-      salesInstructionsFlowData?.agent?.listing?.expectedPropertyName,
-      settlementExchangeFlowData?.agent?.listing?.expectedPropertyName,
-      salesInstructionsFlowData?.generalUser?.searchText,
-      settlementExchangeFlowData?.generalUser?.searchText,
-      "Arndale Shopping Centre Access",
-    ].filter(Boolean);
-
-    for (const title of possibleTitles) {
-      const listing = page
-        .getByText(title, { exact: false })
-        .first();
-
-      if (await listing.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await listing.click();
-        await waitForPage(page);
-        return;
-      }
-    }
-
-    const firstSettlement = page
-      .locator('table tbody tr, [data-testid*="settlement"]')
-      .first();
-
-    if (
-      await firstSettlement
-        .isVisible({ timeout: 5000 })
-        .catch(() => false)
-    ) {
-      await firstSettlement.click();
-      await waitForPage(page);
-      return;
-    }
-
-    console.log(
-      "No active settlement found yet on Settlements tab (settlement may not be created yet)."
-    );
+    await openSettlementCard(this);
   }
 );
 
@@ -459,12 +399,34 @@ When(
   async function () {
     const page = this.page;
 
-    const readyButton = page
+    let readyButton = page
       .getByRole("button", {
         name:
           /ready for exchange/i,
       })
       .first();
+
+    const readyVisible = await readyButton
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
+
+    if (!readyVisible) {
+      const settlementsTab = page
+        .getByRole("link", { name: /settlements/i })
+        .or(page.getByText(/^settlements$/i))
+        .first();
+
+      if (await settlementsTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await settlementsTab.click();
+        await waitForPage(page);
+      }
+
+      readyButton = page
+        .getByRole("button", {
+          name: /ready for exchange/i,
+        })
+        .first();
+    }
 
     await expect(
       readyButton
@@ -529,7 +491,7 @@ When(
   "I switch from Agent to Seller Solicitor",
   async function () {
     await switchRole(
-      this.page,
+      this,
       settlementExchangeFlowData
         .sellerSolicitor
     );
@@ -541,7 +503,7 @@ When(
   "I switch from Seller Solicitor to Buyer Solicitor",
   async function () {
     await switchRole(
-      this.page,
+      this,
       settlementExchangeFlowData
         .buyerSolicitor
     );
@@ -553,7 +515,7 @@ When(
   "I switch from Buyer Solicitor to General User",
   async function () {
     await switchRole(
-      this.page,
+      this,
       settlementExchangeFlowData
         .generalUser
     );
@@ -565,7 +527,7 @@ When(
   "I switch from General User to Buyer Solicitor",
   async function () {
     await switchRole(
-      this.page,
+      this,
       settlementExchangeFlowData
         .buyerSolicitor
     );
@@ -577,7 +539,7 @@ When(
   "I switch from Buyer Solicitor to Agent",
   async function () {
     await switchRole(
-      this.page,
+      this,
       settlementExchangeFlowData
         .agent
     );
@@ -589,7 +551,7 @@ When(
   "I switch from Seller Solicitor to Vendor",
   async function () {
     await switchRole(
-      this.page,
+      this,
       settlementExchangeFlowData
         .vendor
     );
@@ -601,7 +563,7 @@ When(
   "I switch from Vendor to Seller Solicitor",
   async function () {
     await switchRole(
-      this.page,
+      this,
       settlementExchangeFlowData
         .sellerSolicitor
     );
