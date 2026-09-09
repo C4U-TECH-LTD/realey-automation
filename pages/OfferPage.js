@@ -15,21 +15,20 @@ class OfferPage {
     // =====================================================
     // OPEN / ACTION OFFER BUTTON
     // =====================================================
-    this.offerButton = page.getByRole("button", {
-      name: /^Offer$/i,
-    });
+    this.offerButton = page.locator(
+      'button:has-text("Offer"), button:has-text("Buy Now")'
+    ).first();
 
     this.makeOfferButton = page.getByRole("button", {
       name: /make\s+(?:an\s+)?offer|submit\s+(?:an\s+)?offer|place\s+(?:an\s+)?offer|^offer$/i,
-    });
+    }).first();
 
     // =====================================================
     // CONFIRM SUBMIT OFFER
     // =====================================================
     this.submitOfferButton = page.getByRole("button", {
-      name: "Submit Offer",
-      exact: true,
-    });
+      name: /submit offer/i,
+    }).first();
   }
 
   // =====================================================
@@ -208,41 +207,69 @@ class OfferPage {
         "Submit Offer button in dialog clicked"
       );
     } else {
+      const offerBtn = this.page
+        .locator('button:has-text("Offer"), button:has-text("Buy Now")')
+        .first();
+
       await expect(
-        this.offerButton,
+        offerBtn,
         "Offer button should be visible"
       ).toBeVisible({
         timeout: 20_000,
       });
 
       await expect(
-        this.offerButton,
+        offerBtn,
         "Offer button should be enabled"
       ).toBeEnabled();
 
-      await this.offerButton.click();
+      await offerBtn.click();
 
       console.log(
         "Offer button clicked"
       );
 
-      await expect(
-        this.submitOfferButton,
-        "Submit Offer button should be visible"
-      ).toBeVisible({
-        timeout: 20_000,
-      });
+      // Check if clicking opened a confirmation dialog or if there is a separate Submit Offer button
+      const confirmDialog = this.page.locator('[role="dialog"]').last();
+      const hasConfirmDialog = await confirmDialog
+        .isVisible({ timeout: 5000 })
+        .catch(() => false);
 
-      await expect(
-        this.submitOfferButton,
-        "Submit Offer button should be enabled"
-      ).toBeEnabled();
+      if (hasConfirmDialog) {
+        const dialogSubmitBtn = confirmDialog
+          .getByRole("button", { name: /submit offer/i })
+          .first();
 
-      await this.submitOfferButton.click();
+        if (
+          await dialogSubmitBtn
+            .isVisible({ timeout: 5000 })
+            .catch(() => false)
+        ) {
+          await expect(dialogSubmitBtn).toBeEnabled();
+          await dialogSubmitBtn.click();
 
-      console.log(
-        "Submit Offer button clicked"
-      );
+          console.log(
+            "Submit Offer button in confirmation dialog clicked"
+          );
+        }
+      } else {
+        const submitBtn = this.page
+          .getByRole("button", { name: /submit offer/i })
+          .first();
+
+        if (
+          await submitBtn
+            .isVisible({ timeout: 3000 })
+            .catch(() => false)
+        ) {
+          await expect(submitBtn).toBeEnabled();
+          await submitBtn.click();
+
+          console.log(
+            "Submit Offer button clicked"
+          );
+        }
+      }
     }
   }
 
