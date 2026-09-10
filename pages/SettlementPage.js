@@ -1471,11 +1471,12 @@ class SettlementPage {
 
     const scope = (targetCard && await targetCard.isVisible().catch(() => false)) ? targetCard : this.page;
 
-    const fiveOfFive = scope.getByText(/5\/5 steps completed/i).first();
-    const setupComplete = scope.getByText(/Setup Complete/i).first();
+    const statusIndicator = scope
+      .getByText(/5\/5 steps completed|Setup Complete/i)
+      .first();
 
     // Check visibility; reload once if backend async update needs fresh query
-    const isVisible = await fiveOfFive.or(setupComplete).isVisible({ timeout: 5000 }).catch(() => false);
+    const isVisible = await statusIndicator.isVisible({ timeout: 5000 }).catch(() => false);
     if (!isVisible) {
       console.log("5/5 steps not immediately visible, reloading to fetch latest backend state...");
       await this.page.reload();
@@ -1484,7 +1485,7 @@ class SettlementPage {
     }
 
     await expect(
-      fiveOfFive.or(setupComplete),
+      statusIndicator,
       "Settlement card on Agent menu should display '5/5 steps completed' / 'Setup Complete'"
     ).toBeVisible({ timeout: 25_000 });
 
