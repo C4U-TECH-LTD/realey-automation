@@ -1,0 +1,1 @@
+Invalid text file for testing non-image upload rejection.

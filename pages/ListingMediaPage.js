@@ -150,6 +150,52 @@ class ListingMediaPage {
   }
 
   /* =====================================================
+     NEGATIVE FILE FORMAT UPLOAD
+  ===================================================== */
+
+  async testNegativeFileFormatUpload(invalidFilePath) {
+    console.log("Testing negative file format upload (non-image file rejection)...");
+
+    if (!fs.existsSync(invalidFilePath)) {
+      throw new Error(`Invalid test file not found: ${invalidFilePath}`);
+    }
+
+    await expect(
+      this.propertyPhotoUploadButton,
+      "Property Photos upload area should be visible"
+    ).toBeVisible({ timeout: 20_000 });
+
+    await this.propertyPhotoUploadButton.scrollIntoViewIfNeeded();
+
+    let photosInput = this.propertyPhotosInput;
+    if ((await photosInput.count()) !== 1) {
+      const globalInput = this.page.locator('input[type="file"][multiple]').first();
+      if ((await globalInput.count()) > 0) {
+        photosInput = globalInput;
+      }
+    }
+
+    try {
+      await photosInput.setInputFiles(invalidFilePath);
+      console.log(`Sent invalid file: ${path.basename(invalidFilePath)} to input`);
+    } catch (e) {
+      console.log(`Browser natively rejected file format: ${e.message}`);
+    }
+
+    await this.page.waitForTimeout(1000);
+
+    // Verify application did not accept it as a valid uploaded image preview
+    const previewCards = this.page.locator(
+      'button:has(svg.lucide-trash-2), [class*="photo-card"], [class*="image-preview"]'
+    );
+    const count = await previewCards.count();
+    console.log(`Uploaded image preview count after invalid file upload: ${count}`);
+    expect(count).toBe(0);
+
+    console.log("Negative file format validation passed — unsupported file was correctly rejected");
+  }
+
+  /* =====================================================
      PROPERTY PHOTOS UPLOAD
   ===================================================== */
 

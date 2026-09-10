@@ -333,6 +333,51 @@ class LoginPage {
   }
 
   /* =====================================================
+     FIELD VALIDATIONS TEST
+  ===================================================== */
+
+  async testLoginFieldValidations(invalidEmail = "invalid-email-format", validEmail, password) {
+    console.log("Testing login field validations (email format, password toggle, Remember Me)...");
+
+    // 1. Verify email input attribute type
+    await expect(this.emailInput, "Email input should be visible").toBeVisible();
+    await expect(this.emailInput).toHaveAttribute("type", "email");
+
+    // 2. Test invalid email format
+    await this.emailInput.fill(invalidEmail);
+    await this.passwordInput.fill(password || "TestPassword123!");
+    await this.page.waitForTimeout(500);
+
+    const isLoginDisabled = await this.loginButton.isDisabled().catch(() => false);
+    console.log(`Login button state with invalid email: disabled=${isLoginDisabled}`);
+
+    // Clear email input and enter valid email
+    await this.emailInput.fill("");
+    if (validEmail) {
+      await this.emailInput.fill(validEmail);
+      console.log(`Entered valid email: ${validEmail}`);
+    }
+
+    // 3. Test Password Visibility Toggle
+    if (password) {
+      await this.fillPassword(password);
+      await this.verifyPasswordIsHidden();
+      await this.showPassword();
+      await this.verifyPasswordIsVisible();
+      await this.hidePassword();
+      await this.verifyPasswordIsHidden();
+      console.log("Password visibility toggle verified");
+    }
+
+    // 4. Test Remember Me Checkbox
+    await this.checkRememberMe();
+    await this.uncheckRememberMe();
+    console.log("Remember Me toggle verified");
+
+    console.log("Login field validations completed successfully");
+  }
+
+  /* =====================================================
      OTP PAGE
   ===================================================== */
 

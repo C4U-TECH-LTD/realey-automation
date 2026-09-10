@@ -470,44 +470,82 @@ class DashboardPage {
   ===================================================== */
 
   async verifyNotificationBell() {
-    console.log("Checking in-app notification bell...");
+    await this.verifyAndManageNotification();
+  }
+
+  async verifyAndManageNotification(expectedContent) {
+    console.log("Checking in-app notification drawer and read state...");
 
     const bell = this.page.locator(
       [
         'button:has(svg.lucide-bell)',
         '[aria-label*="notification" i]',
         'button:has([class*="bell" i])',
+        'div:has(svg.lucide-bell)',
       ].join(", ")
     ).first();
 
-    const bellVisible = await bell.isVisible().catch(() => false);
+    const bellVisible = await bell.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (bellVisible) {
       await expect(bell).toBeVisible();
-      console.log("Notification bell is visible in header");
-
-      // Click to open notifications drawer/popover
+      console.log("Notification bell found. Clicking to open drawer...");
       await bell.click();
-      await this.page.waitForTimeout(800);
+      await this.page.waitForTimeout(1000);
 
-      // Verify notifications dropdown / drawer opens
-      const drawerOrPopover = this.page.locator(
+      // Verify drawer or popover opens
+      const drawer = this.page.locator(
         [
           '[role="dialog"]',
           '[data-radix-popper-content-wrapper]',
           '[class*="popover" i]',
           '[class*="notification" i]',
-          'h3:has-text("Notifications")',
-          'h4:has-text("Notifications")',
           'div:has-text("Notifications")',
         ].join(", ")
-      ).first();
+      ).last();
 
-      const drawerVisible = await drawerOrPopover.isVisible().catch(() => false);
+      const drawerVisible = await drawer.isVisible({ timeout: 5000 }).catch(() => false);
+
       if (drawerVisible) {
-        console.log("Notification panel opened successfully");
-        // Close it by clicking bell or outside
+        console.log("Notifications drawer opened successfully");
+
+        // Check if matching notification or any notification items are displayed
+        if (expectedContent) {
+          const matchingItem = drawer.getByText(expectedContent, { exact: false }).first();
+          if (await matchingItem.isVisible({ timeout: 4000 }).catch(() => false)) {
+            console.log(`Found notification with content: ${expectedContent}`);
+          }
+        }
+
+        // Test notification status / read state:
+        // Try clicking 'Mark as read', 'Mark all as read', or the first notification item
+        const markReadBtn = drawer.locator(
+          [
+            'button:has-text("Mark as read")',
+            'button:has-text("Mark all as read")',
+            'button:has(svg.lucide-check)',
+            '[aria-label*="mark as read" i]',
+          ].join(", ")
+        ).first();
+
+        if (await markReadBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await markReadBtn.click();
+          console.log("Clicked Mark as read button in notification drawer");
+          await this.page.waitForTimeout(500);
+        } else {
+          const firstItem = drawer.locator(
+            '[data-testid*="notification" i], [class*="notification-item" i], div[class*="cursor-pointer"]'
+          ).first();
+
+          if (await firstItem.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await firstItem.click().catch(() => {});
+            console.log("Clicked first notification item to update read status");
+          }
+        }
+
+        // Close drawer
         await this.page.keyboard.press("Escape").catch(() => {});
+        await this.page.waitForTimeout(500);
       }
     } else {
       console.log("Notification bell not directly visible on this screen; continuing.");

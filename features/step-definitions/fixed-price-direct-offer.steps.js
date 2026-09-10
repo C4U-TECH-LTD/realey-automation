@@ -1,3 +1,4 @@
+const path = require("path");
 const {
   Given,
   When,
@@ -38,10 +39,12 @@ async function loginAs(world, account) {
     loginData.application.loginPath
   );
 
-  await world.loginPage.login(
+  await world.loginPage.fillLoginForm(
     account.email,
     account.password
   );
+
+  await world.loginPage.clickLogin();
 
   await world.loginPage.waitForOtpPage();
 
@@ -74,6 +77,24 @@ When(
   async function () {
     await this.dashboardPage.logout();
     await loginAs(this, loginData.agent);
+    await this.dashboardPage.waitForDashboard();
+  }
+);
+
+When(
+  "the Agent tests the logout and re-login functionality with field validations",
+  async function () {
+    await this.dashboardPage.logout();
+    await this.loginPage.goto(loginData.application.loginPath);
+    await this.loginPage.testLoginFieldValidations(
+      "invalid-email-format",
+      loginData.agent.email,
+      loginData.agent.password
+    );
+    await this.loginPage.clickLogin();
+    await this.loginPage.waitForOtpPage();
+    await this.loginPage.enterOtp(loginData.agent.otp);
+    await this.loginPage.submitOtp();
     await this.dashboardPage.waitForDashboard();
   }
 );
@@ -178,6 +199,17 @@ When(
 );
 
 When(
+  "the agent tests negative file format upload on the media step",
+  async function () {
+    const invalidFile = path.resolve(
+      process.cwd(),
+      "test-assets/listing/invalid-sample.txt"
+    );
+    await this.listingMediaPage.testNegativeFileFormatUpload(invalidFile);
+  }
+);
+
+When(
   "the agent uploads the property photos for the Fixed Price listing",
   async function () {
     await this.listingMediaPage.uploadPropertyPhotos(
@@ -264,6 +296,13 @@ When(
   "the Agent verifies the in-app notification bell",
   async function () {
     await this.dashboardPage.verifyNotificationBell();
+  }
+);
+
+When(
+  "the General User checks the notification drawer for the offer accepted notification",
+  async function () {
+    await this.dashboardPage.verifyAndManageNotification("accepted");
   }
 );
 
@@ -514,5 +553,21 @@ Then(
         listingData.fixedPriceFlow
           .expected.paymentSuccessful
       );
+  }
+);
+
+When(
+  "the Agent exports the settlement report and verifies download starts",
+  async function () {
+    await this.settlementPage.exportSettlementReport(
+      listingData.fixedPriceFlow.generalUser.searchText
+    );
+  }
+);
+
+Then(
+  "the settlement report download is verified successfully",
+  async function () {
+    await this.settlementPage.verifyReportDownload();
   }
 );
