@@ -7,7 +7,7 @@ const fixedPriceTaskListFlowData = {
 
   agent: {
     listing: {
-      addressSearchText: "c",
+      addressSearchText: "Chapel Street",
 
       // Change if the actual Google-selected address is different.
       expectedPropertyName: "Chapel Street, South Yarra",

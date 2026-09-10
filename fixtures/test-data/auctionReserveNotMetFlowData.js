@@ -4,7 +4,7 @@ const auctionReserveNotMetFlowData = {
 
   agent: {
     listing: {
-      addressSearchText: "d",
+      addressSearchText: "Degraves Street",
 
       expectedPropertyName: "Degraves Street, Melbourne",
 

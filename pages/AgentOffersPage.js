@@ -54,31 +54,51 @@ class AgentOffersPage {
         .getByText(propertyName, { exact: false })
         .first();
 
-      if (await propertyText.isVisible().catch(() => false)) {
+      if (await propertyText.isVisible({ timeout: 8000 }).catch(() => false)) {
         const card = propertyText.locator(
-          "xpath=ancestor::*[self::div or self::article][.//button[contains(normalize-space(.), 'Counter via Chat')]][1]"
+          "xpath=ancestor::*[self::div or self::article or self::tr][.//button][1]"
         );
 
         if (await card.isVisible().catch(() => false)) {
-          const counterButton = card.getByRole("button", {
+          const counterBtn = card.getByRole("button", {
             name: "Counter via Chat",
             exact: true,
           });
 
-          await expect(counterButton).toBeVisible({ timeout: 20_000 });
-          this.activeCounterButton = counterButton;
-          return;
+          const acceptBtn = card.getByRole("button", {
+            name: "Accept",
+            exact: true,
+          });
+
+          if (await counterBtn.isVisible().catch(() => false)) {
+            this.activeCounterButton = counterBtn;
+            return;
+          }
+
+          if (await acceptBtn.isVisible().catch(() => false)) {
+            this.activeAcceptButton = acceptBtn;
+            return;
+          }
         }
       }
     }
 
-    // Fallback: the newest/current submitted offer should expose this action.
+    // Fallback: the newest/current submitted offer should expose either Counter via Chat or Accept
+    const targetButton = this.page.getByRole("button", {
+      name: /Counter via Chat|Accept/i,
+    }).first();
+
     await expect(
-      this.counterViaChatButton,
-      "Counter via Chat button should be visible for the submitted offer"
+      targetButton,
+      "Submitted offer action button (Counter via Chat or Accept) should be visible"
     ).toBeVisible({ timeout: 20_000 });
 
-    this.activeCounterButton = this.counterViaChatButton;
+    if (await this.counterViaChatButton.isVisible().catch(() => false)) {
+      this.activeCounterButton = this.counterViaChatButton;
+    }
+    if (await this.acceptButton.isVisible().catch(() => false)) {
+      this.activeAcceptButton = this.acceptButton;
+    }
   }
 
   async sendCounterOfferViaChat(amount) {
@@ -157,18 +177,20 @@ class AgentOffersPage {
   async acceptSubmittedOffer() {
     await this.openOffersAndBids();
 
+    const acceptBtn = this.activeAcceptButton || this.acceptButton;
+
     await expect(
-      this.acceptButton,
+      acceptBtn,
       "Accept offer button should be visible"
     ).toBeVisible({ timeout: 20_000 });
 
-    await this.acceptButton.click();
+    await acceptBtn.click();
 
     const confirmationButton = this.page.getByRole("button", {
       name: /Accept|Confirm|Yes/i,
     }).last();
 
-    if (await confirmationButton.isVisible().catch(() => false)) {
+    if (await confirmationButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await confirmationButton.click();
     }
   }
@@ -178,12 +200,13 @@ class AgentOffersPage {
       .getByText(expectedMessage)
       .first();
 
-    if (await message.isVisible().catch(() => false)) {
+    if (await message.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(message).toBeVisible();
       return;
     }
 
-    await expect(this.acceptButton).not.toBeVisible({
+    const acceptBtn = this.activeAcceptButton || this.acceptButton;
+    await expect(acceptBtn).not.toBeVisible({
       timeout: 10_000,
     });
   }

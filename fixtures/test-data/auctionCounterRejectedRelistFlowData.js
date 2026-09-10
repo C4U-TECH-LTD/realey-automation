@@ -3,7 +3,7 @@ const path = require("path");
 const auctionCounterRejectedRelistFlowData = {
   agent: {
     listing: {
-      addressSearchText: "e",
+      addressSearchText: "Elizabeth Street",
       expectedPropertyName: "Elizabeth Street, Melbourne",
       propertyType: "Apartment",
       bedrooms: 3,

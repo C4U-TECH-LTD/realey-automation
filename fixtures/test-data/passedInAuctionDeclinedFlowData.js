@@ -7,7 +7,7 @@ const passedInAuctionDeclinedFlowData = {
   // =====================================================
   agent: {
     listing: {
-      addressSearchText: "f",
+      addressSearchText: "Flinders Street",
 
       expectedPropertyName: "Flinders Street, Melbourne",
 

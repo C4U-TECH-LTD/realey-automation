@@ -6,7 +6,7 @@ const offerPriceFlowData = {
   // =====================================================
   agent: {
     listing: {
-      addressSearchText: "b",
+      addressSearchText: "Bourke Street",
       expectedPropertyName: "Bourke Street, Melbourne",
      
 

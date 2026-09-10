@@ -7,7 +7,7 @@ const fixedPriceFlowData = {
 
   agent: {
     listing: {
-      addressSearchText: "a",
+      addressSearchText: "Arndale Shopping Centre Access",
 
       expectedPropertyName:
         "Arndale Shopping Centre Access, Kilkenny",

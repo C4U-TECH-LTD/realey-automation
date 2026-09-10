@@ -6,7 +6,7 @@ const auctionFlowData = {
   // =====================================================
   agent: {
     listing: {
-      addressSearchText: "c",
+      addressSearchText: "Chapel Street",
       expectedPropertyName: "Chapel Street, South Yarra",
 
       propertyType: "Apartment",

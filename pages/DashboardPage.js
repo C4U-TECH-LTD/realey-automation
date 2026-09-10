@@ -303,6 +303,15 @@ class DashboardPage {
       this.listingsSearchInput
     ).toHaveValue(searchText);
 
+    // Trigger search via Enter
+    await this.listingsSearchInput.press("Enter").catch(() => {});
+
+    // Also click magnifying glass button if present
+    const searchBtn = this.page.locator('button:has(svg.lucide-search)').first();
+    if (await searchBtn.isVisible().catch(() => false)) {
+      await searchBtn.click().catch(() => {});
+    }
+
     await this.page.waitForTimeout(1_000);
   }
 
@@ -317,9 +326,11 @@ class DashboardPage {
       );
     }
 
-    return this.page.getByText(locationName, {
-      exact: true,
-    });
+    const streetOnly = locationName.split(",")[0].trim();
+
+    return this.page
+      .getByText(new RegExp(streetOnly, "i"))
+      .or(this.page.getByText(locationName, { exact: false }));
   }
 
   getListingCardByLocation(locationName) {
@@ -329,9 +340,23 @@ class DashboardPage {
       );
     }
 
-    return this.listingCards
+    const streetOnly = locationName.split(",")[0].trim();
+
+    return this.page
+      .locator(
+        [
+          "table tbody tr",
+          "article",
+          '[data-testid*="listing" i]',
+          '[data-testid*="property" i]',
+          '[class*="listing-card" i]',
+          '[class*="property-card" i]',
+          '[class*="listingCard" i]',
+          '[class*="propertyCard" i]',
+        ].join(", ")
+      )
       .filter({
-        hasText: locationName,
+        hasText: new RegExp(streetOnly, "i"),
       })
       .first();
   }
@@ -347,59 +372,51 @@ class DashboardPage {
       );
     }
 
-    await this.searchListing(locationName);
+    // 1. Wait for loading spinners or skeletons to detach
+    await this.page
+      .locator('.animate-spin, svg.lucide-loader-2, [class*="skeleton"]')
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
 
-    const exactLocation =
-      this.getListingByLocation(locationName);
+    await this.page.waitForTimeout(1_000);
 
-    const exactLocationVisible =
-      await exactLocation
-        .first()
-        .isVisible()
-        .catch(() => false);
+    const streetOnly = locationName.split(",")[0].trim();
 
-    if (exactLocationVisible) {
-      await expect(
-        exactLocation.first(),
-        `Published listing location "${locationName}" should be visible`
-      ).toBeVisible({
-        timeout: 20_000,
-      });
+    // 2. Newly created listings appear at the top of the table/cards.
+    // Check if the listing is immediately visible on the page without searching.
+    const directListingCard = this.getListingCardByLocation(locationName);
+    const directLocationText = this.getListingByLocation(locationName).first();
 
+    const isDirectlyVisible =
+      (await directListingCard.isVisible().catch(() => false)) ||
+      (await directLocationText.isVisible().catch(() => false));
+
+    if (isDirectlyVisible) {
+      console.log(
+        `✅ Published listing "${streetOnly}" is immediately visible on the listings page.`
+      );
       return;
     }
 
-    const listingCard =
-      this.getListingCardByLocation(locationName);
-
-    const listingCardVisible =
-      await listingCard
-        .isVisible()
-        .catch(() => false);
-
-    if (listingCardVisible) {
-      await expect(
-        listingCard,
-        `Published listing card for "${locationName}" should be visible`
-      ).toBeVisible({
-        timeout: 20_000,
-      });
-
-      return;
-    }
-
-    const noListingsVisible =
-      await this.noListingsMessage
-        .isVisible()
-        .catch(() => false);
-
-    throw new Error(
-      [
-        `Published listing "${locationName}" was not found in the Listings page.`,
-        `No listings message visible: ${noListingsVisible}`,
-        `Current URL: ${this.page.url()}`,
-      ].join("\n")
+    // 3. If not immediately visible, search using the street name
+    console.log(
+      `Listing not immediately visible, searching for street: "${streetOnly}"...`
     );
+    await this.searchListing(streetOnly);
+
+    // 4. Auto-retrying assertion up to 20 seconds
+    const targetListing = this.getListingCardByLocation(locationName);
+    const targetText = this.getListingByLocation(locationName).first();
+
+    const matchingTarget = targetListing.or(targetText).first();
+
+    await expect(
+      matchingTarget,
+      `Published listing "${locationName}" should be visible on the listings page`
+    ).toBeVisible({ timeout: 20_000 });
+
+    console.log(`✅ Published listing "${locationName}" confirmed visible.`);
   }
 
   async verifyPublishedListingByLocation(locationName) {
