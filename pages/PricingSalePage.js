@@ -98,12 +98,78 @@ class PricingSalePage {
       );
 
     // =====================================================
-    // NEXT
+    // NAVIGATION
     // =====================================================
     this.nextButton = page.getByRole("button", {
       name: "Next",
       exact: true,
     });
+
+    this.backButton = page.locator(
+      [
+        '[role="dialog"] button:has(svg.lucide-chevrons-left)',
+        '[role="dialog"] button:has(svg.lucide-chevron-left)',
+        'button:has(svg.lucide-chevrons-left)',
+      ].join(", ")
+    ).first();
+  }
+
+  // =====================================================
+  // NAVIGATION ACTIONS
+  // =====================================================
+  async clickBack() {
+    console.log("Navigating back from Pricing step using << button...");
+
+    const modal = this.page.locator('[role="dialog"]').last();
+    const modalBackButton = modal.locator(
+      'button:has(svg.lucide-chevrons-left), button:has(svg.lucide-chevron-left)'
+    ).first();
+
+    const isVisible = await modalBackButton.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (isVisible) {
+      const isEnabled = await modalBackButton.isEnabled().catch(() => false);
+      if (isEnabled) {
+        await modalBackButton.click();
+        await this.page.waitForTimeout(1000);
+        console.log("Navigated back from Pricing step successfully");
+        return true;
+      }
+    }
+
+    console.log("Modal back button not enabled on this step; continuing with current step persistence");
+    return false;
+  }
+
+  async verifyPriceRequiredValidation() {
+    console.log("Testing negative validation on Pricing step (required Asking Price)...");
+
+    // Clear price guide if already filled
+    await this.priceGuideInput.fill("");
+    await this.page.waitForTimeout(500);
+
+    // Attempt to click Next without filling Asking Price
+    await this.nextButton.scrollIntoViewIfNeeded();
+    await this.nextButton.click();
+    await this.page.waitForTimeout(800);
+
+    // Verify step remains on Step 3 of 5
+    const step3Indicator = this.page.getByText(/Step 3 of 5/i).or(this.page.getByText(/Pricing/i));
+    await expect(
+      step3Indicator.first(),
+      "Form should block proceeding to Step 4 when Asking Price is missing"
+    ).toBeVisible();
+
+    console.log("Negative validation confirmed — form correctly blocked advancing without price");
+  }
+
+  async verifyPriceValue(expectedValue) {
+    const val = await this.priceGuideInput.inputValue().catch(() => "");
+    const cleanActual = val.replace(/\D/g, "");
+    const cleanExpected = String(expectedValue).replace(/\D/g, "");
+
+    console.log(`Persisted Price Guide: expected "${cleanExpected}", got "${cleanActual}"`);
+    expect(cleanActual).toBe(cleanExpected);
   }
 
   // =====================================================

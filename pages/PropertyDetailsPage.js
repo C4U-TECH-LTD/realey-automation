@@ -134,10 +134,15 @@ class PropertyDetailsPage {
       .last();
 
     this.backButton = page
-      .getByRole("button", {
-        name: /back|previous/i,
-      })
-      .last();
+      .locator(
+        [
+          'button:has(svg.lucide-chevrons-left)',
+          'button:has(svg.lucide-chevron-left)',
+          'button[aria-label*="back" i]',
+          'button:has-text("Back")',
+        ].join(", ")
+      )
+      .first();
   }
 
   /* =====================================================
@@ -323,6 +328,82 @@ class PropertyDetailsPage {
     await this.nextButton.scrollIntoViewIfNeeded();
 
     await this.nextButton.click();
+  }
+
+  /* =====================================================
+     BACK BUTTON & DATA PERSISTENCE
+  ===================================================== */
+
+  async clickBack() {
+    console.log("Navigating back from Property Details step...");
+
+    await expect(
+      this.backButton,
+      "Back button should be visible on Details step"
+    ).toBeVisible({ timeout: 10_000 });
+
+    await this.backButton.scrollIntoViewIfNeeded();
+    await this.backButton.click();
+    await this.page.waitForTimeout(1000);
+
+    console.log("Navigated back successfully");
+  }
+
+  async verifyFieldValues({ propertyType } = {}) {
+    console.log("Verifying data persistence on Property Details step...");
+
+    // Confirm modal is on Step 2 of 5
+    const step2Indicator = this.page.getByText(/Step 2 of 5/i).or(this.page.getByText(/Property Details/i)).first();
+    await expect(step2Indicator, "Should be on Step 2 of 5 (Property Details)").toBeVisible({ timeout: 10_000 });
+
+    const dialog = this.page.locator('[role="dialog"]').last();
+    await expect(dialog.getByText("Property Type", { exact: false }).first(), "Property Type field should be visible").toBeVisible();
+    await expect(dialog.getByText("Bedrooms", { exact: false }).first(), "Bedrooms field should be visible").toBeVisible();
+    await expect(dialog.getByText("Bathrooms", { exact: false }).first(), "Bathrooms field should be visible").toBeVisible();
+
+    if (propertyType) {
+      const typeText = dialog.getByText(propertyType).first();
+      await expect(typeText, `Selected property type "${propertyType}" should persist`).toBeVisible();
+    }
+
+    console.log("Data persistence confirmed on Property Details step");
+  }
+
+  /* =====================================================
+     NEGATIVE VALIDATION
+  ===================================================== */
+
+  async verifyRequiredFieldErrors() {
+    console.log("Testing negative validation on Property Details step...");
+
+    // Click next on empty/unfilled form
+    await this.nextButton.scrollIntoViewIfNeeded();
+    await this.nextButton.click();
+
+    await this.page.waitForTimeout(800);
+
+    // Look for validation messages or check that page did not proceed to step 3
+    const errorIndicators = this.page.locator(
+      [
+        '[role="alert"]',
+        '[class*="text-destructive" i]',
+        '[class*="text-red" i]',
+        '[data-testid*="error" i]',
+        'p:has-text("required")',
+        'span:has-text("required")',
+      ].join(", ")
+    );
+
+    const errorCount = await errorIndicators.count();
+    console.log(`Found ${errorCount} validation error indicator(s)`);
+
+    // The Details step counter (Step 2 of 5) must still be visible (cannot proceed without required inputs)
+    await expect(
+      this.stepCounter,
+      "Form should block advancing to Step 3 when required fields are missing"
+    ).toBeVisible();
+
+    console.log("Negative validation confirmed — form correctly prevented advancing");
   }
 
   /* =====================================================

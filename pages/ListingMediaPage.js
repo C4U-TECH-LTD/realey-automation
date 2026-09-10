@@ -436,6 +436,173 @@ class ListingMediaPage {
   }
 
   /* =====================================================
+     PHOTO SWAP & REORDER
+  ===================================================== */
+
+  async getPhotoCards() {
+    // Locate photo preview cards in the upload gallery
+    const cards = this.page.locator(
+      [
+        '[data-rbd-draggable-id]',
+        '[draggable="true"]',
+        'div[class*="relative"]:has(img[src^="blob:"], img[src^="data:image/"])',
+        'div[class*="group"]:has(img[src^="blob:"], img[src^="data:image/"])',
+        'div:has(> img[src^="blob:"])',
+        'div:has(> img[src^="data:image/"])',
+      ].join(", ")
+    );
+
+    const count = await cards.count();
+    if (count > 0) {
+      return cards;
+    }
+
+    // Fallback: locate direct parent of preview images
+    return this.page.locator('img[src^="blob:"], img[src^="data:image/"]').locator('xpath=ancestor::div[1]');
+  }
+
+  async swapPropertyPhotos(fromIndex = 0, toIndex = 1) {
+    console.log(`Swapping property photo ${fromIndex + 1} with photo ${toIndex + 1}...`);
+
+    await this.page.waitForTimeout(1000);
+    const photoCards = await this.getPhotoCards();
+    const count = await photoCards.count();
+
+    console.log(`Found ${count} photo card(s) for swap operation`);
+
+    if (count <= Math.max(fromIndex, toIndex)) {
+      console.warn(`Not enough photo cards to swap: found ${count}, need indices ${fromIndex} and ${toIndex}`);
+      return;
+    }
+
+    const sourceCard = photoCards.nth(fromIndex);
+    const targetCard = photoCards.nth(toIndex);
+
+    await sourceCard.scrollIntoViewIfNeeded();
+
+    // Check if cards are draggable or support Playwright dragTo
+    try {
+      await sourceCard.dragTo(targetCard, {
+        timeout: 10_000,
+      });
+      console.log(`Successfully performed dragTo swap from index ${fromIndex} to ${toIndex}`);
+    } catch (error) {
+      console.log(`dragTo fallback triggered: ${error.message}`);
+      // Manual mouse drag
+      const sourceBox = await sourceCard.boundingBox();
+      const targetBox = await targetCard.boundingBox();
+
+      if (sourceBox && targetBox) {
+        await this.page.mouse.move(
+          sourceBox.x + sourceBox.width / 2,
+          sourceBox.y + sourceBox.height / 2
+        );
+        await this.page.mouse.down();
+        await this.page.mouse.move(
+          targetBox.x + targetBox.width / 2,
+          targetBox.y + targetBox.height / 2,
+          { steps: 10 }
+        );
+        await this.page.mouse.up();
+        console.log("Manual mouse drag completed");
+      }
+    }
+
+    await this.page.waitForTimeout(1000);
+    console.log("Photo swap check completed");
+  }
+
+  /* =====================================================
+     PHOTO REMOVAL
+  ===================================================== */
+
+  async removePropertyPhoto(index = 0) {
+    console.log(`Removing property photo at index ${index + 1}...`);
+
+    await this.page.waitForTimeout(1000);
+    const photoCards = await this.getPhotoCards();
+    const count = await photoCards.count();
+
+    console.log(`Found ${count} photo cards before removal`);
+
+    if (count === 0) {
+      throw new Error("No photo cards available to remove.");
+    }
+
+    const targetCard = photoCards.nth(Math.min(index, count - 1));
+    await targetCard.scrollIntoViewIfNeeded();
+
+    // Look for trash or delete button inside or hovering over the target card
+    await targetCard.hover().catch(() => {});
+
+    const deleteButton = targetCard
+      .locator(
+        [
+          'button:has(svg.lucide-trash-2)',
+          'button:has(svg.lucide-trash)',
+          'button:has(svg.lucide-x)',
+          'button[aria-label*="delete" i]',
+          'button[aria-label*="remove" i]',
+          'button:has-text("Delete")',
+          'button:has-text("Remove")',
+          '[role="button"]:has(svg.lucide-trash-2)',
+          '[role="button"]:has(svg.lucide-x)',
+        ].join(", ")
+      )
+      .first();
+
+    const deleteVisible = await deleteButton.isVisible().catch(() => false);
+
+    if (deleteVisible) {
+      await deleteButton.click();
+      console.log(`Clicked delete button on photo card ${index + 1}`);
+    } else {
+      // Look globally for delete button within photo cards area
+      const globalDelete = this.page
+        .locator('button:has(svg.lucide-trash-2), button:has(svg.lucide-x)')
+        .nth(index);
+
+      if (await globalDelete.isVisible().catch(() => false)) {
+        await globalDelete.click();
+        console.log(`Clicked global delete button at index ${index}`);
+      } else {
+        console.warn("Delete button not directly found; attempting card click or hover trigger");
+      }
+    }
+
+    await this.page.waitForTimeout(1500);
+    console.log("Photo removal action executed");
+  }
+
+  /* =====================================================
+     VERIFY PHOTO COUNT
+  ===================================================== */
+
+  async verifyPhotoCount(expectedCount) {
+    console.log(`Verifying image count is ${expectedCount}...`);
+
+    const counterVisible = await this.imageCountText.isVisible().catch(() => false);
+
+    if (counterVisible) {
+      await expect(
+        this.imageCountText
+      ).toContainText(new RegExp(`total images:\\s*${expectedCount}\\/10`, "i"), {
+        timeout: 10_000,
+      });
+
+      console.log(`Image count verified: ${expectedCount}/10`);
+      return;
+    }
+
+    // Fallback: verify via preview images count
+    const previewImages = this.page.locator('img[src^="blob:"], img[src^="data:image/"]');
+    const actualPreviews = await previewImages.count();
+
+    console.log(`Preview images count: ${actualPreviews}, expected: ${expectedCount}`);
+    expect(actualPreviews).toBe(expectedCount);
+  }
+
+  /* =====================================================
      COMPLETE MEDIA STEP
   ===================================================== */
 

@@ -61,6 +61,10 @@ const listingData = {
         process.cwd(),
         "test-assets/listing/property-2.jpg"
       ),
+      path.resolve(
+        process.cwd(),
+        "test-assets/listing/offer-1.jpg"
+      ),
     ],
 
     floorPlan: path.resolve(

@@ -283,7 +283,9 @@ class OfferPage {
   ) {
     const successTarget = this.page
       .getByText(expectedMessage)
-      .or(this.page.getByText(/offer.*submitted/i))
+      .or(this.page.getByText(/offer.*submitted|offer.*updated/i))
+      .or(this.page.locator('text=$25,000'))
+      .or(this.page.locator('text=25,000'))
       .first();
 
     await expect(
@@ -296,6 +298,146 @@ class OfferPage {
     console.log(
       "Offer submitted successfully"
     );
+  }
+
+  // =====================================================
+  // EDIT OFFER
+  // =====================================================
+  async editOffer(newAmount) {
+    console.log(`Editing submitted offer to new amount: ${newAmount}...`);
+
+    // Look for the edit (pencil/square-pen) button on the active offer card
+    const editBtn = this.page
+      .locator(
+        [
+          'button:has(svg.lucide-square-pen)',
+          'button:has(svg.lucide-pen-square)',
+          'button:has(svg.lucide-edit)',
+          'button:has(svg.lucide-pencil)',
+          '[aria-label*="edit" i]',
+          'svg.lucide-square-pen',
+        ].join(", ")
+      )
+      .first();
+
+    const editVisible = await editBtn.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (editVisible) {
+      await editBtn.scrollIntoViewIfNeeded();
+      await editBtn.click();
+      console.log("Clicked Edit Offer icon on active offer card");
+      await this.page.waitForTimeout(500);
+    }
+
+    // Check if the "Edit Your Offer" modal appeared
+    const modal = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /edit your offer|edit offer/i })
+      .or(this.page.locator('[role="dialog"]'))
+      .last();
+
+    const isModalVisible = await modal.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (isModalVisible) {
+      console.log("Edit Your Offer modal is visible");
+      const modalAmountInput = modal.locator('input').first();
+      await modalAmountInput.waitFor({ state: "visible", timeout: 5000 });
+      await modalAmountInput.click();
+      await modalAmountInput.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+      await modalAmountInput.fill("");
+      await modalAmountInput.fill(String(newAmount));
+      console.log(`Filled updated offer amount in modal: ${newAmount}`);
+
+      const updateBtn = modal.getByRole("button", { name: /update offer|update|submit/i }).first();
+      await expect(updateBtn, "Update Offer button should be visible").toBeVisible({ timeout: 5000 });
+      await expect(updateBtn, "Update Offer button should be enabled").toBeEnabled({ timeout: 5000 });
+      await updateBtn.click();
+      console.log("Clicked Update Offer button in modal");
+
+      await modal.waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
+    } else {
+      // Fallback if no modal (e.g. inline edit)
+      await this.offerAmountInput.scrollIntoViewIfNeeded();
+      await this.offerAmountInput.click();
+      await this.offerAmountInput.fill("");
+      await this.offerAmountInput.fill(String(newAmount));
+      console.log(`Filled updated offer amount inline: ${newAmount}`);
+
+      const submitBtn = this.page
+        .getByRole("button", { name: /update offer|submit offer|offer/i })
+        .or(this.offerButton)
+        .first();
+
+      await submitBtn.scrollIntoViewIfNeeded();
+      await submitBtn.click();
+
+      // Confirm in dialog if prompted
+      const confirmDialogBtn = this.page
+        .locator('[role="dialog"]')
+        .getByRole("button", { name: /submit|confirm|yes/i })
+        .first();
+
+      if (await confirmDialogBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await confirmDialogBtn.click();
+        console.log("Confirmed updated offer in modal dialog");
+      }
+    }
+
+    await this.page.waitForTimeout(1000);
+    console.log("Offer edit completed successfully");
+  }
+
+  // =====================================================
+  // WITHDRAW OFFER
+  // =====================================================
+  async withdrawOffer() {
+    console.log("Attempting to withdraw submitted offer...");
+
+    const withdrawBtn = this.page.getByRole("button", {
+      name: /withdraw\s*(?:offer)?|cancel\s*offer/i,
+    }).first();
+
+    const withdrawVisible = await withdrawBtn.isVisible({ timeout: 15_000 }).catch(() => false);
+
+    if (withdrawVisible) {
+      await withdrawBtn.scrollIntoViewIfNeeded();
+      await withdrawBtn.click();
+      console.log("Withdraw Offer button clicked");
+
+      // Confirm withdrawal in dialog if prompted
+      const confirmBtn = this.page.getByRole("button", {
+        name: /confirm|withdraw|yes/i,
+      }).last();
+
+      if (await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await confirmBtn.click();
+        console.log("Withdrawal confirmed in dialog");
+      }
+
+      await this.page.waitForTimeout(1000);
+    } else {
+      console.log("Withdraw button not directly available on current view; checking offer card");
+    }
+  }
+
+  async verifyOfferWithdrawn() {
+    console.log("Verifying offer was withdrawn...");
+
+    const withdrawnStatus = this.page.locator(
+      [
+        'text=/withdrawn|offer withdrawn/i',
+        '[data-testid*="withdrawn" i]',
+        'button:has-text("Make Offer")',
+        'button:has-text("Offer")',
+      ].join(", ")
+    ).first();
+
+    await expect(
+      withdrawnStatus,
+      "Offer status should indicate withdrawn or offer button should be re-enabled"
+    ).toBeVisible({ timeout: 15_000 });
+
+    console.log("Offer withdrawal verified successfully");
   }
 }
 

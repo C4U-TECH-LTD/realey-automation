@@ -76,11 +76,18 @@ class PropertyLocationPage {
     );
 
     this.nextButton = page
+      .locator('[role="dialog"]')
       .getByRole("button", {
         name: "Next",
         exact: true,
       })
-      .last();
+      .or(
+        page.getByRole("button", {
+          name: "Next",
+          exact: true,
+        })
+      )
+      .first();
   }
 
   // =====================================================
@@ -512,24 +519,30 @@ class PropertyLocationPage {
   async clickNext() {
     await this.assignSellerSolicitor();
 
+    const dialog = this.page.locator('[role="dialog"]').last();
+    const dialogNext = dialog.getByRole("button", { name: "Next", exact: true }).first();
+
+    const targetButton = (await dialogNext.isVisible().catch(() => false)) ? dialogNext : this.nextButton;
+
     await expect(
-      this.nextButton,
+      targetButton,
       "Location step Next button should be visible"
     ).toBeVisible({
       timeout: 20_000,
     });
 
     await expect(
-      this.nextButton,
+      targetButton,
       "Location step Next button should be enabled"
     ).toBeEnabled({
       timeout: 20_000,
     });
 
-    await this.nextButton
+    await targetButton
       .scrollIntoViewIfNeeded();
 
-    await this.nextButton.click();
+    await targetButton.click();
+    await this.page.waitForTimeout(1000);
   }
 
   // =====================================================

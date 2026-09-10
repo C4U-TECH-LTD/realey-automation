@@ -407,6 +407,112 @@ class DashboardPage {
     await this.openListingsMenu();
     await this.verifyListingVisibleByLocation(locationName);
   }
+
+  /* =====================================================
+     LOGOUT
+  ===================================================== */
+
+  async logout() {
+    console.log("Attempting to log out via user profile menu...");
+
+    // Find user profile dropdown trigger in header
+    const profileTrigger = this.page
+      .locator(
+        [
+          'button:has(span.text-xs.font-medium)',
+          'div[class*="items-center"]:has(span.text-xs.font-medium)',
+          'button:has(svg.lucide-user)',
+          '[data-testid*="user-menu" i]',
+          '[data-testid*="profile" i]',
+          'header button:has(img[alt*="avatar" i])',
+          'header button:has(svg.lucide-chevron-down)',
+        ].join(", ")
+      )
+      .last();
+
+    await expect(
+      profileTrigger,
+      "Profile menu trigger should be visible in header"
+    ).toBeVisible({ timeout: 15_000 });
+
+    await profileTrigger.click();
+    await this.page.waitForTimeout(500);
+
+    // Look for Logout / Log out / Sign out menu item
+    const logoutOption = this.page
+      .getByRole("menuitem", {
+        name: /log\s*out|sign\s*out/i,
+      })
+      .or(
+        this.page.locator('button, [role="button"], a').filter({
+          hasText: /log\s*out|sign\s*out/i,
+        })
+      )
+      .first();
+
+    await expect(
+      logoutOption,
+      "Logout option should be visible in profile menu"
+    ).toBeVisible({ timeout: 10_000 });
+
+    await logoutOption.click();
+
+    // Verify redirection to /login or landing page
+    await this.page.waitForURL(/\/login|\/$/i, {
+      timeout: 15_000,
+    });
+
+    console.log(`Logout confirmed, redirected to: ${this.page.url()}`);
+  }
+
+  /* =====================================================
+     NOTIFICATIONS
+  ===================================================== */
+
+  async verifyNotificationBell() {
+    console.log("Checking in-app notification bell...");
+
+    const bell = this.page.locator(
+      [
+        'button:has(svg.lucide-bell)',
+        '[aria-label*="notification" i]',
+        'button:has([class*="bell" i])',
+      ].join(", ")
+    ).first();
+
+    const bellVisible = await bell.isVisible().catch(() => false);
+
+    if (bellVisible) {
+      await expect(bell).toBeVisible();
+      console.log("Notification bell is visible in header");
+
+      // Click to open notifications drawer/popover
+      await bell.click();
+      await this.page.waitForTimeout(800);
+
+      // Verify notifications dropdown / drawer opens
+      const drawerOrPopover = this.page.locator(
+        [
+          '[role="dialog"]',
+          '[data-radix-popper-content-wrapper]',
+          '[class*="popover" i]',
+          '[class*="notification" i]',
+          'h3:has-text("Notifications")',
+          'h4:has-text("Notifications")',
+          'div:has-text("Notifications")',
+        ].join(", ")
+      ).first();
+
+      const drawerVisible = await drawerOrPopover.isVisible().catch(() => false);
+      if (drawerVisible) {
+        console.log("Notification panel opened successfully");
+        // Close it by clicking bell or outside
+        await this.page.keyboard.press("Escape").catch(() => {});
+      }
+    } else {
+      console.log("Notification bell not directly visible on this screen; continuing.");
+    }
+  }
 }
 
 module.exports = {

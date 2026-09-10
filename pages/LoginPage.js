@@ -183,11 +183,17 @@ class LoginPage {
       waitUntil: "domcontentloaded",
     });
 
+    // Wait for "Checking authentication..." loader to detach
+    await this.page
+      .getByText(/Checking authentication/i)
+      .waitFor({ state: "hidden", timeout: 30_000 })
+      .catch(() => {});
+
     await expect(
       this.heading,
       "Welcome back heading should be visible"
     ).toBeVisible({
-      timeout: 20_000,
+      timeout: 30_000,
     });
   }
 
