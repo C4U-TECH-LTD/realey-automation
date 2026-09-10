@@ -780,3 +780,13 @@ Then(
     );
   }
 );
+
+When(
+  "I switch from Second Auction Buyer to Agent for the Auction flow",
+  async function () {
+    await clearCurrentSession(this);
+    await loginAs(this, loginData.agent, "Agent");
+    await this.dashboardPage.waitForDashboard();
+  }
+);
+

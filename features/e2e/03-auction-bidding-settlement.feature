@@ -36,5 +36,6 @@ Feature: Flow 3 - Auction Bidding and Settlement
     And the Second Auction Buyer continues through Auction personal details
     And the Second Auction Buyer selects the Auction configured solicitor
     And the Second Auction Buyer selects the Auction configured mortgage broker
- 
-   
+
+    When I switch from Second Auction Buyer to Agent for the Auction flow
+    Then the Agent verifies the settlement shows 5/5 steps completed

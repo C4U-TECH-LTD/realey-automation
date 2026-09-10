@@ -43,6 +43,7 @@ Feature: Flow 1 - Fixed Price Direct Offer Acceptance and Settlement
     Then the deposit payment is successful
 
     When I switch from General User to Agent
+    And the Agent verifies the settlement shows 5/5 steps completed
     And the Agent exports the settlement report and verifies download starts
     Then the settlement report download is verified successfully
 

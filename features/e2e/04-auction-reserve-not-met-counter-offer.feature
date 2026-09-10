@@ -46,3 +46,6 @@ Feature: Flow 4 - Auction Reserve Price Not Met Counter Offer Negotiation and Se
     And the General User continues through Auction Reserve Not Met personal details
     And the General User selects the Auction Reserve Not Met configured solicitor
     And the General User selects the Auction Reserve Not Met configured mortgage broker
+
+    When I switch from General User to Agent for the Auction Reserve Not Met flow
+    Then the Agent verifies the settlement shows 5/5 steps completed

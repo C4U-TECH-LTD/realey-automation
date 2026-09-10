@@ -29,6 +29,7 @@ Feature: Flow 6 - Fixed Price Direct Offer Settlement Exchange and Document Sign
 
     When I switch from General User to Agent
     And the Agent opens the Settlements tab
+    And the Agent verifies the settlement shows 5/5 steps completed
     And the Agent opens the settlement for the created Fixed Price listing
     And the Agent marks the settlement as Ready for Exchange
     Then the settlement status should be Ready for Exchange

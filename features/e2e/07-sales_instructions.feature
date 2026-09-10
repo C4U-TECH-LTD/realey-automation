@@ -34,6 +34,7 @@ Feature: Flow 7 - Fixed Price Direct Offer Sales Instructions
 
     When I switch from General User to Agent
     And the Agent opens the Settlements tab
+    And the Agent verifies the settlement shows 5/5 steps completed
     And the Agent opens the settlement for the created Fixed Price listing
     Then the Sales Instructions action should be available
 

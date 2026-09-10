@@ -37,3 +37,6 @@ Feature: Flow 2 - Offer Price Counter Offer Negotiation and Settlement
     And the General User selects the Offer Price configured mortgage broker
     And the General User pays the Offer Price deposit
     Then the Offer Price deposit payment is successful
+
+    When I switch from General User to Agent for the Offer Price flow
+    Then the Agent verifies the settlement shows 5/5 steps completed
