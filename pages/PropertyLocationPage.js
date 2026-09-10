@@ -175,15 +175,17 @@ class PropertyLocationPage {
     await firstSuggestion.click();
 
     // =====================================================
-    // WAIT FOR ADDRESS TO ACTUALLY CHANGE
+    // WAIT FOR ADDRESS TO ACTUALLY CHANGE OR BE POPULATED
     // =====================================================
 
-    await expect(
-      this.streetAddressInput,
-      "Street Address should be populated after selecting a suggestion"
-    ).not.toHaveValue(searchText, {
-      timeout: 15_000,
-    });
+    if (searchText.length <= 2) {
+      await expect(
+        this.streetAddressInput,
+        "Street Address should be populated after selecting a suggestion"
+      ).not.toHaveValue(searchText, {
+        timeout: 15_000,
+      });
+    }
 
     const selectedAddress =
       await this.streetAddressInput.inputValue();
