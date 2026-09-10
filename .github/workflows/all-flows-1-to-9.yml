@@ -1,4 +1,4 @@
-name: All Flows (Flow 1 to 7) - Full E2E Suite
+name: All Flows (Flow 1 to 9) - Full E2E Suite
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
   run-all-flows:
     name: Run All Flows Test Suite
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     env:
       CI: "true"
@@ -95,7 +95,7 @@ jobs:
           rm -rf screenshots/cucumber
           rm -rf videos
 
-      - name: Run All Flows Cucumber Test (Sequentially Flow 1 to 7)
+      - name: Run All Flows Cucumber Test (Sequentially Flow 1 to 9)
         id: cucumber-tests
         continue-on-error: true
         run: |
@@ -173,7 +173,7 @@ jobs:
         run: |
           echo ""
           echo "============================================"
-          echo "REALEY ALL FLOWS AUTOMATION (1 TO 7)"
+          echo "REALEY ALL FLOWS AUTOMATION (1 TO 9)"
           echo "============================================"
           echo "Result: ${{ steps.cucumber-tests.outcome }}"
           echo "============================================"
@@ -216,6 +216,8 @@ jobs:
           echo "## 📊 Realey All Flows Allure Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full E2E suite covering Flows 1 through 9." >> "$GITHUB_STEP_SUMMARY"
 
   final-status:
     name: Final Test Status
@@ -227,4 +229,4 @@ jobs:
     steps:
       - name: Workflow Summary
         run: |
-          echo "All Flows (1 to 7) automation workflow completed."
+          echo "All Flows (1 to 9) automation workflow completed."

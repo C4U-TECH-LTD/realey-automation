@@ -674,6 +674,84 @@ class ConversationsPage {
 
     console.log("Negotiated offer accepted successfully");
   }
+
+  getProgressTaskListLocator() {
+    return this.page
+      .getByRole("button", {
+        name: /Configure Progress Task List|Configure Progress|Progress Task List|Task List/i,
+      })
+      .or(
+        this.page.getByRole("link", {
+          name: /Configure Progress Task List|Configure Progress|Progress Task List|Task List/i,
+        })
+      )
+      .or(
+        this.page.locator(
+          'button:has-text("Configure Progress"), button:has-text("Task List")'
+        )
+      )
+      .or(this.page.getByText(/Configure Progress Task List/i))
+      .or(
+        this.page.locator(
+          '[data-testid*="task-list"], [aria-label*="task list" i]'
+        )
+      )
+      .first();
+  }
+
+  async verifyProgressTaskListNotAvailable() {
+    await this.page.waitForLoadState("domcontentloaded");
+    await this.page.waitForTimeout(1500);
+
+    const taskList = this.getProgressTaskListLocator();
+
+    const isVisible = await taskList.isVisible().catch(() => false);
+
+    if (isVisible) {
+      const isEnabled = await taskList.isEnabled().catch(() => false);
+
+      if (isEnabled) {
+        throw new Error(
+          "Configure Progress Task List is visible and interactive, but it should NOT be visible or interactive at this stage."
+        );
+      }
+
+      console.log(
+        "Configure Progress Task List is visible but disabled/non-interactive as expected."
+      );
+      return;
+    }
+
+    await expect(
+      taskList,
+      "Configure Progress Task List should not be visible"
+    ).not.toBeVisible({ timeout: 5000 });
+
+    console.log(
+      "Configure Progress Task List is not visible as expected."
+    );
+  }
+
+  async verifyProgressTaskListAvailable() {
+    await this.page.waitForLoadState("domcontentloaded");
+    await this.page.waitForTimeout(2000);
+
+    const taskList = this.getProgressTaskListLocator();
+
+    await expect(
+      taskList,
+      "Configure Progress Task List should automatically appear in the chatroom"
+    ).toBeVisible({ timeout: 30_000 });
+
+    await expect(
+      taskList,
+      "Configure Progress Task List should be interactive/enabled"
+    ).toBeEnabled({ timeout: 10_000 });
+
+    console.log(
+      "Configure Progress Task List is visible and interactive as expected."
+    );
+  }
 }
 
 module.exports = {
