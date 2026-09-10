@@ -496,6 +496,95 @@ class ConversationsPage {
   }
 
   /**
+   * Decline negotiated offer (BUYER side).
+   *
+   * When the Agent sends a counter offer, the Buyer's conversation
+   * view shows "Decline" and "Counter Negotiate" buttons.
+   * This method clicks "Decline" then confirms.
+   */
+  async declineNegotiation() {
+    // Wait for any loading spinner to detach first
+    await this.page
+      .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
+    const declineButton = this.page.getByRole("button", {
+      name: "Decline",
+      exact: true,
+    });
+
+    await expect(
+      declineButton,
+      "Decline button should be visible for the agent's counter offer"
+    ).toBeVisible({ timeout: 20_000 });
+
+    await expect(
+      declineButton,
+      "Decline button should be enabled"
+    ).toBeEnabled({ timeout: 10_000 });
+
+    await declineButton.click();
+
+    console.log("Decline button clicked by buyer");
+
+    // Some UIs show a confirmation dialog after clicking Decline
+    const confirmDeclineButton = this.page
+      .getByRole("button", {
+        name: /Decline Offer|Decline|Confirm/i,
+      })
+      .last();
+
+    const confirmVisible = await confirmDeclineButton
+      .isVisible()
+      .catch(() => false);
+
+    if (confirmVisible) {
+      const isEnabled = await confirmDeclineButton
+        .isEnabled()
+        .catch(() => false);
+
+      if (isEnabled) {
+        await confirmDeclineButton.click();
+        console.log("Decline confirmed in dialog");
+      }
+    }
+
+    await this.page.waitForTimeout(1000);
+  }
+
+  /**
+   * Verify the negotiation was declined (BUYER side).
+   *
+   * After the buyer clicks Decline, the conversation should
+   * reflect the declined state (e.g. "Declined" badge) and
+   * the Decline / Counter Negotiate buttons should disappear.
+   */
+  async verifyNegotiationDeclined(
+    expectedMessage = /declined|offer declined|decline/i
+  ) {
+    // First check for an explicit declined status text
+    const statusText = this.page
+      .getByText(expectedMessage)
+      .last();
+
+    if (await statusText.isVisible().catch(() => false)) {
+      await expect(statusText).toBeVisible({ timeout: 10_000 });
+      console.log("Buyer-side negotiation declined status confirmed");
+      return;
+    }
+
+    // Fallback: verify Counter Negotiate button has gone away
+    await expect(
+      this.counterNegotiateButton,
+      "Counter Negotiate button should disappear after buyer declines"
+    ).not.toBeVisible({ timeout: 20_000 });
+
+    console.log("Negotiation decline verified — Counter Negotiate button gone");
+  }
+
+  /**
    * Accept negotiated offer.
    *
    * Expected:

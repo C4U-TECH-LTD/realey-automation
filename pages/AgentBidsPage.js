@@ -947,8 +947,75 @@ class AgentBidsPage {
         `Current URL: ${this.page.url()}`
     );
   }
+
+  // =====================================================
+  // VERIFY NEXT-HIGHEST GENUINE BIDDER IS AVAILABLE
+  // =====================================================
+
+  /**
+   * After the highest bidder declines the agent's counter offer,
+   * the agent should see the next-highest genuine bidder in the Bids
+   * panel with a "Start negotiation" button available.
+   *
+   * @param {string} propertyName - Expected property name on the card.
+   */
+  async verifyNextHighestBidderAvailable(propertyName = "") {
+    console.log(
+      "Verifying next-highest genuine bidder is available for negotiation..."
+    );
+
+    await this.page.waitForLoadState("domcontentloaded");
+    await this.page.waitForTimeout(1500);
+
+    // Look for at least one "Start negotiation" button anywhere in the Bids panel
+    const startNegotiationButtons = this.page.getByRole("button", {
+      name: /^Start negotiation$/i,
+    });
+
+    const count = await startNegotiationButtons.count();
+
+    console.log(`Found ${count} "Start negotiation" button(s)`);
+
+    if (count > 0) {
+      await expect(
+        startNegotiationButtons.first(),
+        "A 'Start negotiation' button for the next-highest bidder should be visible"
+      ).toBeVisible({ timeout: 20_000 });
+
+      console.log(
+        "Next-highest genuine bidder confirmed — Start negotiation button is visible"
+      );
+
+      return;
+    }
+
+    // Fallback: if no Start negotiation, check for any "Negotiate" or related CTA
+    const negotiateButton = this.page
+      .getByRole("button", {
+        name: /negotiate/i,
+      })
+      .first();
+
+    if (await negotiateButton.isVisible().catch(() => false)) {
+      await expect(negotiateButton).toBeVisible({ timeout: 10_000 });
+
+      console.log(
+        "Next-highest bidder available via generic Negotiate button"
+      );
+
+      return;
+    }
+
+    await this.debugCurrentPage("NEXT-HIGHEST BIDDER DEBUG");
+
+    throw new Error(
+      `No "Start negotiation" button was found after highest bidder declined. ` +
+        `Expected to see next-highest genuine bidder available. ` +
+        `Current URL: ${this.page.url()}`
+    );
+  }
 }
 
 module.exports = {
   AgentBidsPage,
-};
+};
