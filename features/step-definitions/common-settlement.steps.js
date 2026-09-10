@@ -7,7 +7,7 @@ const { salesInstructionsFlowData } = require("../../fixtures/test-data/salesIns
 const { settlementExchangeFlowData } = require("../../fixtures/test-data/settlementExchangeFlowData");
 
 Then(
-  "the Agent verifies the settlement shows 5/5 steps completed",
+  /^the Agent verifies the settlement shows (?:5\/5|all) steps completed$/,
   async function () {
     const propertyTitle =
       this.createdListingTitle ||

@@ -555,19 +555,3 @@ Then(
       );
   }
 );
-
-When(
-  "the Agent exports the settlement report and verifies download starts",
-  async function () {
-    await this.settlementPage.exportSettlementReport(
-      listingData.fixedPriceFlow.generalUser.searchText
-    );
-  }
-);
-
-Then(
-  "the settlement report download is verified successfully",
-  async function () {
-    await this.settlementPage.verifyReportDownload();
-  }
-);
