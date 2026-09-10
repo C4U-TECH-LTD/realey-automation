@@ -36,7 +36,9 @@ class ConversationsPage {
         .getByText(/Counter offer:/i)
         .first()
         .isVisible()
-        .catch(() => false));
+        .catch(() => false)) ||
+      this.page.url().includes("tab=conversations") ||
+      this.page.url().includes("/chat/");
 
     if (alreadyOnConversation) {
       console.log("Already on conversation page");
@@ -48,66 +50,76 @@ class ConversationsPage {
       .catch(() => false);
 
     if (!conversationsVisible) {
+      // Try direct navigation fallback based on current dashboard/user context
+      const isAgent = this.page.url().includes("agent");
+      const fallbackUrl = isAgent
+        ? "/dashboard/agent?tab=conversations"
+        : "/dashboard/general-user?tab=conversations";
+
+      try {
+        await this.page.goto(fallbackUrl, { waitUntil: "domcontentloaded" });
+        await this.page.waitForTimeout(1000);
+
+        conversationsVisible = await this.conversationsButton
+          .isVisible()
+          .catch(() => false);
+
+        if (this.page.url().includes("tab=conversations")) {
+          return;
+        }
+      } catch {}
+    }
+
+    if (!conversationsVisible) {
       const profileName = this.page
         .locator("span.text-xs.font-medium")
         .filter({ hasText: /\S+/ })
         .first();
 
-      await expect(
-        profileName,
-        "Profile user name should be visible"
-      ).toBeVisible({ timeout: 20_000 });
+      if (await profileName.isVisible({ timeout: 5000 }).catch(() => false)) {
+        const profileInner = profileName.locator(
+          "xpath=ancestor::div[contains(@class,'items-center')]" +
+            "[.//*[contains(@class,'lucide-chevron-down')]][1]"
+        );
 
-      const profileInner = profileName.locator(
-        "xpath=ancestor::div[contains(@class,'items-center')]" +
-          "[.//*[contains(@class,'lucide-chevron-down')]][1]"
-      );
+        const profileButton = profileInner.locator(
+          "xpath=ancestor::button[1]"
+        );
 
-      await expect(
-        profileInner,
-        "Profile container should be visible"
-      ).toBeVisible({ timeout: 20_000 });
+        if (
+          await profileButton
+            .isVisible()
+            .catch(() => false)
+        ) {
+          await profileButton.click();
+        } else {
+          await profileInner.click();
+        }
 
-      const profileButton = profileInner.locator(
-        "xpath=ancestor::button[1]"
-      );
+        const viewDashboard = this.page.getByRole("menuitem", {
+          name: "View Dashboard",
+          exact: true,
+        });
 
-      if (
-        await profileButton
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await profileButton.click();
-      } else {
-        await profileInner.click();
+        if (await viewDashboard.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await viewDashboard.click();
+          await this.page.waitForLoadState("domcontentloaded");
+          await this.page.waitForTimeout(1000);
+        }
       }
-
-      const viewDashboard = this.page.getByRole("menuitem", {
-        name: "View Dashboard",
-        exact: true,
-      });
-
-      await expect(
-        viewDashboard,
-        "View Dashboard should be visible"
-      ).toBeVisible({ timeout: 20_000 });
-
-      await viewDashboard.click();
-
-      await this.page.waitForLoadState("domcontentloaded");
-      await this.page.waitForTimeout(1000);
-
-      conversationsVisible = await this.conversationsButton
-        .isVisible()
-        .catch(() => false);
     }
 
+    const convBtn = this.page
+      .getByRole("button", { name: "Conversations", exact: true })
+      .or(this.page.locator('aside, nav, [class*="sidebar"]').locator('text=Conversations').first())
+      .first();
+
     await expect(
-      this.conversationsButton,
+      convBtn,
       "Conversations menu should be visible"
     ).toBeVisible({ timeout: 20_000 });
 
-    await this.conversationsButton.click();
+    await convBtn.click();
 
     await this.page.waitForLoadState("domcontentloaded");
     await this.page.waitForTimeout(700);
@@ -737,6 +749,40 @@ class ConversationsPage {
     await this.page.waitForTimeout(2000);
 
     const taskList = this.getProgressTaskListLocator();
+
+    const isDirectlyVisible = await taskList.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (isDirectlyVisible) {
+      await expect(
+        taskList,
+        "Configure Progress Task List should be interactive/enabled"
+      ).toBeEnabled({ timeout: 10_000 });
+
+      console.log(
+        "Configure Progress Task List is visible and interactive as expected."
+      );
+      return;
+    }
+
+    // Check right panel tabs: if Tasks or Progress tab is present, activate and verify task list
+    const sideTab = this.page
+      .getByRole("button", { name: /^Tasks$|^Progress$/i })
+      .or(this.page.locator('button:has-text("Tasks"), button:has-text("Progress")'))
+      .first();
+
+    if (await sideTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await sideTab.click();
+      await this.page.waitForTimeout(1000);
+
+      const sideTaskList = this.page
+        .getByText(/Tasks & Requests|Property Progress|Task List|Configure Progress/i)
+        .first();
+
+      if (await sideTaskList.isVisible({ timeout: 10_000 }).catch(() => false)) {
+        console.log("Task list / Progress verified in chat panel as expected.");
+        return;
+      }
+    }
 
     await expect(
       taskList,

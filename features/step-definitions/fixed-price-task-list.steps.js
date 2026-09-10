@@ -403,6 +403,42 @@ Then(
   async function () {
     await this.conversationsPage
       .verifyProgressTaskListNotAvailable();
+
+    // Trigger Point 1 -> 2 transition:
+    // The Buyer accepts the counter offer in the chatroom so the transaction moves to Accepted status.
+    const acceptBtn = this.page.getByRole("button", {
+      name: "Accept",
+      exact: true,
+    });
+
+    if (await acceptBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
+      console.log("Buyer accepting counter offer in chatroom...");
+      await acceptBtn.click();
+
+      const confirmBtn = this.page
+        .getByRole("button", {
+          name: /Accept|Confirm|Yes/i,
+        })
+        .last();
+
+      if (await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await confirmBtn.click();
+      }
+
+      await this.page.waitForTimeout(1500);
+
+      // If the settlement popup dialog opened upon acceptance, close it so subsequent chat / listing steps are unobstructed
+      const closeDialogBtn = this.page
+        .locator(
+          '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label="Close"], button:has(svg.lucide-x)'
+        )
+        .first();
+
+      if (await closeDialogBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await closeDialogBtn.click();
+        await this.page.waitForTimeout(500);
+      }
+    }
   }
 );
 
