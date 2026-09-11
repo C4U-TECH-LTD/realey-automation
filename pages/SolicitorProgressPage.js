@@ -117,16 +117,16 @@ class SolicitorProgressPage {
       .waitFor({ state: "hidden", timeout: 30_000 })
       .catch(() => {});
 
-    const updateBtn = this.page
-      .getByRole("button", { name: "Update", exact: true })
+    const submitBtn = this.page
+      .getByRole("button", { name: /^Submit$|^Update$/i })
       .last();
 
     await expect(
-      updateBtn,
-      "Update button should be visible on Configure Progress page"
+      submitBtn,
+      "Submit or Update button should be visible on Configure Progress page"
     ).toBeVisible({ timeout: 30_000 });
 
-    console.log("Configure Progress page opened successfully and Update button is ready");
+    console.log("Configure Progress page opened successfully and submit/update button is ready");
   }
 
   async scrollDownAndSubmit() {
@@ -143,31 +143,31 @@ class SolicitorProgressPage {
     await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await this.page.waitForTimeout(1000);
 
-    const updateBtn = this.page
-      .getByRole("button", { name: "Update", exact: true })
+    const submitBtn = this.page
+      .getByRole("button", { name: /^Submit$|^Update$/i })
       .last();
 
     await expect(
-      updateBtn,
-      "Update button should be visible on Configure Progress page"
+      submitBtn,
+      "Submit or Update button should be visible on Configure Progress page"
     ).toBeVisible({ timeout: 20_000 });
 
-    await updateBtn.scrollIntoViewIfNeeded();
+    await submitBtn.scrollIntoViewIfNeeded();
     await this.page.waitForTimeout(500);
 
-    await updateBtn.click({ position: { x: 15, y: 15 } });
-    console.log("Clicked Update button on Configure Progress page");
+    await submitBtn.click({ position: { x: 15, y: 15 } });
+    console.log("Clicked Submit/Update button on Configure Progress page");
 
     // Wait for success toast / notification (Sonner toast item)
     const successToast = this.page
       .locator("[data-sonner-toast]")
-      .filter({ hasText: /Workflow updated successfully|updated successfully/i })
-      .or(this.page.getByText("Workflow updated successfully"))
+      .filter({ hasText: /submitted successfully|updated successfully/i })
+      .or(this.page.getByText(/submitted successfully|updated successfully/i))
       .first();
 
     await expect(
       successToast,
-      "Workflow updated successfully message should appear"
+      "Workflow submitted or updated successfully message should appear"
     ).toBeVisible({ timeout: 15_000 });
 
     console.log("Configure Progress Task submitted successfully");
