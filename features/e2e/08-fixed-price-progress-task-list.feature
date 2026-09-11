@@ -31,6 +31,13 @@ Feature: Flow 8 - Fixed Price Direct Offer Progress Task List
     And the chatroom should display that progress tasks will appear once an offer is accepted
 
     When the General User accepts the counter offer in the chatroom
+
+    When I switch from General User to Agent for the Fixed Price Task List flow
+    And the Agent opens the submitted Fixed Price Task List offer again
+    And the Agent accepts the Fixed Price Task List offer
+    Then the Fixed Price Task List offer is accepted successfully
+
+    When I switch from Agent to General User for the Fixed Price Task List flow
     And the General User opens the created Fixed Price Task List listing again
     And the General User starts the Fixed Price Task List settlement process
     And the General User selects the Fixed Price Task List configured solicitor

@@ -949,9 +949,37 @@ class ConversationsPage {
       await this.page.waitForTimeout(1000);
     }
 
+    // Check if the chatroom needs a refresh to fetch the latest settlement progress
+    const pendingMsg = this.page.getByText(
+      /Progress tasks will appear once an offer for this property is accepted/i
+    );
+    const noSteps = this.page.getByText(/No progress steps available/i);
+
+    if (
+      (await pendingMsg.isVisible({ timeout: 3000 }).catch(() => false)) ||
+      (await noSteps.isVisible({ timeout: 2000 }).catch(() => false))
+    ) {
+      console.log("Chatroom progress panel still showing pending/empty state, refreshing chat to sync settlement data...");
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+      await this.page.waitForTimeout(3000);
+
+      // Re-activate chat and progress tab if needed
+      const reTab = this.getChatroomTab("Progress");
+      if (await reTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await reTab.click();
+        await this.page.waitForTimeout(1000);
+      }
+    }
+
+    // Pending message MUST not be visible at this final stage
+    await expect(
+      pendingMsg,
+      'Pending message "Progress tasks will appear once an offer for this property is accepted." should disappear after settlement is complete'
+    ).not.toBeVisible({ timeout: 15_000 });
+
     const assignedTasks = this.page
       .getByText(
-        /Deposit Paid|Standard Conveyancing Process|Final Inspection|Contract Signed|Tasks & Requests|Property Progress|Configure Progress|10 stages|10 steps|stages|steps|tasks/i
+        /Deposit Paid|Standard Conveyancing Process|Final Inspection|Contract Signed|Overall Progress|Property Progress|Tasks & Requests|Configure Progress|10 stages|10 steps/i
       )
       .first();
 
