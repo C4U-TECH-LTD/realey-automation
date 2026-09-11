@@ -108,17 +108,6 @@ class AgentOffersPage {
       }
     }
 
-    // Fallback: check if newest offer is already accepted
-    const acceptedOnPage = this.page
-      .getByText(/offer accepted|accepted/i)
-      .first();
-
-    if (await acceptedOnPage.isVisible({ timeout: 3000 }).catch(() => false)) {
-      console.log("Offer on page is already accepted.");
-      this.isOfferAlreadyAccepted = true;
-      return;
-    }
-
     // Fallback: the newest/current submitted offer should expose either Counter via Chat or Accept
     const targetButton = this.page.getByRole("button", {
       name: /Counter via Chat|Accept/i,
@@ -220,40 +209,69 @@ class AgentOffersPage {
 
     const acceptBtn = this.activeAcceptButton || this.acceptButton;
 
-    if (await acceptBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await acceptBtn.click();
+    await expect(
+      acceptBtn,
+      "Accept button should be visible on submitted offer"
+    ).toBeVisible({ timeout: 20_000 });
 
-      const confirmationButton = this.page.getByRole("button", {
-        name: /Accept|Confirm|Yes/i,
-      }).last();
+    await acceptBtn.click();
+    console.log("Clicked Accept button on offer card");
 
-      if (await confirmationButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await confirmationButton.click();
-      }
-    } else {
-      // If no accept button is present, check if offer is already accepted
-      const acceptedBadge = this.page.getByText(/accepted|offer accepted/i).first();
-      await expect(
-        acceptedBadge,
-        "Offer should be accepted"
-      ).toBeVisible({ timeout: 10_000 });
-    }
+    // Wait for the confirmation dialog
+    const dialog = this.page.locator('[role="dialog"]').last();
+    await expect(
+      dialog,
+      "Accept offer confirmation dialog should appear"
+    ).toBeVisible({ timeout: 10_000 });
+
+    const confirmButton = dialog.getByRole("button", {
+      name: /Confirm/i,
+    });
+
+    await expect(
+      confirmButton,
+      "Confirm button in accept dialog should be visible"
+    ).toBeVisible({ timeout: 10_000 });
+
+    await expect(confirmButton).toBeEnabled({ timeout: 10_000 });
+    await confirmButton.click();
+    console.log("Clicked Confirm button in accept offer dialog");
+
+    // Wait for dialog to close
+    await expect(
+      dialog,
+      "Accept offer dialog should close after confirmation"
+    ).toBeHidden({ timeout: 15_000 });
+
+    // Wait for success toast or settlement creation confirmation
+    const toast = this.page.getByText(/Offer Accepted!|settlement has been created/i).first();
+    await toast.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+    await this.page.waitForTimeout(1000);
   }
 
   async verifyAccepted(expectedMessage) {
-    const acceptedLocator = this.page
-      .getByText(expectedMessage || /accepted|offer accepted/i)
+    // 1. Check for success toast
+    const toast = this.page
+      .getByText(/Offer Accepted!|settlement has been created/i)
       .first();
 
-    if (await acceptedLocator.isVisible({ timeout: 10_000 }).catch(() => false)) {
-      await expect(acceptedLocator).toBeVisible();
+    if (await toast.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log("Offer accepted toast confirmed");
       return;
     }
 
-    const acceptBtn = this.activeAcceptButton || this.acceptButton;
-    await expect(acceptBtn).not.toBeVisible({
-      timeout: 10_000,
-    });
+    // 2. Check that the offer card shows accepted state or settlement options
+    const acceptedTarget = this.page
+      .getByText(expectedMessage || /Offer accepted|preparing for contract exchange/i)
+      .or(this.page.getByRole("button", { name: "Copy Settlement Link" }))
+      .first();
+
+    await expect(
+      acceptedTarget,
+      "Offer should show Accepted state or settlement options"
+    ).toBeVisible({ timeout: 15_000 });
+
+    console.log("Offer acceptance verified successfully on Agent side");
   }
 }
 

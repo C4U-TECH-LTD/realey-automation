@@ -72,13 +72,20 @@ class SettlementPage {
   // =====================================================
 
   async start() {
+    // 1. If property details or listing page is loading, wait for it
+    await this.page
+      .getByText(/loading property details/i)
+      .waitFor({ state: "hidden", timeout: 30_000 })
+      .catch(() => {});
+
+    // 2. If an interactive Start/Continue/Resume Settlement button is visible on page, click it
     const startBtn = this.page.getByRole("button", {
-      name: /start settlement|continue settlement/i,
+      name: /start settlement|continue settlement|resume settlement/i,
     }).first();
 
     if (
       await startBtn
-        .waitFor({ state: "visible", timeout: 4000 })
+        .waitFor({ state: "visible", timeout: 5000 })
         .then(() => true)
         .catch(() => false)
     ) {
@@ -86,12 +93,19 @@ class SettlementPage {
       console.log("Start Settlement button clicked");
     }
 
+    // 3. Wait for the Property Settlement Process modal heading
     await expect(
       this.settlementHeading,
       "Property Settlement Process should be visible"
     ).toBeVisible({
-      timeout: 20_000,
+      timeout: 30_000,
     });
+
+    // 4. Wait for the internal "Loading settlement details..." spinner inside modal to finish
+    await this.page
+      .getByText(/loading settlement details/i)
+      .waitFor({ state: "hidden", timeout: 30_000 })
+      .catch(() => {});
 
     await expect(
       this.continueButton,
