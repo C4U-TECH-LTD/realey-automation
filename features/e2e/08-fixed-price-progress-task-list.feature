@@ -36,6 +36,7 @@ Feature: Flow 8 - Fixed Price Direct Offer Progress Task List
     And the Agent opens the submitted Fixed Price Task List offer again
     And the Agent accepts the Fixed Price Task List offer
     Then the Fixed Price Task List offer is accepted successfully
+    And the Configure Progress Task List should still not be visible or interactive
 
     When I switch from Agent to General User for the Fixed Price Task List flow
     And the General User opens the created Fixed Price Task List listing again
