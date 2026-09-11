@@ -17,6 +17,16 @@ const {
   "../../fixtures/test-data/listingData"
 );
 
+const {
+  salesInstructionsFlowData,
+} = require(
+  "../../fixtures/test-data/salesInstructionsFlowData"
+);
+
+function isFlow7Scenario(world) {
+  return Boolean(world?.isFlow7 || world?.pickle?.tags?.some((t) => t.name === "@flow-7"));
+}
+
 async function clearCurrentSession(world) {
   await world.context.clearCookies();
 
@@ -58,9 +68,13 @@ async function loginAs(world, account) {
 Given(
   "the agent is logged in for the Fixed Price E2E flow",
   async function () {
+    const account = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.agent
+      : loginData.agent;
+
     await loginAs(
       this,
-      loginData.agent
+      account
     );
 
     await this.dashboardPage
@@ -309,6 +323,17 @@ When(
 When(
   "the agent creates and publishes a Fixed Price listing",
   async function () {
+    const isFlow7 = isFlow7Scenario(this);
+    const addressSearchText = isFlow7
+      ? salesInstructionsFlowData.agent.listing.addressSearchText
+      : listingData.location.addressSearchText;
+    const headline = isFlow7
+      ? salesInstructionsFlowData.agent.listing.headline
+      : listingData.description.headline;
+    const description = isFlow7
+      ? salesInstructionsFlowData.agent.listing.propertyDescription
+      : listingData.description.propertyDescription;
+
     await this.dashboardPage
       .clickCreateListing();
 
@@ -317,8 +342,7 @@ When(
 
     await this.propertyLocationPage
       .typeAddressAndSelectFirstSuggestion(
-        listingData.location
-          .addressSearchText
+        addressSearchText
       );
 
     await this.propertyLocationPage
@@ -357,14 +381,12 @@ When(
 
     await this.descriptionFeaturesPage
       .enterHeadline(
-        listingData.description
-          .headline
+        headline
       );
 
     await this.descriptionFeaturesPage
       .enterDescription(
-        listingData.description
-          .propertyDescription
+        description
       );
 
     await this.descriptionFeaturesPage
@@ -402,6 +424,11 @@ When(
 Then(
   "the Fixed Price listing is published successfully",
   async function () {
+    const isFlow7 = isFlow7Scenario(this);
+    const expectedName = isFlow7
+      ? salesInstructionsFlowData.agent.listing.expectedPropertyName
+      : listingData.location.expectedPropertyName;
+
     await this.dashboardPage
       .waitForDashboardAfterPublish();
 
@@ -410,8 +437,7 @@ Then(
 
     await this.dashboardPage
       .verifyListingVisibleByLocation(
-        listingData.location
-          .expectedPropertyName
+        expectedName
       );
   }
 );
@@ -421,9 +447,13 @@ When(
   async function () {
     await clearCurrentSession(this);
 
+    const account = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.generalUser
+      : loginData.generalUser;
+
     await loginAs(
       this,
-      loginData.generalUser
+      account
     );
   }
 );
@@ -431,10 +461,14 @@ When(
 When(
   "the General User opens the created Fixed Price listing",
   async function () {
+    const searchText = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.generalUser.searchText
+      : listingData.fixedPriceFlow
+          .generalUser.searchText;
+
     await this.generalUserListingsPage
       .openFirstMatchingListing(
-        listingData.fixedPriceFlow
-          .generalUser.searchText
+        searchText
       );
   }
 );
@@ -442,9 +476,13 @@ When(
 When(
   "the General User submits the configured offer",
   async function () {
+    const offerAmount = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.generalUser.offerAmount
+      : listingData.fixedPriceFlow
+          .generalUser.offerAmount;
+
     await this.offerPage.submitOffer(
-      listingData.fixedPriceFlow
-        .generalUser.offerAmount
+      offerAmount
     );
   }
 );
@@ -465,9 +503,13 @@ When(
   async function () {
     await clearCurrentSession(this);
 
+    const account = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.agent
+      : loginData.agent;
+
     await loginAs(
       this,
-      loginData.agent
+      account
     );
 
     await this.dashboardPage
@@ -497,10 +539,14 @@ Then(
 When(
   "the General User opens the created Fixed Price listing again",
   async function () {
+    const searchText = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.generalUser.searchText
+      : listingData.fixedPriceFlow
+          .generalUser.searchText;
+
     await this.generalUserListingsPage
       .openFirstMatchingListing(
-        listingData.fixedPriceFlow
-          .generalUser.searchText
+        searchText
       );
   }
 );
@@ -515,10 +561,14 @@ When(
 When(
   "the General User selects the configured solicitor",
   async function () {
+    const solicitorSearch = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.settlement.solicitorSearch
+      : listingData.fixedPriceFlow
+          .settlement.solicitorSearch;
+
     await this.settlementPage
       .selectSolicitor(
-        listingData.fixedPriceFlow
-          .settlement.solicitorSearch
+        solicitorSearch
       );
   }
 );
@@ -526,10 +576,14 @@ When(
 When(
   "the General User selects the configured mortgage broker",
   async function () {
+    const brokerSearch = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.settlement.brokerSearch
+      : listingData.fixedPriceFlow
+          .settlement.brokerSearch;
+
     await this.settlementPage
       .selectBroker(
-        listingData.fixedPriceFlow
-          .settlement.brokerSearch
+        brokerSearch
       );
   }
 );
@@ -537,10 +591,14 @@ When(
 When(
   "the General User pays the deposit",
   async function () {
+    const payment = isFlow7Scenario(this)
+      ? salesInstructionsFlowData.payment
+      : listingData.fixedPriceFlow
+          .payment;
+
     await this.settlementPage
       .payFixedDeposit(
-        listingData.fixedPriceFlow
-          .payment
+        payment
       );
   }
 );

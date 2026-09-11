@@ -167,10 +167,12 @@ class SettlementPage {
       })
       .first();
 
-    const select = result.getByRole("button", {
-      name: "Select",
-      exact: true,
-    });
+    const select = result
+      .getByRole("button", {
+        name: "Select",
+        exact: true,
+      })
+      .first();
 
     await expect(
       select,
@@ -252,11 +254,12 @@ class SettlementPage {
     })
     .first();
 
-  const selectButton =
-    result.getByRole("button", {
+  const selectButton = result
+    .getByRole("button", {
       name: "Select",
       exact: true,
-    });
+    })
+    .first();
 
   await expect(
     selectButton,

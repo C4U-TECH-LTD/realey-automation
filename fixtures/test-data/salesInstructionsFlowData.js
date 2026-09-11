@@ -2,15 +2,30 @@ const path = require("path");
 
 const salesInstructionsFlowData = {
   // =====================================================
-  // AGENT LISTING
+  // AGENT LISTING (ACT Address required for Sales Instructions)
   // =====================================================
 
   agent: {
+    email:
+      process.env.FLOW7_AGENT_EMAIL ||
+      process.env.AGENT_EMAIL ||
+      "agent.c4utest@yopmail.com",
+
+    password:
+      process.env.FLOW7_AGENT_PASSWORD ||
+      process.env.AGENT_PASSWORD ||
+      "Test12345@",
+
+    otp:
+      process.env.FLOW7_AGENT_OTP ||
+      process.env.AGENT_OTP ||
+      "123456",
+
     listing: {
-      addressSearchText: "Arndale Shopping Centre Access",
+      addressSearchText: "10 London Circuit, Canberra ACT 2601",
 
       expectedPropertyName:
-        "Arndale Shopping Centre Access, Kilkenny",
+        "10 London Circuit",
 
       propertyType: "House",
 
@@ -25,10 +40,10 @@ const salesInstructionsFlowData = {
       priceGuide: "50000",
 
       headline:
-        "Sales Instructions Automation Test Property",
+        "ACT Sales Instructions Automation Property",
 
       propertyDescription:
-        "Beautiful and spacious family home created for Sales Instructions end-to-end automation testing.",
+        "Beautiful and spacious ACT home created for Sales Instructions end-to-end automation testing.",
 
       keyFeatures: [
         "Fireplace",
@@ -66,31 +81,118 @@ const salesInstructionsFlowData = {
 
   generalUser: {
     email:
-      process.env.GENERAL_USER_EMAIL || "siamtest1999+3@gmail.com",
+      process.env.FLOW7_BUYER_EMAIL ||
+      process.env.GENERAL_USER_EMAIL ||
+      "siamtest1999+3@gmail.com",
 
     password:
-      process.env.GENERAL_USER_PASSWORD || "Test12345@",
+      process.env.FLOW7_BUYER_PASSWORD ||
+      process.env.GENERAL_USER_PASSWORD ||
+      "Test12345@",
 
     otp:
-      process.env.GENERAL_USER_OTP || "123456",
+      process.env.FLOW7_BUYER_OTP ||
+      process.env.GENERAL_USER_OTP ||
+      "123456",
 
     searchText:
-      "Arndale Shopping Centre Access",
+      "10 London Circuit",
 
     offerAmount:
       "25000",
   },
 
   // =====================================================
-  // SETTLEMENT
+  // BROKER
+  // =====================================================
+
+  broker: {
+    email:
+      process.env.FLOW7_BROKER_EMAIL ||
+      "broker.c4utest@yopmail.com",
+
+    password:
+      process.env.FLOW7_BROKER_PASSWORD ||
+      "Test12345@",
+
+    otp:
+      process.env.FLOW7_BROKER_OTP ||
+      "123456",
+
+    name: "Alen Mayer",
+    searchText: "Alen",
+  },
+
+  // =====================================================
+  // SOLICITOR
+  // =====================================================
+
+  solicitor: {
+    email:
+      process.env.FLOW7_SOLICITOR_EMAIL ||
+      "solicitor.c4utest@yopmail.com",
+
+    password:
+      process.env.FLOW7_SOLICITOR_PASSWORD ||
+      "Test12345@",
+
+    otp:
+      process.env.FLOW7_SOLICITOR_OTP ||
+      "123456",
+
+    name: "James Anderson",
+    searchText: "James",
+  },
+
+  // =====================================================
+  // EXCLUDED USERS (BUYER & VENDOR)
+  // =====================================================
+
+  excludedUsers: {
+    buyer: {
+      email:
+        process.env.FLOW7_BUYER_EMAIL ||
+        process.env.GENERAL_USER_EMAIL ||
+        "siamtest1999+3@gmail.com",
+
+      password:
+        process.env.FLOW7_BUYER_PASSWORD ||
+        process.env.GENERAL_USER_PASSWORD ||
+        "Test12345@",
+
+      otp:
+        process.env.FLOW7_BUYER_OTP ||
+        process.env.GENERAL_USER_OTP ||
+        "123456",
+    },
+
+    vendor: {
+      email:
+        process.env.VENDOR_EMAIL ||
+        "subratotest99.3@gmail.com",
+
+      password:
+        process.env.VENDOR_PASSWORD ||
+        "Test12345@",
+
+      otp:
+        process.env.VENDOR_OTP ||
+        "123456",
+
+      name: "Daniel Carter",
+    },
+  },
+
+  // =====================================================
+  // SETTLEMENT PROFESSIONAL SELECTIONS
   // =====================================================
 
   settlement: {
     solicitorSearch:
-      "Hasan",
+      "James Anderson",
 
     brokerSearch:
-      "subrato",
+      "Alen",
   },
 
   // =====================================================
@@ -111,7 +213,7 @@ const salesInstructionsFlowData = {
       "Automation Buyer",
 
     postcode:
-      "5000",
+      "2601",
   },
 
   // =====================================================
@@ -192,13 +294,13 @@ const salesInstructionsFlowData = {
       /Sales Instructions/i,
 
     chatroomMessage:
-      /Sales Instructions/i,
+      /Sales Instructions|Sales Document/i,
 
     emailSubject:
-      /Sales Instructions/i,
+      /Sales Instructions|Sales Document/i,
 
     notification:
-      /Sales Instructions/i,
+      /Sales Instructions|Sales Document/i,
   },
 
   // =====================================================
@@ -231,10 +333,10 @@ const salesInstructionsFlowData = {
       /Firm/i,
 
     agentLicenceLabel:
-      /Agent Licence No/i,
+      /Agent Licen[cs]e/i,
 
     agencyLicenceLabel:
-      /Agency Licence No/i,
+      /Agency Licen[cs]e/i,
 
     errorMessage:
       /error|failed|something went wrong/i,
@@ -257,11 +359,11 @@ const salesInstructionsFlowData = {
   // =====================================================
 
   timeout: {
-    action: 15000,
+    action: 20000,
 
-    notification: 20000,
+    notification: 25000,
 
-    email: 30000,
+    email: 45000,
   },
 };
 

@@ -89,6 +89,36 @@ class GeneralUserListingsPage {
   }
 
   async openFirstMatchingListing(searchText) {
+    // Check if matching card or title is already visible on the current page
+    const directCard = this.page
+      .locator("div, article")
+      .filter({ hasText: searchText })
+      .filter({ has: this.page.getByRole("button", { name: "Learn More", exact: true }) })
+      .first();
+
+    const directBtn = directCard.getByRole("button", { name: "Learn More", exact: true });
+    if (await directBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await directBtn.scrollIntoViewIfNeeded().catch(() => {});
+      await directBtn.click();
+      await this.page.waitForLoadState("domcontentloaded");
+      await this.page.waitForURL((url) => url.pathname.includes("-listing/"), { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForTimeout(2000);
+      return;
+    }
+
+    const directTitle = this.page
+      .getByText(searchText, { exact: false })
+      .first();
+
+    if (await directTitle.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await directTitle.scrollIntoViewIfNeeded().catch(() => {});
+      await directTitle.click();
+      await this.page.waitForLoadState("domcontentloaded");
+      await this.page.waitForURL((url) => url.pathname.includes("-listing/"), { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForTimeout(2000);
+      return;
+    }
+
     await this.search(searchText);
 
     // 1. Wait for "Loading properties..." indicator to disappear
