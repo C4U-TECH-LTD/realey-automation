@@ -295,7 +295,7 @@ const settlementExchangeFlowData = {
 
     // Settlement
     settlementCompleted:
-      /settlement completed|settlement complete|completed successfully/i,
+      /settlement completed|settlement complete|settlement process initiated|congratulations|completed successfully/i,
 
     // Exchange
     readyForExchange:

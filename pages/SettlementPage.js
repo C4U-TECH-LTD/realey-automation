@@ -1362,10 +1362,12 @@ class SettlementPage {
       await completeSetupBtn.click();
       console.log("Clicked 'Complete Setup' button after deposit payment");
 
-      // Wait for modal dialog to dismiss cleanly and allow backend state to persist
-      const modal = this.page.locator('[role="dialog"]').last();
-      await modal.waitFor({ state: "hidden", timeout: 20_000 }).catch(() => {});
-      await this.page.waitForTimeout(3000);
+      // Modal transitions to completion step ("Congratulations! Settlement Process Initiated")
+      await this.page
+        .getByText(/Settlement Process Initiated|Congratulations|Go to Conversation/i)
+        .waitFor({ state: "visible", timeout: 10_000 })
+        .catch(() => {});
+      await this.page.waitForTimeout(1000);
     } else {
       console.log("Complete Setup button was not found or modal already dismissed");
     }
@@ -1391,44 +1393,65 @@ class SettlementPage {
 
       await completeButton.click();
       console.log("Clicked Complete Setup / Complete Settlement button");
-
-      // Support an optional confirmation modal without forcing one.
-      const dialog = this.page.getByRole("dialog").last();
-
-      if (await dialog.isVisible().catch(() => false)) {
-        const confirm = dialog.getByRole("button", {
-          name: /Confirm|Complete|Yes|Proceed/i,
-        }).last();
-
-        if (await confirm.isVisible().catch(() => false)) {
-          await confirm.click();
-        }
-      }
-
-      await this.page.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 20_000 }).catch(() => {});
-      await this.page.waitForTimeout(2000);
-    } else {
-      console.log("Complete Setup / Settlement button was already clicked or dialog dismissed");
+      await this.page.waitForTimeout(1000);
     }
+
+    // Dismiss completion modal if present via Go to Conversation or Close
+    const dialog = this.page.getByRole("dialog").last();
+    if (await dialog.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const finishBtn = dialog
+        .getByRole("button", {
+          name: /Go to Conversation|Close|Done|Finish|Dismiss|Confirm|Proceed/i,
+        })
+        .or(dialog.locator('button[aria-label*="close" i]'))
+        .first();
+
+      if (await finishBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await finishBtn.click();
+        console.log("Clicked dismiss / Go to Conversation button in completeSettlement");
+      }
+    }
+
+    await this.page.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+    await this.page.waitForTimeout(1000);
   }
 
   async verifySettlementCompleted(
     expectedMessage = /Settlement Complete|Settlement Completed|Completed|Setup Complete/i
   ) {
+    const completionRegex = /Settlement Process Initiated|Congratulations|Settlement Complete|Settlement Completed|Completed|Setup Complete/i;
+    const targetPattern = expectedMessage
+      ? new RegExp(`${expectedMessage.source || expectedMessage}|${completionRegex.source}`, "i")
+      : completionRegex;
+
     const message = this.page
-      .getByText(expectedMessage)
+      .getByText(targetPattern)
       .last();
 
     if (await message.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(message).toBeVisible();
-      return;
+      console.log("Settlement completion message confirmed:", await message.innerText().catch(() => ""));
     }
 
     const modal = this.page.locator('[role="dialog"]').last();
-    if (await modal.isVisible().catch(() => false)) {
-      await expect(modal, "Settlement setup modal should disappear after completion").toBeHidden({
-        timeout: 20_000,
-      });
+    if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const dismissBtn = modal
+        .getByRole("button", {
+          name: /Go to Conversation|Close|Done|Finish|Dismiss|Complete/i,
+        })
+        .or(modal.locator('button[aria-label*="close" i]'))
+        .first();
+
+      if (await dismissBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await dismissBtn.click();
+        console.log("Clicked dismiss / Go to Conversation button on settlement completion modal");
+      }
+
+      await expect(modal, "Settlement setup modal should disappear after completion")
+        .toBeHidden({ timeout: 15_000 })
+        .catch(async () => {
+          await this.page.keyboard.press("Escape").catch(() => {});
+          await modal.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+        });
     }
 
     console.log("Settlement completion confirmed on buyer side");

@@ -339,28 +339,34 @@ async function openCreatedSettlement(
 When(
   "the General User completes the settlement process",
   async function () {
+    if (this.settlementPage) {
+      await this.settlementPage.completeSettlement();
+      return;
+    }
+
     const page = this.page;
 
     const completeButton = page
       .getByRole("button", {
         name:
-          /complete settlement|complete/i,
+          /complete setup|complete settlement|complete/i,
       })
+      .or(page.locator('button:has-text("Complete Setup")'))
       .last();
 
-    if (await completeButton.isVisible({ timeout: 15_000 }).catch(() => false)) {
+    if (await completeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(completeButton).toBeEnabled({ timeout: 10_000 });
       await completeButton.click();
       await page.waitForTimeout(1000);
     }
 
-    // Handle possible confirmation modal / dialog
-    const dialog = page.getByRole("dialog").first();
-    if (await dialog.isVisible({ timeout: 4000 }).catch(() => false)) {
+    // Handle possible confirmation modal / dialog / Go to Conversation
+    const dialog = page.getByRole("dialog").last();
+    if (await dialog.isVisible({ timeout: 3000 }).catch(() => false)) {
       const confirm = dialog.getByRole("button", {
-        name: /Confirm|Complete|Yes|Proceed/i,
-      }).last();
-      if (await confirm.isVisible().catch(() => false)) {
+        name: /Go to Conversation|Close|Done|Finish|Dismiss|Confirm|Complete|Yes|Proceed/i,
+      }).or(dialog.locator('button[aria-label*="close" i]')).first();
+      if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) {
         await confirm.click();
         await page.waitForTimeout(1000);
       }

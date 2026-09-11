@@ -219,7 +219,7 @@ const salesInstructionsFlowData = {
       /Payment Successful/i,
 
     settlementCompleted:
-      /settlement completed|settlement complete|completed successfully/i,
+      /settlement completed|settlement complete|settlement process initiated|congratulations|completed successfully/i,
 
     salesInstructionsAvailable:
       /Sales Instructions/i,
