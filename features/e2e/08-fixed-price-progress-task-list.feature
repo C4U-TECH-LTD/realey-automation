@@ -8,8 +8,9 @@ Feature: Flow 8 - Fixed Price Direct Offer Progress Task List
     Then the Fixed Price Task List listing is published successfully
 
     When I switch from Agent to Seller Solicitor for the Fixed Price Task List flow
-    And the Seller Solicitor opens the Progress tab for the created Fixed Price listing
-    And the Seller Solicitor configures the progress tasks using the standard template
+    And the Seller Solicitor opens the Settlements tab for the created Fixed Price listing
+    And the Seller Solicitor opens Configure Progress Task for the created Fixed Price listing
+    And the Seller Solicitor scrolls down and submits the progress tasks configuration
     Then the progress tasks are configured successfully for the property
 
     When I switch from Seller Solicitor to General User for the Fixed Price Task List flow

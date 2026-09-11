@@ -264,6 +264,29 @@ When(
 );
 
 When(
+  "the Seller Solicitor opens the Settlements tab for the created Fixed Price listing",
+  async function () {
+    await this.solicitorProgressPage.openSettlementsTab();
+  }
+);
+
+When(
+  "the Seller Solicitor opens Configure Progress Task for the created Fixed Price listing",
+  async function () {
+    await this.solicitorProgressPage.openConfigureProgressTask(
+      fixedPriceTaskListFlowData.agent.listing.expectedPropertyName
+    );
+  }
+);
+
+When(
+  "the Seller Solicitor scrolls down and submits the progress tasks configuration",
+  async function () {
+    await this.solicitorProgressPage.scrollDownAndSubmit();
+  }
+);
+
+When(
   "the Seller Solicitor opens the Progress tab for the created Fixed Price listing",
   async function () {
     await this.solicitorProgressPage.openProgressTab();
