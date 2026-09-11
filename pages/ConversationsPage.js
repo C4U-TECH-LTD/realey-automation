@@ -455,9 +455,62 @@ class ConversationsPage {
   async openBuyerConversation(
     expectedPropertyName
   ) {
-    await this.openLatestAgentBuyerConversation(
+    if (!expectedPropertyName) {
+      throw new Error(
+        "expectedPropertyName is required to open Buyer conversation."
+      );
+    }
+
+    const shortName = expectedPropertyName.split(",")[0].trim();
+
+    // 1. If buyer chat is ALREADY open on screen, return
+    const isAlreadyOpen =
+      (this.page.url().includes("/chat/") &&
+        (await this.page.getByText(/Buyer|Siam/i).first().isVisible().catch(() => false))) ||
+      (await this.page
+        .locator('header, div[class*="header"], [class*="chat-header"]')
+        .filter({ hasText: /Buyer|Siam/i })
+        .first()
+        .isVisible()
+        .catch(() => false));
+
+    if (isAlreadyOpen) {
+      console.log(
+        `Buyer conversation for "${expectedPropertyName}" is already open.`
+      );
+      return;
+    }
+
+    console.log(
+      `Opening Buyer conversation for: ${expectedPropertyName}`
+    );
+
+    // 2. Expand property row
+    const propertyRow = await this.expandConversationList(
       expectedPropertyName
     );
+    await this.page.waitForTimeout(1000);
+
+    // 3. Specifically locate the Buyer child chat (e.g. Siam Mondol [Buyer])
+    const buyerChatButton = propertyRow
+      .locator("button")
+      .filter({ hasText: /Buyer|Siam/i })
+      .or(
+        propertyRow
+          .locator("button")
+          .filter({ hasText: /Counter offer|offer|\$/i })
+      )
+      .first();
+
+    if (await buyerChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log("Buyer child chat button found, clicking...");
+      await buyerChatButton.click();
+      await this.page.waitForTimeout(2000);
+      return;
+    }
+
+    // Fallback: call openLatestAgentBuyerConversation
+    await this.openLatestAgentBuyerConversation(expectedPropertyName);
   }
 
   async clickCounterNegotiate() {
