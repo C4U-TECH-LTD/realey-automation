@@ -106,13 +106,24 @@ class AuctionCounterRejectedRelistPage {
   }
 
   async clickRelist(propertyName = "") {
+    // Wait for loading spinner to disappear
+    await this.page
+      .locator(".animate-spin, svg.animate-spin")
+      .waitFor({ state: "hidden", timeout: 20_000 })
+      .catch(() => {});
+
     let button = this.relistButton.first();
 
     if (propertyName) {
+      const shortPropertyName = String(propertyName)
+        .split(",")[0]
+        .trim();
+      const escaped = shortPropertyName.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
       const propertyText = this.page
-        .getByText(propertyName, {
-          exact: false,
-        })
+        .getByText(new RegExp(escaped, "i"))
         .first();
 
       if (
@@ -131,8 +142,7 @@ class AuctionCounterRejectedRelistPage {
         ) {
           const scopedButton = card
             .getByRole("button", {
-              name: "Re-list",
-              exact: true,
+              name: /re-?list/i,
             })
             .first();
 

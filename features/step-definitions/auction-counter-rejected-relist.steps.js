@@ -675,27 +675,8 @@ When(
     await flow5Page(this)
       .clickBackFromConversation();
 
-    const bidsTab =
-      this.page.getByRole(
-        "button",
-        {
-          name: /^Bids\b/i,
-        }
-      );
-
-    if (
-      await bidsTab
-        .isVisible()
-        .catch(() => false)
-    ) {
-      await bidsTab.click();
-
-      await this.page
-        .waitForTimeout(500);
-    } else {
-      await this.agentBidsPage
-        .openBids();
-    }
+    await this.agentBidsPage
+      .openBids();
   }
 );
 

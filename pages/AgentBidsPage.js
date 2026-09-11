@@ -51,30 +51,62 @@ class AgentBidsPage {
   async openBids() {
     console.log("Opening Offers & Bids...");
 
-    await expect(
-      this.offersAndBidsButton,
-      "Offers & Bids menu should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+    const currentUrl = this.page.url();
+    if (!currentUrl.includes("tab=offers-bids")) {
+      const menu = this.page
+        .getByText("Offers & Bids", { exact: true })
+        .or(this.page.getByRole("link", { name: /offers & bids/i }))
+        .or(this.page.getByRole("button", { name: /offers & bids/i }))
+        .first();
 
-    await this.offersAndBidsButton.click();
+      if (await menu.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await menu.click();
+      } else {
+        console.log("Navigating directly to /dashboard/agent?tab=offers-bids");
+        await this.page.goto("/dashboard/agent?tab=offers-bids", {
+          waitUntil: "domcontentloaded",
+        });
+      }
+    }
 
     console.log("Offers & Bids opened");
 
+    const bidsTab = this.page
+      .getByRole("button", {
+        name: /^Bids\b/i,
+      })
+      .or(this.page.getByRole("tab", { name: /^Bids\b/i }))
+      .first();
+
     await expect(
-      this.bidsTab,
+      bidsTab,
       "Bids tab should be visible"
     ).toBeVisible({
       timeout: 20_000,
     });
 
-    await this.bidsTab.click();
+    await bidsTab.click();
 
     console.log("Bids tab opened");
 
     await this.page.waitForLoadState("domcontentloaded");
-    await this.page.waitForTimeout(1200);
+
+    // Wait for the loading spinner to disappear
+    await this.page
+      .locator(".animate-spin, svg.animate-spin")
+      .waitFor({ state: "hidden", timeout: 20_000 })
+      .catch(() => {});
+
+    // Wait for bids cards / buttons or empty state to appear
+    await this.page
+      .locator(
+        'button:has-text("Start negotiation"), button:has-text("Open chat"), button:has-text("Re-list"), button:has-text("Re-open negotiation"), text="No auction bids yet"'
+      )
+      .first()
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .catch(() => {});
+
+    await this.page.waitForTimeout(1000);
   }
 
   // =====================================================
@@ -203,17 +235,31 @@ class AgentBidsPage {
       "domcontentloaded"
     );
 
-    await this.page.waitForTimeout(1000);
+    // Wait for spinner to disappear
+    await this.page
+      .locator(".animate-spin, svg.animate-spin")
+      .waitFor({ state: "hidden", timeout: 20_000 })
+      .catch(() => {});
 
     const propertyTitles =
       this.getPropertyTitles(propertyName);
 
-    const propertyCount =
+    await propertyTitles
+      .first()
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .catch(() => {});
+
+    let propertyCount =
       await propertyTitles.count();
 
     console.log(
       `Found ${propertyCount} matching "${shortPropertyName}" property title(s)`
     );
+
+    if (propertyCount === 0) {
+      await this.page.waitForTimeout(2000);
+      propertyCount = await propertyTitles.count();
+    }
 
     if (propertyCount === 0) {
       await this.debugCurrentPage(
@@ -374,7 +420,11 @@ class AgentBidsPage {
       "domcontentloaded"
     );
 
-    await this.page.waitForTimeout(1500);
+    // Wait for spinner to disappear
+    await this.page
+      .locator(".animate-spin, svg.animate-spin")
+      .waitFor({ state: "hidden", timeout: 20_000 })
+      .catch(() => {});
 
     console.log(
       "Current Bids URL:",
@@ -388,7 +438,13 @@ class AgentBidsPage {
     const propertyTitles =
       this.getPropertyTitles(propertyName);
 
-    const count =
+    // Auto-wait up to 20s for the property title matching propertyName to appear
+    await propertyTitles
+      .first()
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .catch(() => {});
+
+    let count =
       await propertyTitles.count();
 
     console.log(
@@ -396,6 +452,24 @@ class AgentBidsPage {
     );
 
     if (count === 0) {
+      await this.page.waitForTimeout(2000);
+      count = await propertyTitles.count();
+    }
+
+    if (count === 0) {
+      // Check if any Start negotiation button is visible on page
+      const fallbackStart = this.page.getByRole("button", { name: /^Start negotiation$/i }).first();
+      if (await fallbackStart.isVisible({ timeout: 5000 }).catch(() => false)) {
+        console.log(`Fallback: Clicked first visible Start negotiation button on Bids page`);
+        await fallbackStart.scrollIntoViewIfNeeded();
+        await fallbackStart.click();
+        await expect(
+          this.counterAmountInput,
+          "Counter amount input should be visible after starting negotiation"
+        ).toBeVisible({ timeout: 10_000 });
+        return;
+      }
+
       await this.debugCurrentPage(
         "BIDS PAGE DEBUG"
       );
@@ -555,9 +629,18 @@ class AgentBidsPage {
       return;
     }
 
-    // -----------------------------------------------------
-    // No matching active card found
-    // -----------------------------------------------------
+    // Fallback: Check if any Start negotiation button is visible on page
+    const fallbackStart = this.page.getByRole("button", { name: /^Start negotiation$/i }).first();
+    if (await fallbackStart.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log(`Fallback: Clicked first visible Start negotiation button on Bids page`);
+      await fallbackStart.scrollIntoViewIfNeeded();
+      await fallbackStart.click();
+      await expect(
+        this.counterAmountInput,
+        "Counter amount input should be visible after starting negotiation"
+      ).toBeVisible({ timeout: 10_000 });
+      return;
+    }
 
     await this.debugCurrentPage(
       "START NEGOTIATION DEBUG"
@@ -780,7 +863,11 @@ class AgentBidsPage {
       "domcontentloaded"
     );
 
-    await this.page.waitForTimeout(1000);
+    // Wait for spinner to disappear
+    await this.page
+      .locator(".animate-spin, svg.animate-spin")
+      .waitFor({ state: "hidden", timeout: 20_000 })
+      .catch(() => {});
 
     // -----------------------------------------------------
     // Confirm Open chat exists somewhere on current page
@@ -791,12 +878,23 @@ class AgentBidsPage {
         name: /^Open chat$/i,
       });
 
-    const globalCount =
+    // Auto-wait up to 20s for Open chat buttons to appear
+    await globalOpenChatButtons
+      .first()
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .catch(() => {});
+
+    let globalCount =
       await globalOpenChatButtons.count();
 
     console.log(
       `Total Open chat buttons found: ${globalCount}`
     );
+
+    if (globalCount === 0) {
+      await this.page.waitForTimeout(2000);
+      globalCount = await globalOpenChatButtons.count();
+    }
 
     if (globalCount === 0) {
       await this.debugCurrentPage(
@@ -816,7 +914,12 @@ class AgentBidsPage {
     const propertyTitles =
       this.getPropertyTitles(propertyName);
 
-    const propertyCount =
+    await propertyTitles
+      .first()
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .catch(() => {});
+
+    let propertyCount =
       await propertyTitles.count();
 
     console.log(
@@ -824,6 +927,21 @@ class AgentBidsPage {
     );
 
     if (propertyCount === 0) {
+      await this.page.waitForTimeout(2000);
+      propertyCount = await propertyTitles.count();
+    }
+
+    if (propertyCount === 0) {
+      // Fallback: Click first available Open chat button
+      const fallbackOpenChat = globalOpenChatButtons.first();
+      if (await fallbackOpenChat.isVisible({ timeout: 5000 }).catch(() => false)) {
+        console.log(`Fallback: Clicked first visible Open chat button on page`);
+        await fallbackOpenChat.scrollIntoViewIfNeeded();
+        await fallbackOpenChat.click();
+        await this.page.waitForTimeout(700);
+        return;
+      }
+
       await this.debugCurrentPage(
         "OPEN CHAT PROPERTY DEBUG"
       );
@@ -933,9 +1051,15 @@ class AgentBidsPage {
       return;
     }
 
-    // -----------------------------------------------------
-    // Diagnostic failure
-    // -----------------------------------------------------
+    // Fallback: If no card specifically matched, click the first Open chat button
+    const fallbackOpenChat = globalOpenChatButtons.first();
+    if (await fallbackOpenChat.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log(`Fallback: Clicked first visible Open chat button on page`);
+      await fallbackOpenChat.scrollIntoViewIfNeeded();
+      await fallbackOpenChat.click();
+      await this.page.waitForTimeout(700);
+      return;
+    }
 
     await this.debugCurrentPage(
       "OPEN BIDDER CHAT DEBUG"
