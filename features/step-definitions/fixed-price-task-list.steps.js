@@ -488,12 +488,18 @@ Then(
 When(
   "the General User accepts the counter offer in the chatroom",
   async function () {
-    const acceptBtn = this.page.getByRole("button", {
-      name: "Accept",
-      exact: true,
-    });
+    // Switch to Chat tab if currently on Progress tab
+    await this.conversationsPage.clickChatTab();
 
-    if (await acceptBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
+    const acceptBtn = this.page
+      .getByRole("button", {
+        name: "Accept",
+        exact: true,
+      })
+      .or(this.page.locator('button:has-text("Accept")'))
+      .first();
+
+    if (await acceptBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
       console.log("Buyer accepting counter offer in chatroom...");
       await acceptBtn.click();
 
@@ -511,7 +517,7 @@ When(
 
       const closeDialogBtn = this.page
         .locator(
-          '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label="Close"], button:has(svg.lucide-x)'
+          '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i], button:has(svg.lucide-x)'
         )
         .first();
 

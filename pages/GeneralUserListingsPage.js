@@ -20,6 +20,21 @@ class GeneralUserListingsPage {
   }
 
   async openSearch() {
+    if (await this.searchInput.isVisible().catch(() => false)) {
+      return;
+    }
+
+    // Dismiss any open modal/dialog first if blocking
+    const dialogClose = this.page
+      .locator(
+        '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i]'
+      )
+      .first();
+    if (await dialogClose.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await dialogClose.click().catch(() => {});
+      await this.page.waitForTimeout(500);
+    }
+
     await expect(
       this.listingsMenu,
       "General User Listings menu should be visible"

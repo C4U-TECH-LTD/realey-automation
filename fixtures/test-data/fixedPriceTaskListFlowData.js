@@ -90,13 +90,16 @@ const fixedPriceTaskListFlowData = {
 
   generalUser: {
     email:
-      process.env.GENERAL_USER_EMAIL,
+      process.env.GENERAL_USER_EMAIL ||
+      "siamtest1999+3@gmail.com",
 
     password:
-      process.env.GENERAL_USER_PASSWORD,
+      process.env.GENERAL_USER_PASSWORD ||
+      "Test12345@",
 
     otp:
-      process.env.GENERAL_USER_OTP,
+      process.env.GENERAL_USER_OTP ||
+      "123456",
 
     // Used for GeneralUserListingsPage search
     searchText: "Chapel Street",
