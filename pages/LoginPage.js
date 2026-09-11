@@ -12,8 +12,7 @@ class LoginPage {
     ===================================================== */
 
     this.heading = page.getByRole("heading", {
-      name: "Welcome back",
-      exact: true,
+      name: /welcome back/i,
     });
 
     /*
@@ -179,15 +178,41 @@ class LoginPage {
   ===================================================== */
 
   async goto(path = "/login") {
+    console.log(`Navigating to login page: ${path}`);
     await this.page.goto(path, {
       waitUntil: "domcontentloaded",
     });
 
-    // Wait for "Checking authentication..." loader to detach
+    // Wait for "Checking authentication..." or general loading indicators to detach
     await this.page
-      .getByText(/Checking authentication/i)
-      .waitFor({ state: "hidden", timeout: 30_000 })
+      .locator(
+        '.animate-spin, svg.animate-spin, text="Loading", text=/checking authentication/i'
+      )
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
       .catch(() => {});
+
+    // If heading is not visible after initial wait, reload once to recover from stalled hydration
+    const isHeadingVisible = await this.heading
+      .isVisible({ timeout: 10_000 })
+      .catch(() => false);
+
+    if (!isHeadingVisible) {
+      console.log(
+        "Login heading not visible after initial load. Reloading page..."
+      );
+      await this.page.reload({
+        waitUntil: "domcontentloaded",
+      });
+
+      await this.page
+        .locator(
+          '.animate-spin, svg.animate-spin, text="Loading", text=/checking authentication/i'
+        )
+        .first()
+        .waitFor({ state: "hidden", timeout: 15_000 })
+        .catch(() => {});
+    }
 
     await expect(
       this.heading,

@@ -1,5 +1,5 @@
 @e2e @all-flows @flow-8 @fixed-price @direct-offer @task-list @settlement
-Feature: Fixed Price Direct Offer Progress Task List
+Feature: Flow 8 - Fixed Price Direct Offer Progress Task List
 
   Scenario: Configure Progress Task List appears only after buyer completes settlement
 
