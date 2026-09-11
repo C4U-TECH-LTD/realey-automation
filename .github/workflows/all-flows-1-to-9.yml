@@ -99,7 +99,7 @@ jobs:
         id: cucumber-tests
         continue-on-error: true
         run: |
-          npx cucumber-js --tags "@all-flows"
+          npx cucumber-js --tags "@all-flows" --retry 1
 
       - name: Generate Allure Report
         if: always()
