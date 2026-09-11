@@ -798,6 +798,85 @@ class ConversationsPage {
       "Configure Progress Task List is visible and interactive as expected."
     );
   }
+
+  async clickProgressTab() {
+    console.log("Clicking Progress tab in chatroom...");
+    const progressTab = this.page
+      .getByRole("tab", { name: /^Progress$/i })
+      .or(this.page.getByRole("button", { name: /^Progress$/i }))
+      .or(this.page.locator('button:has-text("Progress")'))
+      .first();
+
+    await expect(
+      progressTab,
+      "Progress tab should be visible in chatroom"
+    ).toBeVisible({ timeout: 15_000 });
+
+    await progressTab.click();
+    await this.page.waitForTimeout(1000);
+    console.log("Progress tab clicked in chatroom");
+  }
+
+  async verifyProgressTasksNotVisibleWithPendingMessage() {
+    console.log("Verifying progress tasks not visible and pending message displayed...");
+
+    const pendingMessage = this.page.getByText(
+      /Progress tasks will appear once an offer for this property is accepted/i
+    );
+
+    await expect(
+      pendingMessage,
+      'Message "Progress tasks will appear once an offer for this property is accepted." should be displayed'
+    ).toBeVisible({ timeout: 15_000 });
+
+    const taskList = this.getProgressTaskListLocator();
+    const isTaskListVisible = await taskList.isVisible().catch(() => false);
+    if (isTaskListVisible) {
+      const isEnabled = await taskList.isEnabled().catch(() => false);
+      if (isEnabled) {
+        throw new Error(
+          "Progress task list is visible and enabled before offer acceptance!"
+        );
+      }
+    }
+
+    console.log(
+      "Verified: Progress task list is not visible and pending message is displayed"
+    );
+  }
+
+  async verifyAssignedProgressTasksVisible() {
+    console.log("Verifying assigned Configure Progress Task List appears in chatroom...");
+    await this.page.waitForLoadState("domcontentloaded");
+    await this.page.waitForTimeout(2000);
+
+    // Ensure Progress tab is activated
+    const progressTab = this.page
+      .getByRole("tab", { name: /^Progress$/i })
+      .or(this.page.getByRole("button", { name: /^Progress$/i }))
+      .or(this.page.locator('button:has-text("Progress")'))
+      .first();
+
+    if (await progressTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await progressTab.click();
+      await this.page.waitForTimeout(1000);
+    }
+
+    const assignedTasks = this.page
+      .getByText(
+        /Deposit Paid|Standard Conveyancing Process|Final Inspection|Contract Signed|Tasks & Requests|Property Progress|Configure Progress|10 stages|10 steps/i
+      )
+      .first();
+
+    await expect(
+      assignedTasks,
+      "Assigned Configure Progress Task List / stages should automatically appear"
+    ).toBeVisible({ timeout: 30_000 });
+
+    console.log(
+      "Assigned Configure Progress Task List automatically appeared as expected"
+    );
+  }
 }
 
 module.exports = {

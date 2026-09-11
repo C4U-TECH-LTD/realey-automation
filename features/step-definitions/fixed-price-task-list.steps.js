@@ -115,6 +115,11 @@ When(
       .waitForAutoFilledLocationFields();
 
     await this.propertyLocationPage
+      .assignSellerSolicitor(
+        listing.sellerSolicitorSearch || "Jamess Anderson"
+      );
+
+    await this.propertyLocationPage
       .clickNext();
 
     // -------------------------------------------------
@@ -240,6 +245,62 @@ Then(
       .verifyListingVisibleByLocation(
         listing.expectedPropertyName
       );
+  }
+);
+
+// =====================================================
+// SWITCH TO SELLER SOLICITOR & CONFIGURE PROGRESS TASKS
+// =====================================================
+
+When(
+  "I switch from Agent to Seller Solicitor for the Fixed Price Task List flow",
+  async function () {
+    await clearCurrentSession(this);
+    await loginAs(
+      this,
+      fixedPriceTaskListFlowData.sellerSolicitor
+    );
+  }
+);
+
+When(
+  "the Seller Solicitor opens the Progress tab for the created Fixed Price listing",
+  async function () {
+    await this.solicitorProgressPage.openProgressTab();
+    await this.solicitorProgressPage.selectProperty(
+      fixedPriceTaskListFlowData.agent.listing.expectedPropertyName
+    );
+  }
+);
+
+When(
+  "the Seller Solicitor configures the progress tasks using the standard template",
+  async function () {
+    await this.solicitorProgressPage.configureProgressTasks(
+      fixedPriceTaskListFlowData.sellerSolicitor.templateName || "Standard Conveyancing Process"
+    );
+  }
+);
+
+Then(
+  "the progress tasks are configured successfully for the property",
+  async function () {
+    await this.solicitorProgressPage.verifyProgressConfigured();
+  }
+);
+
+// =====================================================
+// SWITCH FROM SELLER SOLICITOR TO GENERAL USER
+// =====================================================
+
+When(
+  "I switch from Seller Solicitor to General User for the Fixed Price Task List flow",
+  async function () {
+    await clearCurrentSession(this);
+    await loginAs(
+      this,
+      fixedPriceTaskListFlowData.generalUser
+    );
   }
 );
 
@@ -397,17 +458,36 @@ When(
 );
 
 // =====================================================
-// VERIFY TASK LIST NOT AVAILABLE BEFORE ACCEPTANCE
+// PROGRESS TAB & PENDING MESSAGE VERIFICATION
 // =====================================================
 
+When(
+  "the General User clicks the Progress tab in the chatroom",
+  async function () {
+    await this.conversationsPage
+      .clickProgressTab();
+  }
+);
+
 Then(
-  "the Configure Progress Task List should not be visible or interactive",
+  "the Configure Progress Task List should not be visible",
   async function () {
     await this.conversationsPage
       .verifyProgressTaskListNotAvailable();
+  }
+);
 
-    // Trigger Point 1 -> 2 transition:
-    // The Buyer accepts the counter offer in the chatroom so the transaction moves to Accepted status.
+Then(
+  "the chatroom should display that progress tasks will appear once an offer is accepted",
+  async function () {
+    await this.conversationsPage
+      .verifyProgressTasksNotVisibleWithPendingMessage();
+  }
+);
+
+When(
+  "the General User accepts the counter offer in the chatroom",
+  async function () {
     const acceptBtn = this.page.getByRole("button", {
       name: "Accept",
       exact: true,
@@ -429,7 +509,6 @@ Then(
 
       await this.page.waitForTimeout(1500);
 
-      // If the settlement popup dialog opened upon acceptance, close it so subsequent chat / listing steps are unobstructed
       const closeDialogBtn = this.page
         .locator(
           '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label="Close"], button:has(svg.lucide-x)'
@@ -441,6 +520,18 @@ Then(
         await this.page.waitForTimeout(500);
       }
     }
+  }
+);
+
+// =====================================================
+// VERIFY TASK LIST NOT AVAILABLE BEFORE ACCEPTANCE (COMPATIBILITY)
+// =====================================================
+
+Then(
+  "the Configure Progress Task List should not be visible or interactive",
+  async function () {
+    await this.conversationsPage
+      .verifyProgressTaskListNotAvailable();
   }
 );
 
@@ -658,5 +749,13 @@ Then(
   async function () {
     await this.conversationsPage
       .verifyProgressTaskListAvailable();
+  }
+);
+
+Then(
+  "the assigned Configure Progress Task List should automatically appear",
+  async function () {
+    await this.conversationsPage
+      .verifyAssignedProgressTasksVisible();
   }
 );

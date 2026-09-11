@@ -55,7 +55,33 @@ const fixedPriceTaskListFlowData = {
         process.cwd(),
         "test-assets/listing/offer-floor-1.jpg"
       ),
+
+      sellerSolicitorSearch: "Jamess Anderson",
     },
+  },
+
+  // =====================================================
+  // SELLER SOLICITOR
+  // =====================================================
+
+  sellerSolicitor: {
+    email:
+      process.env.SELLER_SOLICITOR_EMAIL ||
+      "subratotest99.2@gmail.com",
+
+    password:
+      process.env.SELLER_SOLICITOR_PASSWORD ||
+      "Test12345@",
+
+    otp:
+      process.env.SELLER_SOLICITOR_OTP ||
+      "123456",
+
+    name:
+      "Jamess Anderson",
+
+    templateName:
+      "Standard Conveyancing Process",
   },
 
   // =====================================================

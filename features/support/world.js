@@ -27,6 +27,7 @@ const { SettlementPage } = require("../../pages/SettlementPage");
 const { BidderRegisterPage } = require("../../pages/BidderRegisterPage");
 const { AuctionPage } = require("../../pages/AuctionPage");
 const { AgentBidsPage } = require("../../pages/AgentBidsPage");
+const { SolicitorProgressPage } = require("../../pages/SolicitorProgressPage");
 
 const HomePage = require("../../pages/HomePage");
 const Header = require("../../pages/Header");
@@ -59,6 +60,7 @@ class RealeyWorld extends World {
     this.bidderRegisterPage = new BidderRegisterPage(this.page);
     this.auctionPage = new AuctionPage(this.page);
     this.agentBidsPage = new AgentBidsPage(this.page);
+    this.solicitorProgressPage = new SolicitorProgressPage(this.page);
 
     this.homePage = new HomePage(this.page);
     this.header = new Header(this.page);

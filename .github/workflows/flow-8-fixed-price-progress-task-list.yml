@@ -59,6 +59,14 @@ jobs:
       GENERAL_USER_OTP: ${{ secrets.GENERAL_USER_OTP }}
 
       # ===============================================
+      # SELLER SOLICITOR
+      # ===============================================
+
+      SELLER_SOLICITOR_EMAIL: ${{ secrets.SELLER_SOLICITOR_EMAIL }}
+      SELLER_SOLICITOR_PASSWORD: ${{ secrets.SELLER_SOLICITOR_PASSWORD }}
+      SELLER_SOLICITOR_OTP: ${{ secrets.SELLER_SOLICITOR_OTP }}
+
+      # ===============================================
       # PAYMENT
       # ===============================================
 
