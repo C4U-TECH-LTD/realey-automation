@@ -20,4 +20,4 @@ playwright-report/
 allure-results/
 allure-report/
 scratch/
-
+test-assets/temp_*/

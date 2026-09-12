@@ -71,6 +71,13 @@ const listingData = {
       process.cwd(),
       "test-assets/listing/floor-plan.jpg"
     ),
+
+    contractDocument: path.resolve(
+      process.cwd(),
+      "test-assets/sample_contract.pdf"
+    ),
+
+    contractDocumentName: "Contract for Sale",
   },
 
   expected: {
@@ -168,6 +175,43 @@ const listingData = {
   // =====================================================
 
   fixedPriceFlow: {
+    accounts: {
+      agent: {
+        email:
+          process.env.FLOW1_AGENT_EMAIL ||
+          "agent.c4utest@yopmail.com",
+        password:
+          process.env.FLOW1_AGENT_PASSWORD ||
+          "Test12345@",
+        otp:
+          process.env.FLOW1_AGENT_OTP ||
+          "123456",
+      },
+      generalUser: {
+        email:
+          process.env.FLOW1_BUYER_EMAIL ||
+          "buyer.c4utest@yopmail.com",
+        password:
+          process.env.FLOW1_BUYER_PASSWORD ||
+          "Test12345@",
+        otp:
+          process.env.FLOW1_BUYER_OTP ||
+          "123456",
+      },
+    },
+
+    document: {
+      docName: "Contract for Sale",
+      filePath: path.resolve(
+        process.cwd(),
+        "test-assets/sample_contract.pdf"
+      ),
+      invalidFilePath: path.resolve(
+        process.cwd(),
+        "test-assets/listing/invalid-sample.txt"
+      ),
+    },
+
     listingType:
       "Fixed Price",
 

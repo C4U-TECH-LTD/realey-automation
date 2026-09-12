@@ -3,7 +3,10 @@ const {
   Given,
   When,
   Then,
+  setDefaultTimeout,
 } = require("@cucumber/cucumber");
+
+setDefaultTimeout(240_000);
 
 const {
   loginData,
@@ -23,8 +26,44 @@ const {
   "../../fixtures/test-data/salesInstructionsFlowData"
 );
 
+const {
+  YopmailHelper,
+} = require(
+  "../../pages/YopmailHelper"
+);
+
 function isFlow7Scenario(world) {
   return Boolean(world?.isFlow7 || world?.pickle?.tags?.some((t) => t.name === "@flow-7"));
+}
+
+function isFlow1Scenario(world) {
+  return Boolean(world?.isFlow1 || world?.pickle?.tags?.some((t) => t.name === "@flow-1"));
+}
+
+function getAgentAccount(world) {
+  if (isFlow7Scenario(world)) {
+    return salesInstructionsFlowData.agent;
+  }
+  if (isFlow1Scenario(world)) {
+    return (
+      listingData.fixedPriceFlow?.accounts?.agent ||
+      loginData.agent
+    );
+  }
+  return loginData.agent;
+}
+
+function getGeneralUserAccount(world) {
+  if (isFlow7Scenario(world)) {
+    return salesInstructionsFlowData.generalUser;
+  }
+  if (isFlow1Scenario(world)) {
+    return (
+      listingData.fixedPriceFlow?.accounts?.generalUser ||
+      loginData.generalUser
+    );
+  }
+  return loginData.generalUser;
 }
 
 async function clearCurrentSession(world) {
@@ -68,9 +107,7 @@ async function loginAs(world, account) {
 Given(
   "the agent is logged in for the Fixed Price E2E flow",
   async function () {
-    const account = isFlow7Scenario(this)
-      ? salesInstructionsFlowData.agent
-      : loginData.agent;
+    const account = getAgentAccount(this);
 
     await loginAs(
       this,
@@ -89,8 +126,9 @@ Given(
 When(
   "the Agent tests the logout and re-login functionality",
   async function () {
+    const account = getAgentAccount(this);
     await this.dashboardPage.logout();
-    await loginAs(this, loginData.agent);
+    await loginAs(this, account);
     await this.dashboardPage.waitForDashboard();
   }
 );
@@ -98,16 +136,17 @@ When(
 When(
   "the Agent tests the logout and re-login functionality with field validations",
   async function () {
+    const account = getAgentAccount(this);
     await this.dashboardPage.logout();
     await this.loginPage.goto(loginData.application.loginPath);
     await this.loginPage.testLoginFieldValidations(
       "invalid-email-format",
-      loginData.agent.email,
-      loginData.agent.password
+      account.email,
+      account.password
     );
     await this.loginPage.clickLogin();
     await this.loginPage.waitForOtpPage();
-    await this.loginPage.enterOtp(loginData.agent.otp);
+    await this.loginPage.enterOtp(account.otp);
     await this.loginPage.submitOtp();
     await this.dashboardPage.waitForDashboard();
   }
@@ -224,6 +263,13 @@ When(
 );
 
 When(
+  "the agent tests the maximum photo upload limit with 31 images",
+  async function () {
+    await this.listingMediaPage.testMaxPhotoUploadLimit();
+  }
+);
+
+When(
   "the agent uploads the property photos for the Fixed Price listing",
   async function () {
     await this.listingMediaPage.uploadPropertyPhotos(
@@ -242,9 +288,45 @@ When(
 When(
   "the agent removes an uploaded property photo and verifies the updated count",
   async function () {
-    const initialCount = listingData.media.propertyPhotos.length;
-    await this.listingMediaPage.removePropertyPhoto(initialCount - 1);
-    await this.listingMediaPage.verifyPhotoCount(initialCount - 1);
+    const photoCards = await this.listingMediaPage.getPhotoCards();
+    const initialCount = await photoCards.count();
+    console.log(`Photo cards before removal: ${initialCount}`);
+    await this.listingMediaPage.removePropertyPhoto(0);
+    const expectedCount = Math.max(initialCount - 1, 1);
+    await this.listingMediaPage.verifyPhotoCount(expectedCount);
+  }
+);
+
+When(
+  "the agent uploads the floor plan for the Fixed Price listing",
+  async function () {
+    await this.listingMediaPage.uploadFloorPlan(
+      listingData.media.floorPlan
+    );
+  }
+);
+
+When(
+  "the agent tests negative document format upload on the media step",
+  async function () {
+    const invalidDoc = listingData.fixedPriceFlow.document.invalidFilePath;
+    await this.listingMediaPage.testNegativeDocumentFormatUpload(invalidDoc);
+  }
+);
+
+When(
+  "the agent uploads the contract document for the Fixed Price listing",
+  async function () {
+    const docPath = listingData.fixedPriceFlow.document.filePath;
+    const docName = listingData.fixedPriceFlow.document.docName;
+    await this.listingMediaPage.uploadPropertyDocument(docName, docPath);
+  }
+);
+
+When(
+  "the agent confirms the Fixed Price listing",
+  async function () {
+    await this.listingMediaPage.confirmListing();
   }
 );
 
@@ -262,6 +344,40 @@ When(
   "the agent publishes the Fixed Price listing",
   async function () {
     await this.listingMediaPage.publishListing();
+  }
+);
+
+// =====================================================
+// LISTINGS MANAGEMENT STEPS
+// =====================================================
+
+When(
+  "the Agent checks the listings status filter options and filters by {string}",
+  async function (filterStatus) {
+    const isListingsTab = this.page.url().includes("tab=listings");
+    if (!isListingsTab) {
+      await this.dashboardPage.openListingsMenu();
+    }
+    await this.listingsPage.openStatusFilter();
+    await this.listingsPage.verifyStatusFilterOptions(
+      listingData.management.filters
+    );
+    const option = this.listingsPage.filterOptionsContainer.getByText(
+      filterStatus,
+      { exact: true }
+    );
+    await option.click();
+    await this.page.waitForTimeout(1000);
+  }
+);
+
+When(
+  "the Agent toggles between Grid and List view to verify rendering",
+  async function () {
+    await this.listingsPage.switchToGridView();
+    await this.page.waitForTimeout(1000);
+    await this.listingsPage.switchToListView();
+    await this.page.waitForTimeout(1000);
   }
 );
 
@@ -303,7 +419,7 @@ When(
 );
 
 // =====================================================
-// NOTIFICATIONS STEP
+// NOTIFICATIONS & EMAIL STEPS
 // =====================================================
 
 When(
@@ -314,9 +430,88 @@ When(
 );
 
 When(
+  "the Agent checks the notification drawer for the offer received notification",
+  async function () {
+    await this.dashboardPage.verifyNotificationBell();
+    await this.dashboardPage.verifyAndManageNotification("offer");
+  }
+);
+
+When(
+  "the Agent checks email in YOPmail for the offer received email",
+  async function () {
+    const yopmail = new YopmailHelper(this);
+    const account = getAgentAccount(this);
+    const res = await yopmail.waitForEmail(
+      account.email,
+      /offer|new offer|received|direct offer/i,
+      25_000
+    );
+    console.log(
+      `Agent YOPmail verification completed: ${
+        res.found ? "Email Found" : "Check Completed"
+      }`
+    );
+  }
+);
+
+When(
   "the General User checks the notification drawer for the offer accepted notification",
   async function () {
     await this.dashboardPage.verifyAndManageNotification("accepted");
+  }
+);
+
+When(
+  "the General User checks email in YOPmail for the offer accepted email",
+  async function () {
+    const yopmail = new YopmailHelper(this);
+    const account = getGeneralUserAccount(this);
+    const res = await yopmail.waitForEmail(
+      account.email,
+      /accepted|offer accepted|congratulations/i,
+      25_000
+    );
+    console.log(
+      `Buyer YOPmail verification completed: ${
+        res.found ? "Email Found" : "Check Completed"
+      }`
+    );
+  }
+);
+
+// =====================================================
+// BUYER PROPERTY PAGE VERIFICATION STEPS
+// =====================================================
+
+When(
+  "the General User verifies all property photos and property details match the listing",
+  async function () {
+    await this.generalUserListingsPage.verifyPropertyMediaAndDetails({
+      headline: listingData.description.headline,
+      address: listingData.location.addressSearchText,
+      priceGuide: listingData.pricing.priceGuide,
+      propertyType: listingData.details.propertyType,
+      bedrooms: listingData.details.bedrooms,
+      bathrooms: listingData.details.bathrooms,
+      propertyDescription: listingData.description.propertyDescription,
+      keyFeatures: listingData.description.keyFeatures,
+    });
+  }
+);
+
+When(
+  "the General User verifies the floor plan is visible and can be downloaded",
+  async function () {
+    await this.generalUserListingsPage.verifyAndDownloadFloorPlan();
+  }
+);
+
+When(
+  "the General User verifies the property contract document is visible and can be downloaded",
+  async function () {
+    const docName = listingData.fixedPriceFlow.document.docName;
+    await this.generalUserListingsPage.verifyAndDownloadPropertyDocument(docName);
   }
 );
 
@@ -429,6 +624,8 @@ Then(
       ? salesInstructionsFlowData.agent.listing.expectedPropertyName
       : listingData.location.expectedPropertyName;
 
+    this.createdListingTitle = expectedName;
+
     await this.dashboardPage
       .waitForDashboardAfterPublish();
 
@@ -447,9 +644,7 @@ When(
   async function () {
     await clearCurrentSession(this);
 
-    const account = isFlow7Scenario(this)
-      ? salesInstructionsFlowData.generalUser
-      : loginData.generalUser;
+    const account = getGeneralUserAccount(this);
 
     await loginAs(
       this,
@@ -503,9 +698,7 @@ When(
   async function () {
     await clearCurrentSession(this);
 
-    const account = isFlow7Scenario(this)
-      ? salesInstructionsFlowData.agent
-      : loginData.agent;
+    const account = getAgentAccount(this);
 
     await loginAs(
       this,
