@@ -761,11 +761,37 @@ class ListingMediaPage {
       await this.documentNameInput.fill(docName);
     }
 
-    const docInput = this.page.locator('div:has-text("Document name") input[type="file"], input[type="file"]').last();
+    // Toggle public visibility so buyers can see and download the document on the listing page
+    const audienceBtn = this.page.locator(
+      'button:has-text("Seller\'s Soli"), button:has-text("Audience"), button:has(svg.lucide-users)'
+    ).first();
+    if (await audienceBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await audienceBtn.click();
+      await this.page.waitForTimeout(500);
+
+      const publicToggle = this.page.getByRole("button", { name: /show on public listing page/i });
+      if (await publicToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const isChecked = (await publicToggle.locator('svg.lucide-check').count()) > 0;
+        if (!isChecked) {
+          await publicToggle.click();
+          console.log("Enabled 'Show on public listing page' for property document");
+          await this.page.waitForTimeout(500);
+        }
+      }
+    }
+
+    const docInput = this.page.locator(
+      'label:has-text("Upload") input[type="file"], label:has(svg.lucide-upload) input[type="file"], input[type="file"]:not([multiple])'
+    ).last();
     await docInput.setInputFiles(docFilePath);
     await this.page.waitForTimeout(1500);
 
     const docFileName = path.basename(docFilePath);
+    const uploadedLabel = this.page.locator(`label:has-text("${docFileName}"), span:has-text("${docFileName}")`).first();
+    if (await uploadedLabel.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log(`Document file confirmed uploaded: ${docFileName}`);
+    }
+
     console.log(`Property document "${docName}" uploaded successfully with file "${docFileName}"`);
   }
 

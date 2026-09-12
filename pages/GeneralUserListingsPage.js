@@ -432,47 +432,75 @@ class GeneralUserListingsPage {
   async verifyAndDownloadPropertyDocument(expectedDocName = "Contract for Sale") {
     console.log(`Verifying Property Document "${expectedDocName}" visibility and download...`);
 
-    const docsButton = this.page.locator('button:has-text("Documents")').first();
+    const docsButton = this.page
+      .locator('button:has-text("Documents"), [role="button"]:has-text("Documents")')
+      .first();
     await expect(docsButton, "Documents accordion button should be visible").toBeVisible({ timeout: 15_000 });
 
     await docsButton.scrollIntoViewIfNeeded();
-    await docsButton.click();
-    await this.page.waitForTimeout(800);
 
-    // Verify document section contains the document name or pdf indicator
-    const docItem = this.page.locator(
-      [
-        `div:has-text("${expectedDocName}")`,
-        'div:has-text("sample_contract.pdf")',
-        'div:has-text(".pdf")',
-        'button:has-text("Download")',
-        'a:has-text("Download")',
-      ].join(", ")
-    ).first();
+    // Check if the accordion is open via accessibility / data attributes
+    const isExpanded =
+      (await docsButton.getAttribute("aria-expanded")) === "true" ||
+      (await docsButton.getAttribute("data-state")) === "open";
 
-    const docVisible = await docItem.isVisible({ timeout: 8000 }).catch(() => false);
-    if (docVisible) {
-      console.log(`Found property document item: "${expectedDocName}"`);
+    if (!isExpanded) {
+      await docsButton.click();
+      await this.page.waitForTimeout(1000);
+    }
 
-      // Find download button or link within the documents section
-      const downloadBtn = this.page.locator('button:has-text("Download"), a:has-text("Download"), a[download]').first();
-      if (await downloadBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        try {
-          const [download] = await Promise.all([
-            this.page.waitForEvent("download", { timeout: 7000 }).catch(() => null),
-            downloadBtn.click(),
-          ]);
-          if (download) {
-            console.log(`Property document downloaded successfully: ${download.suggestedFilename()}`);
-          } else {
-            console.log("Document download button clicked");
-          }
-        } catch (e) {
-          console.log(`Document download handled: ${e.message}`);
-        }
-      }
+    // Verify Documents section does NOT say "No documents available"
+    const noDocs = this.page.getByText(/no documents available/i);
+    await expect(
+      noDocs,
+      "Documents section should have property documents available, but showed 'No documents available'"
+    ).not.toBeVisible({ timeout: 5000 });
+
+    // Verify the document item is visible
+    const docItem = this.page
+      .getByText(expectedDocName)
+      .or(this.page.getByText("sample_contract"))
+      .or(this.page.getByText(/\.pdf/i))
+      .first();
+
+    await expect(
+      docItem,
+      `Property document "${expectedDocName}" should be visible in Documents accordion`
+    ).toBeVisible({ timeout: 15_000 });
+    console.log(`Found property document item: "${expectedDocName}" in Documents section`);
+
+    // Click the document button
+    const downloadTrigger = this.page
+      .getByRole("button", { name: expectedDocName })
+      .or(this.page.locator(`button[title="${expectedDocName}"]`))
+      .or(docItem)
+      .first();
+
+    await expect(
+      downloadTrigger,
+      "Document button or link should be visible in Documents accordion"
+    ).toBeVisible({ timeout: 10_000 });
+
+    const downloadPromise = this.page.waitForEvent("download", { timeout: 8000 }).catch(() => null);
+    const newPagePromise = this.page.context().waitForEvent("page", { timeout: 8000 }).catch(() => null);
+
+    await downloadTrigger.click();
+
+    const download = await downloadPromise;
+    const newPage = await newPagePromise;
+
+    if (download) {
+      const filename = download.suggestedFilename();
+      console.log(`Property document downloaded successfully: ${filename}`);
+      expect(
+        filename.toLowerCase(),
+        `Downloaded file "${filename}" must be a PDF document, not an image/floorplan`
+      ).toMatch(/\.pdf$/i);
+    } else if (newPage) {
+      console.log(`Property document opened in new tab: ${newPage.url()}`);
+      await newPage.close().catch(() => {});
     } else {
-      console.log("Document section opened and rendered (documents layout verified)");
+      console.log(`Property document "${expectedDocName}" clicked and verified successfully`);
     }
 
     await this.page.waitForTimeout(1000);
