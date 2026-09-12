@@ -763,7 +763,7 @@ Then(
 Then(
   "the Broker should receive one Sales Instructions email",
   async function () {
-    const yopmail = new YopmailHelper(this.page);
+    const yopmail = new YopmailHelper(this.page, this);
     const emailResult = await yopmail.waitForEmail(
       salesInstructionsFlowData.broker.email,
       salesInstructionsFlowData.expectedContent.emailSubject,
@@ -806,7 +806,7 @@ Then(
 Then(
   "the Seller Solicitor should receive one Sales Instructions email",
   async function () {
-    const yopmail = new YopmailHelper(this.page);
+    const yopmail = new YopmailHelper(this.page, this);
     const emailResult = await yopmail.waitForEmail(
       salesInstructionsFlowData.solicitor.email,
       salesInstructionsFlowData.expectedContent.emailSubject,
@@ -849,7 +849,7 @@ Then(
 Then(
   "the Buyer Solicitor should receive one Sales Instructions email",
   async function () {
-    const yopmail = new YopmailHelper(this.page);
+    const yopmail = new YopmailHelper(this.page, this);
     const emailResult = await yopmail.waitForEmail(
       salesInstructionsFlowData.solicitor.email,
       salesInstructionsFlowData.expectedContent.emailSubject,
@@ -895,7 +895,7 @@ Then(
     // External inbox scraping for Gmail is out-of-scope due to 2FA/security restrictions.
     // Exclusion is strictly verified on the Realey platform via Chatroom and In-App notification channels.
     if (salesInstructionsFlowData.excludedUsers.buyer.email.includes("yopmail")) {
-      const yopmail = new YopmailHelper(this.page);
+      const yopmail = new YopmailHelper(this.page, this);
       const emailResult = await yopmail.waitForEmail(
         salesInstructionsFlowData.excludedUsers.buyer.email,
         salesInstructionsFlowData.expectedContent.emailSubject,
@@ -940,7 +940,7 @@ Then(
     // External inbox scraping for Gmail is out-of-scope due to 2FA/security restrictions.
     // Exclusion is strictly verified on the Realey platform via Chatroom and In-App notification channels.
     if (salesInstructionsFlowData.excludedUsers.vendor.email.includes("yopmail")) {
-      const yopmail = new YopmailHelper(this.page);
+      const yopmail = new YopmailHelper(this.page, this);
       const emailResult = await yopmail.waitForEmail(
         salesInstructionsFlowData.excludedUsers.vendor.email,
         salesInstructionsFlowData.expectedContent.emailSubject,

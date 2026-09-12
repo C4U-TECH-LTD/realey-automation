@@ -1,9 +1,19 @@
+const fs = require("fs");
+const path = require("path");
+
 class YopmailHelper {
   /**
-   * @param {import("@playwright/test").Page} page
+   * @param {import("@playwright/test").Page | object} pageOrWorld
+   * @param {object} [world]
    */
-  constructor(page) {
-    this.page = page;
+  constructor(pageOrWorld, world = null) {
+    if (pageOrWorld && pageOrWorld.page) {
+      this.page = pageOrWorld.page;
+      this.world = pageOrWorld;
+    } else {
+      this.page = pageOrWorld;
+      this.world = world;
+    }
   }
 
   /**
@@ -21,6 +31,38 @@ class YopmailHelper {
 
     const context = this.page.context();
     const mailPage = await context.newPage();
+    const mailVideo = mailPage.video();
+
+    let isClosed = false;
+    const safeCloseMailPage = async () => {
+      if (!isClosed) {
+        isClosed = true;
+        await mailPage.close().catch(() => {});
+      }
+    };
+
+    const attachVideoIfAvailable = async () => {
+      if (mailVideo && this.world && typeof this.world.attach === "function") {
+        try {
+          const videoDir = path.resolve(process.cwd(), "videos", "cucumber");
+          if (!fs.existsSync(videoDir)) {
+            fs.mkdirSync(videoDir, { recursive: true });
+          }
+          const videoPath = path.join(
+            videoDir,
+            `yopmail-${cleanUser}-${Date.now()}.webm`
+          );
+          await mailVideo.saveAs(videoPath).catch(() => {});
+          if (fs.existsSync(videoPath)) {
+            const videoBuffer = fs.readFileSync(videoPath);
+            await this.world.attach(videoBuffer, "video/webm");
+            console.log(`[YopmailHelper] Attached YOPmail video (${videoBuffer.length} bytes) to Allure report`);
+          }
+        } catch (videoErr) {
+          console.warn(`[YopmailHelper] Could not save/attach YOPmail video: ${videoErr.message}`);
+        }
+      }
+    };
 
     try {
       await mailPage.goto(`https://yopmail.com?login=${encodeURIComponent(cleanUser)}`, {
@@ -49,6 +91,24 @@ class YopmailHelper {
 
         if (subjectRegex.test(bodyText)) {
           console.log(`[YopmailHelper] Email matching ${subjectRegex} FOUND for ${cleanUser}!`);
+
+          // Click the email to display full email body in the viewer
+          const mailItem = inboxFrame.locator(`text=${subjectRegex}`).first();
+          if (await mailItem.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await mailItem.click().catch(() => {});
+            await mailPage.waitForTimeout(1500);
+          }
+
+          // Capture authentic screenshot of the YOPmail inbox + message preview
+          const screenshot = await mailPage.screenshot({ fullPage: true }).catch(() => null);
+          if (screenshot && this.world && typeof this.world.attach === "function") {
+            await this.world.attach(screenshot, "image/png");
+            console.log(`[YopmailHelper] Attached YOPmail inbox screenshot (${screenshot.length} bytes) to Allure report`);
+          }
+
+          await safeCloseMailPage();
+          await attachVideoIfAvailable();
+
           return { found: true, bodySnippet: bodyText.substring(0, 300) };
         }
 
@@ -66,12 +126,31 @@ class YopmailHelper {
       }
 
       console.warn(`[YopmailHelper] Timeout (${timeoutMs}ms) waiting for email matching ${subjectRegex} for ${cleanUser}`);
+
+      // Capture screenshot of timeout state
+      const screenshot = await mailPage.screenshot({ fullPage: true }).catch(() => null);
+      if (screenshot && this.world && typeof this.world.attach === "function") {
+        await this.world.attach(screenshot, "image/png");
+      }
+
+      await safeCloseMailPage();
+      await attachVideoIfAvailable();
+
       return { found: false };
     } catch (err) {
       console.error(`[YopmailHelper] Error checking inbox for ${cleanUser}:`, err.message);
+
+      const screenshot = await mailPage.screenshot({ fullPage: true }).catch(() => null);
+      if (screenshot && this.world && typeof this.world.attach === "function") {
+        await this.world.attach(screenshot, "image/png");
+      }
+
+      await safeCloseMailPage();
+      await attachVideoIfAvailable();
+
       return { found: false, error: err.message };
     } finally {
-      await mailPage.close().catch(() => {});
+      await safeCloseMailPage();
     }
   }
 }
