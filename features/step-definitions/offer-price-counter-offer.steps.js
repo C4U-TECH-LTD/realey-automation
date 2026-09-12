@@ -194,6 +194,8 @@ Then(
     const listing =
       offerPriceFlowData.agent.listing;
 
+    this.createdListingTitle = listing.expectedPropertyName;
+
     await this.dashboardPage
       .waitForDashboardAfterPublish();
 

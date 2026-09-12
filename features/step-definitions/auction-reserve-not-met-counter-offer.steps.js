@@ -234,6 +234,8 @@ Then(
     const listing =
       auctionReserveNotMetFlowData.agent.listing;
 
+    this.createdListingTitle = listing.expectedPropertyName;
+
     await this.dashboardPage
       .waitForDashboardAfterPublish();
 
