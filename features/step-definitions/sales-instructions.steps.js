@@ -727,8 +727,20 @@ Then(
       }
     }
 
-    // Close the popup viewer tab cleanly to return to chat
+    // Close the popup viewer tab cleanly
     await popup.close().catch(() => {});
+
+    // Display the PDF directly on the main scenario page so it is recorded in the final continuous walkthrough video!
+    const returnChatUrl = page.url();
+    console.log(`[Flow 7] Displaying PDF on main scenario page for walkthrough video: ${pdfUrl}`);
+    await page.goto(pdfUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForTimeout(3000);
+
+    // Return main scenario page cleanly back to the chatroom
+    if (returnChatUrl && returnChatUrl !== page.url()) {
+      await page.goto(returnChatUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await page.waitForTimeout(1500);
+    }
 
     expect(pdfBuffer && pdfBuffer.length > 0, "PDF document buffer must be retrieved").toBe(true);
 

@@ -17,7 +17,10 @@ class YopmailHelper {
   }
 
   /**
-   * Check if an email matching the subjectRegex arrived for the given yopmail username
+   * Check if an email matching the subjectRegex arrived for the given yopmail username.
+   * Navigates the main scenario page directly so that the email verification is visibly
+   * recorded in the final continuous walkthrough video, and then returns to the active Realey page.
+   *
    * @param {string} username e.g. "broker.c4utest" or "solicitor.c4utest"
    * @param {RegExp|string} subjectRegex
    * @param {number} timeoutMs default 60,000ms (1 minute)
@@ -27,57 +30,25 @@ class YopmailHelper {
       .replace(/@yopmail\.com$/i, "")
       .trim();
 
-    console.log(`[YopmailHelper] Checking inbox for "${cleanUser}" with pattern: ${subjectRegex}`);
+    console.log(`[YopmailHelper] Checking inbox in-tab for "${cleanUser}" with pattern: ${subjectRegex}`);
 
-    const context = this.page.context();
-    const mailPage = await context.newPage();
-    const mailVideo = mailPage.video();
-
-    let isClosed = false;
-    const safeCloseMailPage = async () => {
-      if (!isClosed) {
-        isClosed = true;
-        await mailPage.close().catch(() => {});
-      }
-    };
-
-    const attachVideoIfAvailable = async () => {
-      if (mailVideo && this.world && typeof this.world.attach === "function") {
-        try {
-          const videoDir = path.resolve(process.cwd(), "videos", "cucumber");
-          if (!fs.existsSync(videoDir)) {
-            fs.mkdirSync(videoDir, { recursive: true });
-          }
-          const videoPath = path.join(
-            videoDir,
-            `yopmail-${cleanUser}-${Date.now()}.webm`
-          );
-          await mailVideo.saveAs(videoPath).catch(() => {});
-          if (fs.existsSync(videoPath)) {
-            const videoBuffer = fs.readFileSync(videoPath);
-            await this.world.attach(videoBuffer, "video/webm");
-            console.log(`[YopmailHelper] Attached YOPmail video (${videoBuffer.length} bytes) to Allure report`);
-          }
-        } catch (videoErr) {
-          console.warn(`[YopmailHelper] Could not save/attach YOPmail video: ${videoErr.message}`);
-        }
-      }
-    };
+    const page = this.page;
+    const returnUrl = page.url();
 
     try {
-      await mailPage.goto(`https://yopmail.com?login=${encodeURIComponent(cleanUser)}`, {
+      await page.goto(`https://yopmail.com?login=${encodeURIComponent(cleanUser)}`, {
         timeout: 30_000,
         waitUntil: "domcontentloaded",
       });
-      await mailPage.waitForTimeout(2000);
+      await page.waitForTimeout(2000);
 
-      const loginInput = mailPage.locator("#login");
+      const loginInput = page.locator("#login");
       if (await loginInput.isVisible({ timeout: 2000 }).catch(() => false)) {
         await loginInput.fill(cleanUser);
-        const submitBtn = mailPage.locator("#refreshbut button, #refreshbut, button.material-icons-outlined").first();
+        const submitBtn = page.locator("#refreshbut button, #refreshbut, button.material-icons-outlined").first();
         if (await submitBtn.isVisible()) {
           await submitBtn.click();
-          await mailPage.waitForTimeout(2000);
+          await page.waitForTimeout(2000);
         }
       }
 
@@ -86,7 +57,7 @@ class YopmailHelper {
 
       while (Date.now() - startTime < timeoutMs) {
         // Switch to inbox iframe
-        const inboxFrame = mailPage.frameLocator("#ifinbox");
+        const inboxFrame = page.frameLocator("#ifinbox");
         const bodyText = await inboxFrame.locator("body").innerText().catch(() => "");
 
         if (subjectRegex.test(bodyText)) {
@@ -96,18 +67,16 @@ class YopmailHelper {
           const mailItem = inboxFrame.locator(`text=${subjectRegex}`).first();
           if (await mailItem.isVisible({ timeout: 2000 }).catch(() => false)) {
             await mailItem.click().catch(() => {});
-            await mailPage.waitForTimeout(1500);
+            // Pause so the rendered email is visibly recorded in the final walkthrough video
+            await page.waitForTimeout(2500);
           }
 
           // Capture authentic screenshot of the YOPmail inbox + message preview
-          const screenshot = await mailPage.screenshot({ fullPage: true }).catch(() => null);
+          const screenshot = await page.screenshot({ fullPage: true }).catch(() => null);
           if (screenshot && this.world && typeof this.world.attach === "function") {
             await this.world.attach(screenshot, "image/png");
             console.log(`[YopmailHelper] Attached YOPmail inbox screenshot (${screenshot.length} bytes) to Allure report`);
           }
-
-          await safeCloseMailPage();
-          await attachVideoIfAvailable();
 
           return { found: true, bodySnippet: bodyText.substring(0, 300) };
         }
@@ -115,42 +84,41 @@ class YopmailHelper {
         console.log(`[YopmailHelper] No matching email yet for ${cleanUser}. Refreshing... (${Math.round((Date.now() - startTime) / 1000)}s elapsed)`);
 
         // Click refresh button inside YOPmail
-        const refreshBtn = mailPage.locator("#refresh, #lrefr").first();
+        const refreshBtn = page.locator("#refresh, #lrefr").first();
         if (await refreshBtn.isVisible().catch(() => false)) {
           await refreshBtn.click().catch(() => {});
         } else {
-          await mailPage.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+          await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
         }
 
-        await mailPage.waitForTimeout(pollInterval);
+        await page.waitForTimeout(pollInterval);
       }
 
       console.warn(`[YopmailHelper] Timeout (${timeoutMs}ms) waiting for email matching ${subjectRegex} for ${cleanUser}`);
 
       // Capture screenshot of timeout state
-      const screenshot = await mailPage.screenshot({ fullPage: true }).catch(() => null);
+      const screenshot = await page.screenshot({ fullPage: true }).catch(() => null);
       if (screenshot && this.world && typeof this.world.attach === "function") {
         await this.world.attach(screenshot, "image/png");
       }
-
-      await safeCloseMailPage();
-      await attachVideoIfAvailable();
 
       return { found: false };
     } catch (err) {
       console.error(`[YopmailHelper] Error checking inbox for ${cleanUser}:`, err.message);
 
-      const screenshot = await mailPage.screenshot({ fullPage: true }).catch(() => null);
+      const screenshot = await page.screenshot({ fullPage: true }).catch(() => null);
       if (screenshot && this.world && typeof this.world.attach === "function") {
         await this.world.attach(screenshot, "image/png");
       }
 
-      await safeCloseMailPage();
-      await attachVideoIfAvailable();
-
       return { found: false, error: err.message };
     } finally {
-      await safeCloseMailPage();
+      // Seamlessly return the main scenario page back to Realey so the walkthrough video continues
+      if (returnUrl && returnUrl !== "about:blank" && page.url() !== returnUrl) {
+        console.log(`[YopmailHelper] Returning page back to Realey: ${returnUrl}`);
+        await page.goto(returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+        await page.waitForTimeout(1500);
+      }
     }
   }
 }
