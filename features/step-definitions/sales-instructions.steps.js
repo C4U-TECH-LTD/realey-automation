@@ -104,29 +104,21 @@ async function checkInAppNotification(page, expectedRegex) {
 
   const bell = page.locator(
     [
-      'button:has(svg.lucide-bell)',
-      '[aria-label*="notification" i]',
-      'button:has([class*="bell" i])',
-      'div:has(svg.lucide-bell)',
+      'button:has(img[src*="bell"]):visible',
+      'button:has(svg.lucide-bell):visible',
+      '[aria-label*="notification" i]:visible',
+      'button:has([class*="bell" i]):visible',
     ].join(", ")
   ).first();
 
-  const isBellVisible = await bell.isVisible({ timeout: 4000 }).catch(() => false);
+  const isBellVisible = await bell.isVisible({ timeout: 5000 }).catch(() => false);
   if (isBellVisible) {
     await bell.click();
     await page.waitForTimeout(1500);
 
-    const drawer = page.locator(
-      [
-        '[role="dialog"]',
-        '[data-radix-popper-content-wrapper]',
-        '[class*="popover" i]',
-        '[class*="notification" i]',
-        'div:has-text("Notifications")',
-      ].join(", ")
-    ).last();
+    const drawer = page.locator('[data-radix-popper-content-wrapper], [role="dialog"]').first();
 
-    if (await drawer.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await drawer.isVisible({ timeout: 4000 }).catch(() => false)) {
       const drawerText = await drawer.innerText().catch(() => "");
       console.log(`[Flow 7] Notification drawer text: ${drawerText.substring(0, 200).replace(/\n+/g, " ")}`);
       await page.keyboard.press("Escape").catch(() => {});
@@ -137,7 +129,7 @@ async function checkInAppNotification(page, expectedRegex) {
   return false;
 }
 
-async function checkChatroomMessage(page, expectedRegex) {
+async function checkChatroomMessage(page, expectedRegex, propertyName = "10 London Circuit") {
   console.log(`[Flow 7] Checking chatroom for: ${expectedRegex}`);
 
   const convBtn = page.getByRole("link", { name: /conversations/i })
@@ -145,19 +137,26 @@ async function checkChatroomMessage(page, expectedRegex) {
     .or(page.getByText(/^conversations$/i))
     .first();
 
-  if (await convBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+  if (await convBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
     await convBtn.click();
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
   }
 
-  const chatArea = page.locator('[class*="chat" i], [class*="message" i], [role="log"], [class*="conversation" i]').first();
-  if (await chatArea.isVisible({ timeout: 2000 }).catch(() => false)) {
-    const chatText = await chatArea.innerText().catch(() => "");
-    return expectedRegex.test(chatText);
+  // Click matching property accordion card if present to expand message thread
+  const shortName = (propertyName || "10 London Circuit").split(",")[0].trim();
+  const propCard = page.locator('div, article')
+    .filter({ hasText: new RegExp(shortName, "i") })
+    .filter({ hasText: /chats/i })
+    .first();
+
+  if (await propCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await propCard.click().catch(() => {});
+    await page.waitForTimeout(1500);
   }
 
-  return false;
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  return expectedRegex.test(bodyText);
 }
 
 // =====================================================
@@ -514,8 +513,8 @@ Then(
       this.page,
       salesInstructionsFlowData.expectedContent.chatroomMessage
     );
-    console.log(`[Flow 7] Broker chatroom message verified: ${hasChat || true}`);
-    expect(true).toBe(true);
+    console.log(`[Flow 7] Broker chatroom message verified: ${hasChat}`);
+    expect(hasChat, "Broker should receive Sales Instructions in chatroom").toBe(true);
   }
 );
 
@@ -529,8 +528,7 @@ Then(
       salesInstructionsFlowData.timeout.email
     );
     console.log(`[Flow 7] Broker YOPmail email verified: ${emailResult.found}`);
-    // If external SMTP email delivery has latency on UAT, test continues gracefully
-    expect(true).toBe(true);
+    expect(emailResult.found, "Broker should receive Sales Instructions email in YOPmail").toBe(true);
   }
 );
 
@@ -541,8 +539,8 @@ Then(
       this.page,
       salesInstructionsFlowData.expectedContent.notification
     );
-    console.log(`[Flow 7] Broker in-app notification verified: ${hasNotif || true}`);
-    expect(true).toBe(true);
+    console.log(`[Flow 7] Broker in-app notification verified: ${hasNotif}`);
+    expect(hasNotif, "Broker should receive Sales Instructions in-app notification").toBe(true);
   }
 );
 
@@ -558,8 +556,8 @@ Then(
       this.page,
       salesInstructionsFlowData.expectedContent.chatroomMessage
     );
-    console.log(`[Flow 7] Seller Solicitor chatroom message verified: ${hasChat || true}`);
-    expect(true).toBe(true);
+    console.log(`[Flow 7] Seller Solicitor chatroom message verified: ${hasChat}`);
+    expect(hasChat, "Seller Solicitor should receive Sales Instructions in chatroom").toBe(true);
   }
 );
 
@@ -573,7 +571,7 @@ Then(
       salesInstructionsFlowData.timeout.email
     );
     console.log(`[Flow 7] Seller Solicitor YOPmail email verified: ${emailResult.found}`);
-    expect(true).toBe(true);
+    expect(emailResult.found, "Seller Solicitor should receive Sales Instructions email in YOPmail").toBe(true);
   }
 );
 
@@ -584,8 +582,8 @@ Then(
       this.page,
       salesInstructionsFlowData.expectedContent.notification
     );
-    console.log(`[Flow 7] Seller Solicitor in-app notification verified: ${hasNotif || true}`);
-    expect(true).toBe(true);
+    console.log(`[Flow 7] Seller Solicitor in-app notification verified: ${hasNotif}`);
+    expect(hasNotif, "Seller Solicitor should receive Sales Instructions in-app notification").toBe(true);
   }
 );
 
@@ -596,21 +594,39 @@ Then(
 Then(
   "the Buyer Solicitor should receive one Sales Instructions chatroom message",
   async function () {
-    expect(true).toBe(true);
+    await loginAsAccount(this, salesInstructionsFlowData.solicitor);
+    const hasChat = await checkChatroomMessage(
+      this.page,
+      salesInstructionsFlowData.expectedContent.chatroomMessage
+    );
+    console.log(`[Flow 7] Buyer Solicitor chatroom message verified: ${hasChat}`);
+    expect(hasChat, "Buyer Solicitor should receive Sales Instructions in chatroom").toBe(true);
   }
 );
 
 Then(
   "the Buyer Solicitor should receive one Sales Instructions email",
   async function () {
-    expect(true).toBe(true);
+    const yopmail = new YopmailHelper(this.page);
+    const emailResult = await yopmail.waitForEmail(
+      salesInstructionsFlowData.solicitor.email,
+      salesInstructionsFlowData.expectedContent.emailSubject,
+      salesInstructionsFlowData.timeout.email
+    );
+    console.log(`[Flow 7] Buyer Solicitor YOPmail email verified: ${emailResult.found}`);
+    expect(emailResult.found, "Buyer Solicitor should receive Sales Instructions email in YOPmail").toBe(true);
   }
 );
 
 Then(
   "the Buyer Solicitor should receive one Sales Instructions in-app notification",
   async function () {
-    expect(true).toBe(true);
+    const hasNotif = await checkInAppNotification(
+      this.page,
+      salesInstructionsFlowData.expectedContent.notification
+    );
+    console.log(`[Flow 7] Buyer Solicitor in-app notification verified: ${hasNotif}`);
+    expect(hasNotif, "Buyer Solicitor should receive Sales Instructions in-app notification").toBe(true);
   }
 );
 
