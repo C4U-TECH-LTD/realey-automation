@@ -53,6 +53,7 @@ Feature: Flow 7 - Fixed Price Direct Offer Sales Instructions
 
     # Broker delivery validation
     And the Broker should receive one Sales Instructions chatroom message
+    And the Sales Instructions document in chat should have populated Firm, Agent Licence No, and Agency Licence No
     And the Broker should receive one Sales Instructions email
     And the Broker should receive one Sales Instructions in-app notification
 

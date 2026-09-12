@@ -1,3 +1,7 @@
+const fs = require("fs");
+const path = require("path");
+const zlib = require("zlib");
+
 const {
   Before,
   When,
@@ -11,6 +15,32 @@ const {
 } = require("../../fixtures/test-data/salesInstructionsFlowData");
 
 const { YopmailHelper } = require("../../pages/YopmailHelper");
+
+function extractPdfText(pdfBuffer) {
+  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let match;
+  let fullText = "";
+  const content = pdfBuffer.toString("binary");
+  while ((match = streamRegex.exec(content)) !== null) {
+    try {
+      const decompressed = zlib.inflateSync(Buffer.from(match[1], "binary"));
+      fullText += "\n" + decompressed.toString("utf8");
+    } catch (_) {}
+  }
+
+  const hexRegex = /<([0-9a-fA-F]+)>/g;
+  let hMatch;
+  const strings = [];
+  while ((hMatch = hexRegex.exec(fullText)) !== null) {
+    const hex = hMatch[1];
+    let str = "";
+    for (let i = 0; i < hex.length; i += 2) {
+      str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+    }
+    strings.push(str);
+  }
+  return strings.join(" ");
+}
 
 // =====================================================
 // HOOK
@@ -515,6 +545,71 @@ Then(
     );
     console.log(`[Flow 7] Broker chatroom message verified: ${hasChat}`);
     expect(hasChat, "Broker should receive Sales Instructions in chatroom").toBe(true);
+  }
+);
+
+Then(
+  "the Sales Instructions document in chat should have populated Firm, Agent Licence No, and Agency Licence No",
+  async function () {
+    const page = this.page;
+
+    // Expand property accordion if needed
+    const shortName = (salesInstructionsFlowData.agent.listing.expectedPropertyName || "10 London Circuit").split(",")[0].trim();
+    const propHeader = page.getByText(new RegExp(shortName, "i")).first();
+    if (await propHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await propHeader.click().catch(() => {});
+      await page.waitForTimeout(1500);
+    }
+
+    // Select the Agent conversation row containing the document attachment
+    const subratoRow = page
+      .locator("button, div")
+      .filter({ hasText: /Subrato Pal/i })
+      .filter({ hasText: /Sales Instructions/i })
+      .first();
+    if (await subratoRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await subratoRow.click().catch(() => {});
+      await page.waitForTimeout(2000);
+    }
+
+    // Locate download button on the Sales Instructions document card
+    const downloadBtn = page.locator("button:has(svg.lucide-download)").first();
+    await expect(
+      downloadBtn,
+      "Sales Instructions document card in chat should have a download button"
+    ).toBeVisible({ timeout: 5000 });
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 10000 }),
+      downloadBtn.click(),
+    ]);
+
+    const tmpPath = path.join(
+      process.cwd(),
+      "scratch",
+      `chat_si_${Date.now()}.pdf`
+    );
+    await download.saveAs(tmpPath);
+    const pdfBuffer = fs.readFileSync(tmpPath);
+    const pdfText = extractPdfText(pdfBuffer);
+    fs.unlinkSync(tmpPath);
+
+    console.log(`[Flow 7] Chat PDF extracted successfully (${pdfBuffer.length} bytes, text length: ${pdfText.length})`);
+
+    // 1. Assert Firm is populated and not blank
+    const hasFirm = /Firm\s+[A-Za-z0-9]/i.test(pdfText) && !/Firm\s*—/i.test(pdfText);
+    console.log(`[Flow 7] Chat PDF Firm check: ${hasFirm}`);
+    expect(hasFirm, "Sales Instructions document in chat must have a populated Firm name").toBe(true);
+
+    // 2. Assert Agent Licence No is populated and not blank (or '—')
+    const hasAgentLicence = !/Ag\s*ent Licence No\.?\s*—/i.test(pdfText) && /Ag\s*ent Licence No\.?\s*[A-Za-z0-9]/i.test(pdfText);
+    console.log(`[Flow 7] Chat PDF Agent Licence check: ${hasAgentLicence}`);
+    expect(hasAgentLicence, "Sales Instructions document in chat must have a populated Agent Licence No (not blank or '—')").toBe(true);
+
+    // 3. Assert Agency Licence No is populated and not blank (or '—')
+    const hasAgencyLicence = !/Ag\s*enc\s*y Licence No\.?\s*—/i.test(pdfText) && /Ag\s*enc\s*y Licence No\.?\s*[A-Za-z0-9]/i.test(pdfText);
+    console.log(`[Flow 7] Chat PDF Agency Licence check: ${hasAgencyLicence}`);
+    expect(hasAgencyLicence, "Sales Instructions document in chat must have a populated Agency Licence No (not blank or '—')").toBe(true);
   }
 );
 
