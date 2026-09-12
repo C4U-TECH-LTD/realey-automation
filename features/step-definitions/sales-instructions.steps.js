@@ -129,8 +129,29 @@ async function pageContainsTextOrValue(page, expectedValue) {
   );
 }
 
-async function checkInAppNotification(page, expectedRegex) {
+async function checkInAppNotification(target, expectedRegex) {
+  const page = target?.page || target;
   console.log(`[Flow 7] Checking in-app notification drawer for: ${expectedRegex}`);
+
+  // CRITICAL GUARD: Ensure we never assert notifications on a 404 / broken error page!
+  const is404 = await page
+    .locator("text=/404 Page Not Found|Sorry, the page you're looking for doesn't exist/i")
+    .first()
+    .isVisible({ timeout: 1000 })
+    .catch(() => false);
+
+  if (is404) {
+    throw new Error(
+      `[Flow 7] Notification check error: Page is currently on 404 Not Found at ${page.url()}`
+    );
+  }
+
+  // Ensure user is on a valid authenticated dashboard with the header visible
+  if (!page.url().includes("/dashboard")) {
+    console.log(`[Flow 7] Page is at ${page.url()}, navigating to dashboard for notification check`);
+    await page.goto("/dashboard/general-user", { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForTimeout(1500);
+  }
 
   const bell = page.locator(
     [
@@ -154,27 +175,64 @@ async function checkInAppNotification(page, expectedRegex) {
       await page.keyboard.press("Escape").catch(() => {});
       return expectedRegex.test(drawerText);
     }
+  } else {
+    console.warn(`[Flow 7] In-app notification bell was not visible on ${page.url()}`);
   }
 
   return false;
 }
 
-async function checkChatroomMessage(page, expectedRegex, propertyName = "10 London Circuit") {
+async function checkChatroomMessage(target, expectedRegex, propertyName = "10 London Circuit") {
+  const page = target?.page || target;
+  const conversationsPage = target?.conversationsPage;
   console.log(`[Flow 7] Checking chatroom for: ${expectedRegex}`);
 
-  const convBtn = page.getByRole("link", { name: /conversations/i })
-    .or(page.getByRole("button", { name: /conversations/i }))
-    .or(page.getByText(/^conversations$/i))
-    .first();
+  // 1. If not already on conversations tab/view, navigate appropriately
+  const isAlreadyOnConversations =
+    page.url().includes("tab=conversations") ||
+    page.url().includes("/chat/");
 
-  if (await convBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await convBtn.click();
-    await page.waitForLoadState("domcontentloaded");
-    await page.waitForTimeout(2000);
-  } else {
-    await page.goto("/conversations");
-    await page.waitForLoadState("domcontentloaded");
-    await page.waitForTimeout(2000);
+  if (!isAlreadyOnConversations) {
+    const convBtn = page
+      .getByRole("link", { name: /conversations/i })
+      .or(page.getByRole("button", { name: /conversations/i }))
+      .or(page.getByText(/^conversations$/i))
+      .first();
+
+    if (await convBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await convBtn.click();
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(1500);
+    } else if (conversationsPage) {
+      await conversationsPage.openConversations().catch(() => {});
+    } else {
+      // Fallback: direct navigation using authentic dashboard query param
+      const url = page.url();
+      let fallbackUrl = "/dashboard/general-user?tab=conversations";
+      if (url.includes("/dashboard/agent")) {
+        fallbackUrl = "/dashboard/agent?tab=conversations";
+      } else if (url.includes("/dashboard/mortgage-broker")) {
+        fallbackUrl = "/dashboard/mortgage-broker?tab=conversations";
+      } else if (url.includes("/dashboard/")) {
+        const basePath = url.split("?")[0].replace(/\/$/, "");
+        fallbackUrl = `${basePath}?tab=conversations`;
+      }
+      await page.goto(fallbackUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await page.waitForTimeout(1500);
+    }
+  }
+
+  // 2. CRITICAL GUARD: Ensure we never assert on a 404 / broken error page!
+  const is404 = await page
+    .locator("text=/404 Page Not Found|Sorry, the page you're looking for doesn't exist/i")
+    .first()
+    .isVisible({ timeout: 1000 })
+    .catch(() => false);
+
+  if (is404) {
+    throw new Error(
+      `[Flow 7] Chatroom navigation error: Page rendered 404 Not Found at ${page.url()}`
+    );
   }
 
   const shortName = (propertyName || "10 London Circuit").split(",")[0].trim();
@@ -188,23 +246,23 @@ async function checkChatroomMessage(page, expectedRegex, propertyName = "10 Lond
 
   // Click matching property accordion card header to expand
   const propHeader = page.getByText(new RegExp(shortName, "i")).first();
-  if (await propHeader.isVisible({ timeout: 5000 }).catch(() => false)) {
+  if (await propHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
     await propHeader.scrollIntoViewIfNeeded().catch(() => {});
     await propHeader.click().catch(() => {});
     await page.waitForTimeout(1500);
   }
 
-  // Poll for up to 15s to allow for WebSocket / backend chat delivery latency
+  // Poll for up to 10s to allow for WebSocket / backend chat delivery latency
   const startedAt = Date.now();
-  const timeoutMs = 15000;
+  const timeoutMs = 10000;
   while (Date.now() - startedAt < timeoutMs) {
     bodyText = await page.locator("body").innerText().catch(() => "");
     if (expectedRegex.test(bodyText)) {
       console.log(`[Flow 7] Chatroom message matching ${expectedRegex} detected!`);
       return true;
     }
-    // Re-click if it was collapsed by accident after 5s
-    if (Date.now() - startedAt > 5000 && Date.now() - startedAt < 6500) {
+    // Re-click if it was collapsed by accident after 4s
+    if (Date.now() - startedAt > 4000 && Date.now() - startedAt < 5500) {
       if (await propHeader.isVisible().catch(() => false)) {
         await propHeader.click().catch(() => {});
       }
@@ -212,7 +270,7 @@ async function checkChatroomMessage(page, expectedRegex, propertyName = "10 Lond
     await page.waitForTimeout(1000);
   }
 
-  console.warn(`[Flow 7] Chatroom message matching ${expectedRegex} not found within ${timeoutMs}ms`);
+  console.log(`[Flow 7] Chatroom message matching ${expectedRegex} not found within ${timeoutMs}ms`);
   return false;
 }
 
@@ -573,7 +631,7 @@ Then(
   async function () {
     await loginAsAccount(this, salesInstructionsFlowData.broker);
     const hasChat = await checkChatroomMessage(
-      this.page,
+      this,
       salesInstructionsFlowData.expectedContent.chatroomMessage
     );
     console.log(`[Flow 7] Broker chatroom message verified: ${hasChat}`);
@@ -703,7 +761,7 @@ Then(
   async function () {
     await loginAsAccount(this, salesInstructionsFlowData.solicitor);
     const hasChat = await checkChatroomMessage(
-      this.page,
+      this,
       salesInstructionsFlowData.expectedContent.chatroomMessage
     );
     console.log(`[Flow 7] Seller Solicitor chatroom message verified: ${hasChat}`);
@@ -746,7 +804,7 @@ Then(
   async function () {
     await loginAsAccount(this, salesInstructionsFlowData.solicitor);
     const hasChat = await checkChatroomMessage(
-      this.page,
+      this,
       salesInstructionsFlowData.expectedContent.chatroomMessage
     );
     console.log(`[Flow 7] Buyer Solicitor chatroom message verified: ${hasChat}`);
@@ -789,7 +847,7 @@ Then(
   async function () {
     await loginAsAccount(this, salesInstructionsFlowData.excludedUsers.buyer);
     const hasChat = await checkChatroomMessage(
-      this.page,
+      this,
       salesInstructionsFlowData.expectedContent.chatroomMessage
     );
     expect(hasChat, "Buyer must NOT receive Sales Instructions in chatroom").toBe(false);
@@ -822,7 +880,7 @@ Then(
   "the Buyer should not receive a Sales Instructions in-app notification",
   async function () {
     const hasNotif = await checkInAppNotification(
-      this.page,
+      this,
       salesInstructionsFlowData.expectedContent.notification
     );
     expect(hasNotif, "Buyer must NOT receive Sales Instructions in-app notification").toBe(false);
@@ -834,7 +892,7 @@ Then(
   async function () {
     await loginAsAccount(this, salesInstructionsFlowData.excludedUsers.vendor);
     const hasChat = await checkChatroomMessage(
-      this.page,
+      this,
       salesInstructionsFlowData.expectedContent.chatroomMessage
     );
     expect(hasChat, "Vendor must NOT receive Sales Instructions in chatroom").toBe(false);
@@ -867,7 +925,7 @@ Then(
   "the Vendor should not receive a Sales Instructions in-app notification",
   async function () {
     const hasNotif = await checkInAppNotification(
-      this.page,
+      this,
       salesInstructionsFlowData.expectedContent.notification
     );
     expect(hasNotif, "Vendor must NOT receive Sales Instructions in-app notification").toBe(false);
