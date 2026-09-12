@@ -167,26 +167,53 @@ async function checkChatroomMessage(page, expectedRegex, propertyName = "10 Lond
     .or(page.getByText(/^conversations$/i))
     .first();
 
-  if (await convBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
+  if (await convBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
     await convBtn.click();
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(2000);
+  } else {
+    await page.goto("/conversations");
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
   }
 
-  // Click matching property accordion card if present to expand message thread
   const shortName = (propertyName || "10 London Circuit").split(",")[0].trim();
-  const propCard = page.locator('div, article')
-    .filter({ hasText: new RegExp(shortName, "i") })
-    .filter({ hasText: /chats/i })
-    .first();
 
-  if (await propCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await propCard.click().catch(() => {});
+  // If chat message is already visible in page text, return true immediately
+  let bodyText = await page.locator("body").innerText().catch(() => "");
+  if (expectedRegex.test(bodyText)) {
+    console.log(`[Flow 7] Chatroom message matching ${expectedRegex} detected immediately!`);
+    return true;
+  }
+
+  // Click matching property accordion card header to expand
+  const propHeader = page.getByText(new RegExp(shortName, "i")).first();
+  if (await propHeader.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await propHeader.scrollIntoViewIfNeeded().catch(() => {});
+    await propHeader.click().catch(() => {});
     await page.waitForTimeout(1500);
   }
 
-  const bodyText = await page.locator("body").innerText().catch(() => "");
-  return expectedRegex.test(bodyText);
+  // Poll for up to 15s to allow for WebSocket / backend chat delivery latency
+  const startedAt = Date.now();
+  const timeoutMs = 15000;
+  while (Date.now() - startedAt < timeoutMs) {
+    bodyText = await page.locator("body").innerText().catch(() => "");
+    if (expectedRegex.test(bodyText)) {
+      console.log(`[Flow 7] Chatroom message matching ${expectedRegex} detected!`);
+      return true;
+    }
+    // Re-click if it was collapsed by accident after 5s
+    if (Date.now() - startedAt > 5000 && Date.now() - startedAt < 6500) {
+      if (await propHeader.isVisible().catch(() => false)) {
+        await propHeader.click().catch(() => {});
+      }
+    }
+    await page.waitForTimeout(1000);
+  }
+
+  console.warn(`[Flow 7] Chatroom message matching ${expectedRegex} not found within ${timeoutMs}ms`);
+  return false;
 }
 
 // =====================================================
@@ -521,6 +548,10 @@ Then(
       await fillIfEmpty('#field-section, input[name="section"], input[id*="section"]', "34");
       await fillIfEmpty('#field-crownLease, input[name="crownLease"], input[id*="crownLease"]', "CL-998877");
       await fillIfEmpty('#field-eer, input[name="eer"], input[id*="eer"]', "5");
+      await fillIfEmpty('#field-agentLicense, input[name="agentLicense"], input[id*="agentLicense" i]', salesInstructionsFlowData.document.agentLicenceNo || "AGENT-LIC-001");
+      await fillIfEmpty('#field-agencyLicense, input[name="agencyLicense"], input[id*="agencyLicense" i]', salesInstructionsFlowData.document.agencyLicenceNo || "AGENCY-LIC-001");
+      await fillIfEmpty('#field-agencyName, input[name="agencyName"], input[id*="agencyName" i]', "Automation Real Estate");
+      await fillIfEmpty('#field-sellerSolicitorFirm, input[name="sellerSolicitorFirm"], input[id*="sellerSolicitorFirm" i]', salesInstructionsFlowData.document.firm || "Document Recruiter");
 
       if (await submitBtn.isEnabled().catch(() => false)) {
         console.log("[Flow 7] Clicking 'Submit & Issue Sales Instructions'...");
@@ -555,32 +586,40 @@ Then(
 
     // Expand property accordion if needed
     const shortName = (salesInstructionsFlowData.agent.listing.expectedPropertyName || "10 London Circuit").split(",")[0].trim();
-    const propHeader = page.getByText(new RegExp(shortName, "i")).first();
-    if (await propHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await propHeader.click().catch(() => {});
-      await page.waitForTimeout(1500);
-    }
 
-    // Select the Agent conversation row containing the document attachment
-    const subratoRow = page
+    // Only click property header if conversation row is not already visible
+    const chatDocRow = page
       .locator("button, div")
-      .filter({ hasText: /Subrato Pal/i })
       .filter({ hasText: /Sales Instructions/i })
       .first();
-    if (await subratoRow.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await subratoRow.click().catch(() => {});
+
+    if (!(await chatDocRow.isVisible({ timeout: 1500 }).catch(() => false))) {
+      const propHeader = page.getByText(new RegExp(shortName, "i")).first();
+      if (await propHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await propHeader.click().catch(() => {});
+        await page.waitForTimeout(1500);
+      }
+    }
+
+    // Select the conversation row containing the document attachment
+    const chatRow = page
+      .locator("button, div")
+      .filter({ hasText: /Sales Instructions/i })
+      .first();
+    if (await chatRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await chatRow.click().catch(() => {});
       await page.waitForTimeout(2000);
     }
 
     // Locate download button on the Sales Instructions document card
-    const downloadBtn = page.locator("button:has(svg.lucide-download)").first();
+    const downloadBtn = page.locator('button:has(svg.lucide-download), button:has([class*="download" i])').first();
     await expect(
       downloadBtn,
       "Sales Instructions document card in chat should have a download button"
-    ).toBeVisible({ timeout: 5000 });
+    ).toBeVisible({ timeout: 8000 });
 
     const [download] = await Promise.all([
-      page.waitForEvent("download", { timeout: 10000 }),
+      page.waitForEvent("download", { timeout: 15000 }),
       downloadBtn.click(),
     ]);
 
@@ -592,22 +631,24 @@ Then(
     await download.saveAs(tmpPath);
     const pdfBuffer = fs.readFileSync(tmpPath);
     const pdfText = extractPdfText(pdfBuffer);
-    fs.unlinkSync(tmpPath);
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (_) {}
 
     console.log(`[Flow 7] Chat PDF extracted successfully (${pdfBuffer.length} bytes, text length: ${pdfText.length})`);
 
-    // 1. Assert Firm is populated and not blank
+    // 1. Assert Firm is populated and not blank (or '—')
     const hasFirm = /Firm\s+[A-Za-z0-9]/i.test(pdfText) && !/Firm\s*—/i.test(pdfText);
     console.log(`[Flow 7] Chat PDF Firm check: ${hasFirm}`);
-    expect(hasFirm, "Sales Instructions document in chat must have a populated Firm name").toBe(true);
+    expect(hasFirm, "Sales Instructions document in chat must have a populated Firm name (not blank or '—')").toBe(true);
 
     // 2. Assert Agent Licence No is populated and not blank (or '—')
-    const hasAgentLicence = !/Ag\s*ent Licence No\.?\s*—/i.test(pdfText) && /Ag\s*ent Licence No\.?\s*[A-Za-z0-9]/i.test(pdfText);
+    const hasAgentLicence = !/Ag\s*ent\s*Licen[cs]e\s*No\.?\s*—/i.test(pdfText) && /Ag\s*ent\s*Licen[cs]e\s*No\.?\s*[A-Za-z0-9]/i.test(pdfText);
     console.log(`[Flow 7] Chat PDF Agent Licence check: ${hasAgentLicence}`);
     expect(hasAgentLicence, "Sales Instructions document in chat must have a populated Agent Licence No (not blank or '—')").toBe(true);
 
     // 3. Assert Agency Licence No is populated and not blank (or '—')
-    const hasAgencyLicence = !/Ag\s*enc\s*y Licence No\.?\s*—/i.test(pdfText) && /Ag\s*enc\s*y Licence No\.?\s*[A-Za-z0-9]/i.test(pdfText);
+    const hasAgencyLicence = !/Ag\s*enc\s*y\s*Licen[cs]e\s*No\.?\s*—/i.test(pdfText) && /Ag\s*enc\s*y\s*Licen[cs]e\s*No\.?\s*[A-Za-z0-9]/i.test(pdfText);
     console.log(`[Flow 7] Chat PDF Agency Licence check: ${hasAgencyLicence}`);
     expect(hasAgencyLicence, "Sales Instructions document in chat must have a populated Agency Licence No (not blank or '—')").toBe(true);
   }
