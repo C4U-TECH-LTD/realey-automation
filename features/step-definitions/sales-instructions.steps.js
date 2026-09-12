@@ -732,9 +732,24 @@ Then(
 
     // Display the PDF directly on the main scenario page so it is recorded in the final continuous walkthrough video!
     const returnChatUrl = page.url();
-    console.log(`[Flow 7] Displaying PDF on main scenario page for walkthrough video: ${pdfUrl}`);
+    console.log(`[Flow 7] Displaying and scrolling PDF on main scenario page for walkthrough video: ${pdfUrl}`);
     await page.goto(pdfUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1500);
+
+    // Focus inside PDF viewer and smoothly scroll through Page 1 -> Page 2 (Firm & Licence sections) -> Page 3 (bottom)
+    await page.mouse.move(600, 400).catch(() => {});
+    await page.mouse.click(600, 400).catch(() => {});
+    await page.waitForTimeout(800);
+
+    // Scroll down to Page 2 to visibly show Firm, Solicitor, Agent & Agency Licence details
+    await page.mouse.wheel(0, 800).catch(() => {});
+    await page.keyboard.press("PageDown").catch(() => {});
+    await page.waitForTimeout(1500);
+
+    // Scroll down to Page 3 to visibly show the bottom of the document
+    await page.mouse.wheel(0, 800).catch(() => {});
+    await page.keyboard.press("PageDown").catch(() => {});
+    await page.waitForTimeout(1500);
 
     // Return main scenario page cleanly back to the chatroom
     if (returnChatUrl && returnChatUrl !== page.url()) {
