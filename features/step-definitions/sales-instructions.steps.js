@@ -675,38 +675,80 @@ Then(
     await agentRow.click();
     await page.waitForTimeout(2000);
 
-    // Locate download button on the Sales Instructions document card
-    const downloadBtn = page.locator('button:has(svg.lucide-download), button:has([class*="download" i])').first();
+    // 1. Locate the View (eye) and Download buttons on the Sales Instructions document card
+    const viewBtn = page
+      .locator('button:has(svg.lucide-eye), button:has([class*="eye" i]), svg.lucide-eye')
+      .first();
+
     await expect(
-      downloadBtn,
-      "Sales Instructions document card in chat should have a download button"
+      viewBtn,
+      "Sales Instructions document card in chat should have a View (eye) button"
     ).toBeVisible({ timeout: 10000 });
 
-    const [download] = await Promise.all([
-      page.waitForEvent("download", { timeout: 15000 }),
-      downloadBtn.click(),
+    // 2. Open / view the Sales Instructions document on the frontend
+    console.log("[Flow 7] Opening Sales Instructions PDF on frontend via View button...");
+    const [popup] = await Promise.all([
+      page.waitForEvent("popup", { timeout: 15000 }),
+      viewBtn.click(),
     ]);
 
-    const tmpPath = path.join(
-      process.cwd(),
-      "scratch",
-      `chat_si_${Date.now()}.pdf`
-    );
-    await download.saveAs(tmpPath);
-    const pdfBuffer = fs.readFileSync(tmpPath);
-    const pdfText = extractPdfText(pdfBuffer);
+    await popup.waitForLoadState("domcontentloaded");
+    await popup.waitForURL((url) => !url.href.startsWith("about:blank"), { timeout: 15000 }).catch(() => {});
+    await popup.waitForTimeout(3000);
+
+    const pdfUrl = popup.url();
+    console.log(`[Flow 7] Sales Instructions PDF opened in frontend view: ${pdfUrl}`);
+    expect(pdfUrl, "Opened view must point to a valid Sales Instructions PDF").toMatch(/\.pdf/i);
+
+    // Capture screenshot of the opened PDF on the frontend and attach to test report
+    const pdfScreenshot = await popup.screenshot().catch(() => null);
+    if (pdfScreenshot && this.attach) {
+      await this.attach(pdfScreenshot, "image/png");
+    }
+
+    // 3. Obtain PDF content (via direct fetch from opened URL or fallback download)
+    let pdfBuffer;
     try {
-      fs.unlinkSync(tmpPath);
+      const res = await page.request.get(pdfUrl);
+      if (res.ok()) {
+        pdfBuffer = await res.body();
+      }
     } catch (_) {}
 
+    if (!pdfBuffer) {
+      const downloadBtn = page.locator('button:has(svg.lucide-download), button:has([class*="download" i])').first();
+      if (await downloadBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const [download] = await Promise.all([
+          page.waitForEvent("download", { timeout: 15000 }),
+          downloadBtn.click(),
+        ]);
+        const tmpPath = path.join(
+          process.cwd(),
+          "scratch",
+          `chat_si_${Date.now()}.pdf`
+        );
+        await download.saveAs(tmpPath);
+        pdfBuffer = fs.readFileSync(tmpPath);
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch (_) {}
+      }
+    }
+
+    // Close the popup viewer tab cleanly to return to chat
+    await popup.close().catch(() => {});
+
+    expect(pdfBuffer && pdfBuffer.length > 0, "PDF document buffer must be retrieved").toBe(true);
+
+    const pdfText = extractPdfText(pdfBuffer);
     console.log(`[Flow 7] Chat PDF extracted successfully (${pdfBuffer.length} bytes, text length: ${pdfText.length})`);
 
-    // 1. Assert Firm is populated and not blank (or '—')
+    // 4. Assert Firm is populated and not blank (or '—')
     const hasFirm = /Firm\s+[A-Za-z0-9]/i.test(pdfText) && !/Firm\s*—/i.test(pdfText);
     console.log(`[Flow 7] Chat PDF Firm check: ${hasFirm}`);
     expect(hasFirm, "Sales Instructions document in chat must have a populated Firm name (not blank or '—')").toBe(true);
 
-    // 2. Check Agent Licence No and Agency Licence No in PDF
+    // 5. Check Agent Licence No and Agency Licence No in PDF
     const hasAgentLicence = !/Ag\s*ent\s*Licen[cs]e\s*No\.?\s*—/i.test(pdfText) && /Ag\s*ent\s*Licen[cs]e\s*No\.?\s*[A-Za-z0-9]/i.test(pdfText);
     const hasAgencyLicence = !/Ag\s*enc\s*y\s*Licen[cs]e\s*No\.?\s*—/i.test(pdfText) && /Ag\s*enc\s*y\s*Licen[cs]e\s*No\.?\s*[A-Za-z0-9]/i.test(pdfText);
     const hasLicenceSections = /Ag\s*ent\s*Licen[cs]e\s*No/i.test(pdfText) && /Ag\s*enc\s*y\s*Licen[cs]e\s*No/i.test(pdfText);
