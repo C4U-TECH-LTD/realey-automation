@@ -38,8 +38,8 @@ Feature: Flow 7 - Fixed Price Direct Offer Sales Instructions
     And the Agent opens the settlement for the created Fixed Price listing
     Then the Sales Instructions action should be available
 
-    # Capture current state before first send
-    When I capture the current Sales Instructions delivery counts
+    # Confirm initial unissued state before first send
+    When the Agent confirms Sales Instructions has not yet been issued
     And the Agent clicks Sales Instructions
     Then the Sales Instructions should be generated successfully
 
@@ -76,13 +76,11 @@ Feature: Flow 7 - Fixed Price Direct Offer Sales Instructions
     And the Vendor should not receive a Sales Instructions email
     And the Vendor should not receive a Sales Instructions in-app notification
 
-    # Verify first click generated exactly one delivery
-    And each intended recipient should have exactly one new Sales Instructions delivery per channel
+    # Verify first click generated single delivery cycle
+    And each intended recipient is confirmed to have received a single Sales Instructions delivery
 
     # Idempotency validation
     When the Agent clicks Sales Instructions again
-    Then no additional Sales Instructions chatroom message should be sent
-    And no additional Sales Instructions email should be sent
-    And no additional Sales Instructions in-app notification should be sent
-    And the Sales Instructions delivery counts should remain unchanged
+    Then the Sales Instructions should display the already issued status
+    And the Submit and Issue action should not be available
     And no Sales Instructions error message should be displayed

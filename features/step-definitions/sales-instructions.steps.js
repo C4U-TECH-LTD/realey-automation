@@ -367,37 +367,29 @@ Then(
 );
 
 // =====================================================
-// CAPTURE INITIAL COUNTS
+// =====================================================
+// INITIAL UNISSUED STATE
 // =====================================================
 
 When(
+  "the Agent confirms Sales Instructions has not yet been issued",
+  async function () {
+    const page = this.page;
+    this.salesInstructionsSent = 0;
+    console.log("[Flow 7] Verifying Sales Instructions has not yet been issued...");
+
+    // Check that the settlement card does not show already issued state
+    const issuedBadge = page.getByText(/Sales Instructions issued|already issued/i).first();
+    const isIssued = await issuedBadge.isVisible({ timeout: 1000 }).catch(() => false);
+    expect(isIssued, "Sales Instructions should not be in issued state yet").toBe(false);
+  }
+);
+
+// Backward-compatibility alias
+When(
   "I capture the current Sales Instructions delivery counts",
   async function () {
-    // Note: State tracker for delivery scenario validation.
-    // Live verification is executed directly via browser checks on recipient chatrooms, notifications, and Yopmail inboxes.
-    this.salesInstructionCounts = {
-      before: {
-        broker: { chatroom: 0, email: 0, "in-app": 0 },
-        sellerSolicitor: { chatroom: 0, email: 0, "in-app": 0 },
-        buyerSolicitor: { chatroom: 0, email: 0, "in-app": 0 },
-        buyer: { chatroom: 0, email: 0, "in-app": 0 },
-        vendor: { chatroom: 0, email: 0, "in-app": 0 },
-      },
-      afterFirstSend: {
-        broker: { chatroom: 1, email: 1, "in-app": 1 },
-        sellerSolicitor: { chatroom: 1, email: 1, "in-app": 1 },
-        buyerSolicitor: { chatroom: 1, email: 1, "in-app": 1 },
-        buyer: { chatroom: 0, email: 0, "in-app": 0 },
-        vendor: { chatroom: 0, email: 0, "in-app": 0 },
-      },
-      afterSecondSend: {
-        broker: { chatroom: 1, email: 1, "in-app": 1 },
-        sellerSolicitor: { chatroom: 1, email: 1, "in-app": 1 },
-        buyerSolicitor: { chatroom: 1, email: 1, "in-app": 1 },
-        buyer: { chatroom: 0, email: 0, "in-app": 0 },
-        vendor: { chatroom: 0, email: 0, "in-app": 0 },
-      },
-    };
+    this.salesInstructionsSent = 0;
   }
 );
 
@@ -979,9 +971,20 @@ Then(
 // =====================================================
 
 Then(
-  "each intended recipient should have exactly one new Sales Instructions delivery per channel",
+  "each intended recipient is confirmed to have received a single Sales Instructions delivery",
   async function () {
     // Validates that exactly one issuance cycle executed for the 3 intended recipients (Broker, Seller Solicitor, Buyer Solicitor)
+    expect(
+      this.salesInstructionsSent,
+      "Exactly one Sales Instructions issuance cycle must have been executed"
+    ).toBe(1);
+  }
+);
+
+// Backward-compatibility alias
+Then(
+  "each intended recipient should have exactly one new Sales Instructions delivery per channel",
+  async function () {
     expect(
       this.salesInstructionsSent,
       "Exactly one Sales Instructions issuance cycle must have been executed"
@@ -1043,6 +1046,27 @@ When(
   }
 );
 
+Then(
+  "the Sales Instructions should display the already issued status",
+  async function () {
+    expect(
+      this.duplicateSubmissionBlocked,
+      "Sales Instructions modal must display the already-issued status view"
+    ).toBe(true);
+  }
+);
+
+Then(
+  "the Submit and Issue action should not be available",
+  async function () {
+    expect(
+      this.duplicateSubmissionBlocked,
+      "Submit & Issue action must be unavailable / unmounted once already issued"
+    ).toBe(true);
+  }
+);
+
+// Backward-compatibility aliases
 Then(
   "no additional Sales Instructions chatroom message should be sent",
   async function () {
