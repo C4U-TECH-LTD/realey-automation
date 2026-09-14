@@ -83,7 +83,7 @@ const salesInstructionsFlowData = {
     email:
       process.env.FLOW7_BUYER_EMAIL ||
       process.env.GENERAL_USER_EMAIL ||
-      "siamtest1999+3@gmail.com",
+      "buyer.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_BUYER_PASSWORD ||
@@ -94,6 +94,8 @@ const salesInstructionsFlowData = {
       process.env.FLOW7_BUYER_OTP ||
       process.env.GENERAL_USER_OTP ||
       "123456",
+
+    name: "Daniel Lyeon",
 
     searchText:
       "10 London Circuit",
@@ -124,9 +126,51 @@ const salesInstructionsFlowData = {
   },
 
   // =====================================================
-  // SOLICITOR
+  // SELLER SOLICITOR
   // =====================================================
 
+  sellerSolicitor: {
+    email:
+      process.env.FLOW7_SELLER_SOLICITOR_EMAIL ||
+      process.env.FLOW7_SOLICITOR_EMAIL ||
+      "solicitor.c4utest@yopmail.com",
+
+    password:
+      process.env.FLOW7_SELLER_SOLICITOR_PASSWORD ||
+      process.env.FLOW7_SOLICITOR_PASSWORD ||
+      "Test12345@",
+
+    otp:
+      process.env.FLOW7_SELLER_SOLICITOR_OTP ||
+      process.env.FLOW7_SOLICITOR_OTP ||
+      "123456",
+
+    name: "James Anderson",
+    searchText: "James",
+  },
+
+  // =====================================================
+  // BUYER SOLICITOR
+  // =====================================================
+
+  buyerSolicitor: {
+    email:
+      process.env.FLOW7_BUYER_SOLICITOR_EMAIL ||
+      "buyersolicitor.c4utest@yopmail.com",
+
+    password:
+      process.env.FLOW7_BUYER_SOLICITOR_PASSWORD ||
+      "Test12345@",
+
+    otp:
+      process.env.FLOW7_BUYER_SOLICITOR_OTP ||
+      "123456",
+
+    name: "Maxel Montana",
+    searchText: "Maxel",
+  },
+
+  // Legacy alias pointing to seller solicitor
   solicitor: {
     email:
       process.env.FLOW7_SOLICITOR_EMAIL ||
@@ -153,7 +197,7 @@ const salesInstructionsFlowData = {
       email:
         process.env.FLOW7_BUYER_EMAIL ||
         process.env.GENERAL_USER_EMAIL ||
-        "siamtest1999+3@gmail.com",
+        "buyer.c4utest@yopmail.com",
 
       password:
         process.env.FLOW7_BUYER_PASSWORD ||
@@ -164,22 +208,27 @@ const salesInstructionsFlowData = {
         process.env.FLOW7_BUYER_OTP ||
         process.env.GENERAL_USER_OTP ||
         "123456",
+
+      name: "Daniel Lyeon",
     },
 
     vendor: {
       email:
+        process.env.FLOW7_VENDOR_EMAIL ||
         process.env.VENDOR_EMAIL ||
-        "subratotest99.3@gmail.com",
+        "secondbuyer.c4utest@yopmail.com",
 
       password:
+        process.env.FLOW7_VENDOR_PASSWORD ||
         process.env.VENDOR_PASSWORD ||
         "Test12345@",
 
       otp:
+        process.env.FLOW7_VENDOR_OTP ||
         process.env.VENDOR_OTP ||
         "123456",
 
-      name: "Daniel Carter",
+      name: "Sandy Bosch",
     },
   },
 
@@ -189,7 +238,7 @@ const salesInstructionsFlowData = {
 
   settlement: {
     solicitorSearch:
-      "James Anderson",
+      "Maxel",
 
     brokerSearch:
       "Alen",

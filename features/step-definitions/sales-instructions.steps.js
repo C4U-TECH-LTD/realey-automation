@@ -820,7 +820,7 @@ Then(
 Then(
   "the Seller Solicitor should receive one Sales Instructions chatroom message",
   async function () {
-    await loginAsAccount(this, salesInstructionsFlowData.solicitor);
+    await loginAsAccount(this, salesInstructionsFlowData.sellerSolicitor);
     const hasChat = await checkChatroomMessage(
       this,
       salesInstructionsFlowData.expectedContent.chatroomMessage
@@ -835,7 +835,7 @@ Then(
   async function () {
     const yopmail = new YopmailHelper(this.page, this);
     const emailResult = await yopmail.waitForEmail(
-      salesInstructionsFlowData.solicitor.email,
+      salesInstructionsFlowData.sellerSolicitor.email,
       salesInstructionsFlowData.expectedContent.emailSubject,
       salesInstructionsFlowData.timeout.email
     );
@@ -863,7 +863,7 @@ Then(
 Then(
   "the Buyer Solicitor should receive one Sales Instructions chatroom message",
   async function () {
-    await loginAsAccount(this, salesInstructionsFlowData.solicitor);
+    await loginAsAccount(this, salesInstructionsFlowData.buyerSolicitor);
     const hasChat = await checkChatroomMessage(
       this,
       salesInstructionsFlowData.expectedContent.chatroomMessage
@@ -878,7 +878,7 @@ Then(
   async function () {
     const yopmail = new YopmailHelper(this.page, this);
     const emailResult = await yopmail.waitForEmail(
-      salesInstructionsFlowData.solicitor.email,
+      salesInstructionsFlowData.buyerSolicitor.email,
       salesInstructionsFlowData.expectedContent.emailSubject,
       salesInstructionsFlowData.timeout.email
     );
