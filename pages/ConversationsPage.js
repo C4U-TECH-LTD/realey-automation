@@ -1045,6 +1045,50 @@ class ConversationsPage {
       "Assigned Configure Progress Task List automatically appeared as expected"
     );
   }
+
+  /**
+   * Verify a recent message in the active chatroom/conversation.
+   * Strictly rejects messages with stale timestamps (e.g. 1 day ago, 2d ago, yesterday)
+   * and accepts only fresh timestamps (just now, Xs ago, Xm ago, today, HH:MM clock time).
+   */
+  async verifyRecentMessage(expectedRegex, propertyName = null, timeoutMs = 20000) {
+    const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago|\b\d{1,2}\/\d{1,2}\b)\b/i;
+    const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
+
+    if (propertyName) {
+      const propItem = this.page
+        .locator('div[class*="cursor-pointer"], tr, li')
+        .filter({ hasText: propertyName })
+        .first();
+      if (await propItem.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await propItem.click().catch(() => {});
+        await this.page.waitForTimeout(1000);
+      }
+    }
+
+    await this.clickChatTab().catch(() => {});
+
+    const pollStart = Date.now();
+    while (Date.now() - pollStart < timeoutMs) {
+      const chatRows = this.page
+        .locator('div, tr, [class*="chat" i], [class*="message" i]')
+        .filter({ hasText: expectedRegex });
+      const count = await chatRows.count();
+      for (let i = 0; i < count; i++) {
+        const rowText = await chatRows.nth(i).innerText().catch(() => "");
+        const isStale = staleTimePattern.test(rowText);
+        const isRecent = recentTimePattern.test(rowText);
+        if (isRecent && !isStale) {
+          console.log(`[ConversationsPage] Confirmed RECENT chat message: ${rowText.replace(/\n+/g, " ")}`);
+          return true;
+        } else if (isStale) {
+          console.warn(`[ConversationsPage] REJECTED stale chat message from past day: ${rowText.replace(/\n+/g, " ")}`);
+        }
+      }
+      await this.page.waitForTimeout(1500);
+    }
+    return false;
+  }
 }
 
 module.exports = {

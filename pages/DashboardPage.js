@@ -528,24 +528,34 @@ class DashboardPage {
 
         // Check if matching notification or any notification items are displayed
         if (expectedContent) {
-          const items = drawer.locator('div, li, a').filter({ hasText: new RegExp(expectedContent, "i") });
-          const count = await items.count();
-          const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
+          const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago|\b\d{1,2}\/\d{1,2}\b)\b/i;
           const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
 
+          const pollStart = Date.now();
+          const timeoutMs = 15000;
           let foundRecent = false;
-          for (let i = 0; i < count; i++) {
-            const itemText = await items.nth(i).innerText().catch(() => "");
-            const isStale = staleTimePattern.test(itemText);
-            const isRecent = recentTimePattern.test(itemText);
-            if (isRecent && !isStale) {
-              console.log(`Found recent notification with content "${expectedContent}": ${itemText.replace(/\n+/g, " ")}`);
-              foundRecent = true;
-              break;
-            } else if (isStale) {
-              console.warn(`Rejected stale notification from past day: ${itemText.replace(/\n+/g, " ")}`);
+
+          while (Date.now() - pollStart < timeoutMs) {
+            const items = drawer.locator('div, li, a').filter({ hasText: new RegExp(expectedContent, "i") });
+            const count = await items.count();
+
+            for (let i = 0; i < count; i++) {
+              const itemText = await items.nth(i).innerText().catch(() => "");
+              const isStale = staleTimePattern.test(itemText);
+              const isRecent = recentTimePattern.test(itemText);
+              if (isRecent && !isStale) {
+                console.log(`Found recent notification with content "${expectedContent}": ${itemText.replace(/\n+/g, " ")}`);
+                foundRecent = true;
+                break;
+              } else if (isStale) {
+                console.warn(`Rejected stale notification from past day: ${itemText.replace(/\n+/g, " ")}`);
+              }
             }
+
+            if (foundRecent) break;
+            await this.page.waitForTimeout(1500);
           }
+
           await expect(
             foundRecent,
             `In-app notification matching "${expectedContent}" must be recent (just now / today time), not from past days`

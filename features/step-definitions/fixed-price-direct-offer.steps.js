@@ -1,4 +1,5 @@
 const path = require("path");
+const { expect } = require("@playwright/test");
 const {
   Given,
   When,
@@ -445,19 +446,26 @@ When(
     const res = await yopmail.waitForEmail(
       account.email,
       /offer|new offer|received|direct offer/i,
-      25_000
+      35_000
     );
     console.log(
       `Agent YOPmail verification completed: ${
         res.found ? "Email Found" : "Check Completed"
       }`
     );
+    if (account.email && account.email.includes("yopmail")) {
+      expect(
+        res.found,
+        `Agent (${account.email}) must receive recent offer received email in YOPmail (just now or today clock time), not stale from past days`
+      ).toBe(true);
+    }
   }
 );
 
 When(
   "the General User checks the notification drawer for the offer accepted notification",
   async function () {
+    await this.dashboardPage.verifyNotificationBell();
     await this.dashboardPage.verifyAndManageNotification("accepted");
   }
 );
@@ -470,13 +478,55 @@ When(
     const res = await yopmail.waitForEmail(
       account.email,
       /accepted|offer accepted|congratulations/i,
-      25_000
+      35_000
     );
     console.log(
       `Buyer YOPmail verification completed: ${
         res.found ? "Email Found" : "Check Completed"
       }`
     );
+    if (account.email && account.email.includes("yopmail")) {
+      expect(
+        res.found,
+        `Buyer (${account.email}) must receive recent offer accepted email in YOPmail (just now or today clock time), not stale from past days`
+      ).toBe(true);
+    }
+  }
+);
+
+// =====================================================
+// CHATROOM STEPS (WITH STRICT TIMESTAMP CHECKING)
+// =====================================================
+
+When(
+  "the Agent checks the chatroom for the offer received message",
+  async function () {
+    const propTitle = this.createdListingTitle || listingData.location.expectedPropertyName;
+    await this.conversationsPage.openConversations();
+    const hasChat = await this.conversationsPage.verifyRecentMessage(
+      /offer|new offer|direct offer/i,
+      propTitle
+    );
+    expect(
+      hasChat,
+      "Agent must receive recent offer chatroom message (just now or today clock time), not stale from past days"
+    ).toBe(true);
+  }
+);
+
+When(
+  "the General User checks the chatroom for the offer accepted message",
+  async function () {
+    const propTitle = this.createdListingTitle || listingData.location.expectedPropertyName;
+    await this.conversationsPage.openConversations();
+    const hasChat = await this.conversationsPage.verifyRecentMessage(
+      /accepted|offer accepted/i,
+      propTitle
+    );
+    expect(
+      hasChat,
+      "Buyer must receive recent offer accepted chatroom message (just now or today clock time), not stale from past days"
+    ).toBe(true);
   }
 );
 
