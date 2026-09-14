@@ -194,6 +194,30 @@ class ConversationsPage {
       }
     }
 
+    // Look for isolated property cards
+    const cardCandidates = this.page
+      .locator('div[class*="rounded-2xl"], div[class*="bg-card"], div.border')
+      .filter({ hasText: new RegExp(shortName, "i") })
+      .filter({
+        has: this.page.locator(
+          "button.cursor-pointer, svg.lucide-chevron-down, svg.lucide-chevron-up, svg.lucide-chevron-right, [class*='lucide-chevron']"
+        ),
+      });
+
+    const cardCount = await cardCandidates.count();
+    if (cardCount > 0) {
+      // Prioritize card with "1 new" or "new" or "unread" badge
+      const newCard = cardCandidates.filter({ hasText: /\b(?:new|unread)\b/i }).first();
+      const matchedCard = (await newCard.isVisible({ timeout: 1500 }).catch(() => false))
+        ? newCard
+        : cardCandidates.first();
+
+      return {
+        propertyName: matchedCard.getByText(new RegExp(shortName, "i")).first(),
+        propertyRow: matchedCard,
+      };
+    }
+
     const propertyLocator = this.page
       .getByText(expectedPropertyName, { exact: true })
       .or(this.page.getByText(expectedPropertyName))
@@ -241,10 +265,11 @@ class ConversationsPage {
     const { propertyName, propertyRow } =
       await this.getPropertyRow(expectedPropertyName);
 
-    // If already expanded (e.g. Agent row or chevron-up is already visible), return
-    const isAlreadyExpanded =
-      (await propertyRow.locator("svg.lucide-chevron-up").isVisible().catch(() => false)) ||
-      (await propertyRow.locator("button, div").filter({ hasText: /\bAgent\b/i }).first().isVisible().catch(() => false));
+    // If already expanded in THIS property card, return
+    const isAlreadyExpanded = await propertyRow
+      .locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']")
+      .isVisible()
+      .catch(() => false);
 
     if (isAlreadyExpanded) {
       console.log(`Property conversation is already expanded: ${expectedPropertyName}`);
@@ -254,9 +279,9 @@ class ConversationsPage {
     const dropdownButton = propertyRow
       .locator("button")
       .filter({
-        has: this.page.locator("svg.lucide-chevron-down, svg.lucide-chevron-right"),
+        has: this.page.locator("svg.lucide-chevron-down, svg.lucide-chevron-right, [class*='lucide-chevron']"),
       })
-      .or(propertyRow.locator("svg.lucide-chevron-down, svg.lucide-chevron-right"))
+      .or(propertyRow.locator("button.cursor-pointer"))
       .first();
 
     if (
@@ -300,28 +325,42 @@ class ConversationsPage {
 
     const shortName = expectedPropertyName.split(",")[0].trim();
 
-    // 1. Check if the active chat header already matches BOTH the property and the Agent role
-    const activeHeader = this.page
-      .locator('header, div[class*="header"], [class*="chat-header"]')
-      .first();
-    const activeHeaderText = await activeHeader.innerText().catch(() => "");
-    const isAlreadyOpen =
-      this.page.url().includes("/chat/") &&
-      new RegExp(shortName, "i").test(activeHeaderText) &&
-      /\bAgent\b/i.test(activeHeaderText);
-
-    if (isAlreadyOpen) {
-      console.log(
-        `Agent/Buyer conversation for "${expectedPropertyName}" is already open.`
-      );
-      return;
+    // 1. Check if chatroom for this property or Agent is ALREADY open
+    if (this.page.url().includes("/chat/")) {
+      const chatContainer = this.page.locator(
+        'main, [class*="chat-container"], [class*="chat_container"]'
+      ).first();
+      const chatText = await chatContainer.innerText().catch(() => "");
+      if (new RegExp(shortName, "i").test(chatText) || /\bAgent\b/i.test(chatText)) {
+        console.log(
+          `Agent/Buyer conversation for "${expectedPropertyName}" is already open.`
+        );
+        return;
+      }
     }
 
     console.log(
       `Opening latest Agent/Buyer conversation for: ${expectedPropertyName}`
     );
 
-    // 2. Filter property list in sidebar if search input exists
+    // 2. Check if a direct unread conversation card is present at the top of the conversations page
+    const topCard = this.page
+      .locator('div[class*="cursor-pointer"], button[class*="cursor-pointer"], [role="button"]')
+      .filter({ hasText: /\bAgent\b|Subrato/i })
+      .filter({ hasText: /Counter offer|\$|negotiat/i })
+      .first();
+
+    if (await topCard.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log("Top unread conversation card found, clicking directly...");
+      await topCard.click();
+      const reachedChat = await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).then(() => true).catch(() => false);
+      if (reachedChat) {
+        console.log("Navigated to chatroom via top card:", this.page.url());
+        return;
+      }
+    }
+
+    // 3. Filter property list in sidebar if search input exists
     const searchInput = this.page
       .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
       .first();
@@ -331,47 +370,43 @@ class ConversationsPage {
       await this.page.waitForTimeout(1000);
     }
 
-    // 3. Expand the property row in sidebar
+    // 4. Expand the property card
     const propertyRow = await this.expandConversationList(expectedPropertyName);
     await this.page.waitForTimeout(1000);
 
-    // 4. Click the Agent child chat (strictly matching Agent badge/role, excluding Broker)
+    // 5. Click the Agent child chat (strictly matching Agent badge/role, excluding Broker)
     const agentChatButton = propertyRow
-      .locator('div[class*="cursor-pointer"], button[class*="cursor-pointer"], button.w-full, button, div')
-      .filter({ hasText: /\bAgent\b/i })
+      .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"]')
+      .filter({ hasText: /\bAgent\b|Subrato/i })
       .filter({ hasNotText: /\bBroker\b/i })
-      .or(
-        this.page
-          .locator('div[class*="cursor-pointer"], button.w-full, button')
-          .filter({ hasText: new RegExp(shortName, "i") })
-          .filter({ hasText: /\bAgent\b/i })
-          .filter({ hasNotText: /\bBroker\b/i })
-      )
-      .or(
-        propertyRow
-          .locator("button, div")
-          .filter({ hasText: /Subrato/i })
-          .filter({ hasNotText: /\bBroker\b/i })
-      )
       .first();
 
     if (await agentChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log("Agent child chat button found, clicking...");
+      console.log("Agent child chat button found, clicking to open chat...");
       await agentChatButton.click();
-      await this.page.waitForTimeout(1500);
 
-      // Verify chat opened with Agent
-      const headerNow = this.page.locator('header, div[class*="header"], [class*="chat-header"]').first();
+      // Wait for navigation into /chat/
+      const inChat = await this.page.waitForURL(/\/chat\//, { timeout: 15_000 }).then(() => true).catch(() => false);
+      if (!inChat) {
+        console.warn("URL did not change to /chat/, retrying force click on agent child button...");
+        await agentChatButton.click({ force: true });
+        await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+      }
+
+      // Verify chat container / elements visible (NOT generic site navbar header)
+      const chatTarget = this.page.locator(
+        'main, [class*="chat-container"], [class*="chat_container"], textarea, input[placeholder*="message" i], button:has-text("Decline"), button:has-text("Counter")'
+      ).first();
       await expect(
-        headerNow,
-        `Chat with Agent for ${expectedPropertyName} should be open`
-      ).toBeVisible({ timeout: 10_000 });
+        chatTarget,
+        `Chatroom with Agent for ${expectedPropertyName} should be open`
+      ).toBeVisible({ timeout: 15_000 });
       return;
     }
 
     // Fallback: click propertyRow itself
     await propertyRow.click();
-    await this.page.waitForTimeout(1500);
+    await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
   }
 
   async openAgentConversation(
@@ -394,20 +429,17 @@ class ConversationsPage {
     const shortName = expectedPropertyName.split(",")[0].trim();
 
     // 1. Check if buyer chat for this property is ALREADY open on screen
-    const activeHeader = this.page
-      .locator('header, div[class*="header"], [class*="chat-header"]')
-      .first();
-    const activeHeaderText = await activeHeader.innerText().catch(() => "");
-    const isAlreadyOpen =
-      this.page.url().includes("/chat/") &&
-      new RegExp(shortName, "i").test(activeHeaderText) &&
-      /\bBuyer\b/i.test(activeHeaderText);
-
-    if (isAlreadyOpen) {
-      console.log(
-        `Buyer conversation for "${expectedPropertyName}" is already open.`
-      );
-      return;
+    if (this.page.url().includes("/chat/")) {
+      const chatContainer = this.page.locator(
+        'main, [class*="chat-container"], [class*="chat_container"]'
+      ).first();
+      const chatText = await chatContainer.innerText().catch(() => "");
+      if (new RegExp(shortName, "i").test(chatText) || /\bBuyer\b/i.test(chatText)) {
+        console.log(
+          `Buyer conversation for "${expectedPropertyName}" is already open.`
+        );
+        return;
+      }
     }
 
     console.log(
@@ -429,7 +461,7 @@ class ConversationsPage {
 
     // 3. Specifically locate the Buyer child chat (excluding Agent and Broker)
     const buyerChatButton = propertyRow
-      .locator('div[class*="cursor-pointer"], button[class*="cursor-pointer"], button.w-full, button, div')
+      .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"]')
       .filter({ hasText: /\bBuyer\b/i })
       .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
       .or(
@@ -442,7 +474,21 @@ class ConversationsPage {
     if (await buyerChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log("Buyer child chat button found, clicking...");
       await buyerChatButton.click();
-      await this.page.waitForTimeout(2000);
+
+      const inChat = await this.page.waitForURL(/\/chat\//, { timeout: 15_000 }).then(() => true).catch(() => false);
+      if (!inChat) {
+        console.warn("URL did not change to /chat/, retrying force click on buyer child button...");
+        await buyerChatButton.click({ force: true });
+        await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+      }
+
+      const chatTarget = this.page.locator(
+        'main, [class*="chat-container"], [class*="chat_container"], textarea, input[placeholder*="message" i]'
+      ).first();
+      await expect(
+        chatTarget,
+        `Chat with Buyer for ${expectedPropertyName} should be open`
+      ).toBeVisible({ timeout: 15_000 });
       return;
     }
 
@@ -568,6 +614,20 @@ class ConversationsPage {
    * This method clicks "Decline" then confirms.
    */
   async declineNegotiation() {
+    // If not in /chat/ yet, try navigating into chat first
+    if (!this.page.url().includes("/chat/")) {
+      console.warn("[declineNegotiation] Not on /chat/ page yet. URL:", this.page.url());
+      const clickableChat = this.page
+        .locator('button.cursor-pointer, div[class*="cursor-pointer"], [role="button"]')
+        .filter({ hasText: /Counter offer|Agent|Subrato/i })
+        .first();
+      if (await clickableChat.isVisible({ timeout: 3000 }).catch(() => false)) {
+        console.log("[declineNegotiation] Clicking conversation item to enter chat...");
+        await clickableChat.click();
+        await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+      }
+    }
+
     // Wait for any loading spinner to detach first
     await this.page
       .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
@@ -596,29 +656,39 @@ class ConversationsPage {
 
     console.log("Decline button clicked by buyer");
 
-    // Some UIs show a confirmation dialog after clicking Decline
+    // Some UIs show a confirmation dialog after clicking Decline: "Decline Offer"
     const confirmDeclineButton = this.page
       .getByRole("button", {
-        name: /Decline Offer|Decline|Confirm/i,
+        name: /^Decline Offer$/i,
       })
-      .last();
+      .or(
+        this.page.getByRole("button", {
+          name: /Decline Offer|Confirm/i,
+        })
+      )
+      .or(
+        this.page.locator('div[role="dialog"] button:has-text("Decline"), div[role="dialog"] button:has-text("Confirm")')
+      )
+      .first();
 
     const confirmVisible = await confirmDeclineButton
-      .isVisible()
+      .isVisible({ timeout: 5000 })
       .catch(() => false);
 
     if (confirmVisible) {
       const isEnabled = await confirmDeclineButton
         .isEnabled()
-        .catch(() => false);
+        .catch(() => true);
 
       if (isEnabled) {
         await confirmDeclineButton.click();
         console.log("Decline confirmed in dialog");
       }
+    } else {
+      console.log("No confirmation dialog appeared, decline was direct");
     }
 
-    await this.page.waitForTimeout(1000);
+    await this.page.waitForTimeout(2000);
   }
 
   /**
@@ -1010,9 +1080,10 @@ class ConversationsPage {
     const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago|\b\d{1,2}\/\d{1,2}\b)\b/i;
     const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
 
-    if (propertyName) {
+    // Only click property item if NOT already in chat
+    if (propertyName && !this.page.url().includes("/chat/")) {
       const propItem = this.page
-        .locator('div[class*="cursor-pointer"], tr, li')
+        .locator('div[class*="cursor-pointer"], tr, li, button.cursor-pointer')
         .filter({ hasText: propertyName })
         .first();
       if (await propItem.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -1021,12 +1092,10 @@ class ConversationsPage {
       }
     }
 
-    await this.clickChatTab().catch(() => {});
-
     const pollStart = Date.now();
     while (Date.now() - pollStart < timeoutMs) {
       const chatRows = this.page
-        .locator('div, tr, [class*="chat" i], [class*="message" i]')
+        .locator('main, [class*="chat-container"], [class*="chat_container"], div, tr, [class*="chat" i], [class*="message" i]')
         .filter({ hasText: expectedRegex });
       const count = await chatRows.count();
       for (let i = 0; i < count; i++) {
