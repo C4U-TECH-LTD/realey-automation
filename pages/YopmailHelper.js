@@ -60,13 +60,34 @@ class YopmailHelper {
         const inboxFrame = page.frameLocator("#ifinbox");
         const bodyText = await inboxFrame.locator("body").innerText().catch(() => "");
 
-        if (subjectRegex.test(bodyText)) {
+        const staleDatePattern = /\b(?:\d{1,2}\/\d{1,2}|\d{1,2}\s+[A-Za-z]{3}|yesterday|\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago)\b/i;
+        const recentTimePattern = /(?:just now|\b\d{1,2}:\d{2}\b)/i;
+
+        const mailRows = inboxFrame.locator('.m, button.lm, tr, div').filter({ hasText: subjectRegex });
+        const count = await mailRows.count();
+
+        let recentMailItem = null;
+        for (let i = 0; i < count; i++) {
+          const item = mailRows.nth(i);
+          const mailRowText = await item.innerText().catch(() => "");
+          const isStale = staleDatePattern.test(mailRowText);
+          const isRecent = recentTimePattern.test(mailRowText);
+
+          if (isRecent && !isStale) {
+            console.log(`[YopmailHelper] Email matching ${subjectRegex} has valid recent timestamp (${mailRowText.replace(/\n+/g, " ")})`);
+            recentMailItem = item;
+            break;
+          } else if (isStale) {
+            console.warn(`[YopmailHelper] REJECTED stale email from past date for ${cleanUser}: ${mailRowText.replace(/\n+/g, " ")}`);
+          }
+        }
+
+        if (recentMailItem) {
           console.log(`[YopmailHelper] Email matching ${subjectRegex} FOUND for ${cleanUser}!`);
 
           // Click the email to display full email body in the viewer
-          const mailItem = inboxFrame.locator(`text=${subjectRegex}`).first();
-          if (await mailItem.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await mailItem.click().catch(() => {});
+          if (await recentMailItem.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await recentMailItem.click().catch(() => {});
             // Pause so the rendered email is visibly recorded in the final walkthrough video
             await page.waitForTimeout(2500);
           }

@@ -170,8 +170,8 @@ async function checkInAppNotification(target, expectedRegex) {
     const drawer = page.locator('[data-radix-popper-content-wrapper], [role="dialog"]').first();
 
     if (await drawer.isVisible({ timeout: 4000 }).catch(() => false)) {
-      const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
-      const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b)/i;
+      const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
+      const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
 
       // Check all individual notification items inside the drawer
       const notifItems = drawer.locator('div, li, a').filter({ hasText: expectedRegex });
@@ -265,8 +265,8 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     await page.waitForTimeout(1500);
   }
 
-  const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
-  const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b)/i;
+  const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
+  const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
 
   const helperFindRecentChat = async () => {
     // Find all chat rows / entries that contain the expected text
