@@ -423,7 +423,7 @@ class PropertyLocationPage {
   // ASSIGN SELLER SOLICITOR
   // =====================================================
 
-  async assignSellerSolicitor(solicitorSearch = "Jamess Anderson") {
+  async assignSellerSolicitor(solicitorSearch = "solicitor.c4utest@yopmail.com") {
     console.log("Checking for Assign Seller Solicitor on Location step...");
 
     const addBtn = this.page
@@ -438,7 +438,7 @@ class PropertyLocationPage {
     if (!isAddBtnVisible) {
       const selectedSolicitor = this.page
         .locator("*")
-        .filter({ hasText: /Jamess Anderson|Sam Altman|subratotest99/i })
+        .filter({ hasText: /solicitor\.c4utest|James Anderson|subratotest99/i })
         .filter({ visible: true })
         .first();
 
@@ -476,29 +476,29 @@ class PropertyLocationPage {
     if (await searchInput.isVisible().catch(() => false)) {
       console.log(`Searching solicitor with: ${solicitorSearch}`);
       await searchInput.fill(solicitorSearch);
-      await this.page.waitForTimeout(700);
+      await this.page.waitForTimeout(1000);
     }
 
-    // Match Jamess Anderson or email subratotest99.2@gmail.com
+    // Match solicitor.c4utest@yopmail.com or James Anderson
     const targetOption = this.page
       .locator("*")
-      .filter({ hasText: /Jamess Anderson|subratotest99\.2@gmail\.com/i })
+      .filter({ hasText: /solicitor\.c4utest@yopmail\.com/i })
       .filter({ visible: true })
       .last();
 
     if (await targetOption.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      console.log("Clicking 'Jamess Anderson' solicitor card...");
+      console.log("Clicking 'solicitor.c4utest@yopmail.com' (James Anderson) solicitor card...");
       await targetOption.click();
     } else {
-      const samOption = this.page
+      const altOption = this.page
         .locator("*")
-        .filter({ hasText: /Sam Altman/i })
+        .filter({ hasText: /James Anderson|Jamess Anderson/i })
         .filter({ visible: true })
         .last();
 
-      if (await samOption.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        console.log("Clicking 'Sam Altman' solicitor card...");
-        await samOption.click();
+      if (await altOption.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        console.log("Clicking 'James Anderson' fallback solicitor card...");
+        await altOption.click();
       } else {
         console.warn(`Could not find "${solicitorSearch}", selecting first available solicitor option...`);
         const firstOption = this.page
