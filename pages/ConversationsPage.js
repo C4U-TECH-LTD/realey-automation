@@ -216,7 +216,7 @@ class ConversationsPage {
      */
     const propertyRow = propertyLocator.locator(
       "xpath=ancestor::div[" +
-        ".//button[.//*[contains(@class,'lucide-chevron-down') or contains(@class,'lucide-chevron-up')]]" +
+        ".//button[.//*[contains(@class,'lucide-chevron-down') or contains(@class,'lucide-chevron-up') or contains(@class,'lucide-chevron-right')]]" +
         " or " +
         ".//*[contains(normalize-space(.),'chat')]" +
         " or " +
@@ -244,7 +244,7 @@ class ConversationsPage {
     // If already expanded (e.g. Agent row or chevron-up is already visible), return
     const isAlreadyExpanded =
       (await propertyRow.locator("svg.lucide-chevron-up").isVisible().catch(() => false)) ||
-      (await propertyRow.locator("button, div").filter({ hasText: /Agent/i }).first().isVisible().catch(() => false));
+      (await propertyRow.locator("button, div").filter({ hasText: /\bAgent\b/i }).first().isVisible().catch(() => false));
 
     if (isAlreadyExpanded) {
       console.log(`Property conversation is already expanded: ${expectedPropertyName}`);
@@ -253,8 +253,10 @@ class ConversationsPage {
 
     const dropdownButton = propertyRow
       .locator("button")
-      .filter({ has: this.page.locator("svg.lucide-chevron-down") })
-      .or(propertyRow.locator("svg.lucide-chevron-down"))
+      .filter({
+        has: this.page.locator("svg.lucide-chevron-down, svg.lucide-chevron-right"),
+      })
+      .or(propertyRow.locator("svg.lucide-chevron-down, svg.lucide-chevron-right"))
       .first();
 
     if (
@@ -279,7 +281,7 @@ class ConversationsPage {
       `Dropdown not found. Clicking property row: ${expectedPropertyName}`
     );
 
-    await propertyRow.locator("button.cursor-pointer, button.w-full").first().click().catch(async () => {
+    await propertyRow.locator("button.cursor-pointer, button.w-full, div.cursor-pointer").first().click().catch(async () => {
       await propertyName.click();
     });
     await this.page.waitForTimeout(1000);
@@ -298,40 +300,15 @@ class ConversationsPage {
 
     const shortName = expectedPropertyName.split(",")[0].trim();
 
-    const waitForChatOpened = async (timeoutMs = 15_000) => {
-      const startTime = Date.now();
-      while (Date.now() - startTime < timeoutMs) {
-        if (
-          this.page.url().includes("/chat/") ||
-          (await this.counterNegotiateButton.isVisible().catch(() => false)) ||
-          (await this.acceptButton.isVisible().catch(() => false)) ||
-          (await this.page.getByText(/Counter offer:|Agent countered/i).last().isVisible().catch(() => false)) ||
-          (await this.getChatroomTab("Progress").isVisible().catch(() => false)) ||
-          (await this.page.locator('textarea, input[placeholder*="message" i]').first().isVisible().catch(() => false))
-        ) {
-          return true;
-        }
-        await this.page.waitForTimeout(500);
-      }
-      return false;
-    };
-
-    // 1. If chatroom for this property is ALREADY open, return immediately
+    // 1. Check if the active chat header already matches BOTH the property and the Agent role
+    const activeHeader = this.page
+      .locator('header, div[class*="header"], [class*="chat-header"]')
+      .first();
+    const activeHeaderText = await activeHeader.innerText().catch(() => "");
     const isAlreadyOpen =
-      (this.page.url().includes("/chat/") &&
-        (await this.page.getByText(new RegExp(shortName, "i")).first().isVisible().catch(() => false))) ||
-      (await this.page
-        .locator('header, div[class*="header"], [class*="chat-header"]')
-        .filter({ hasText: /Agent|Subrato/i })
-        .filter({ hasText: new RegExp(shortName, "i") })
-        .first()
-        .isVisible()
-        .catch(() => false)) ||
-      (await this.page
-        .getByText(new RegExp(`Settlement setup completed for.*${shortName}`, "i"))
-        .first()
-        .isVisible()
-        .catch(() => false));
+      this.page.url().includes("/chat/") &&
+      new RegExp(shortName, "i").test(activeHeaderText) &&
+      /\bAgent\b/i.test(activeHeaderText);
 
     if (isAlreadyOpen) {
       console.log(
@@ -344,104 +321,57 @@ class ConversationsPage {
       `Opening latest Agent/Buyer conversation for: ${expectedPropertyName}`
     );
 
-    // If in chat hub / chat view where chat list is in sidebar, try clicking direct agent chat
-    if (this.page.url().includes("/chat/")) {
-      const directAgentChat = this.page
-        .locator("button")
-        .filter({ hasText: new RegExp(shortName, "i") })
-        .filter({ hasText: /Agent|Subrato/i })
-        .first();
-
-      if (await directAgentChat.isVisible({ timeout: 2000 }).catch(() => false)) {
-        console.log("Direct agent chat row found in sidebar, clicking...");
-        await directAgentChat.click();
-        if (await waitForChatOpened(5000)) {
-          return;
-        }
-      }
+    // 2. Filter property list in sidebar if search input exists
+    const searchInput = this.page
+      .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
+      .first();
+    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`Filtering conversation list by: ${shortName}`);
+      await searchInput.fill(shortName);
+      await this.page.waitForTimeout(1000);
     }
 
-    /*
-     * Step 1:
-     * Find FIRST property from top and expand it.
-     */
-    const propertyRow =
-      await this.expandConversationList(
-        expectedPropertyName
-      );
-
+    // 3. Expand the property row in sidebar
+    const propertyRow = await this.expandConversationList(expectedPropertyName);
     await this.page.waitForTimeout(1000);
 
-    /*
-     * Step 2:
-     * After expanding the property row, click the child chat button (Agent / Subrato Pal).
-     */
-    const childChatButton = propertyRow
-      .locator("button")
-      .filter({ hasText: /Subrato|Agent/i })
+    // 4. Click the Agent child chat (strictly matching Agent badge/role, excluding Broker)
+    const agentChatButton = propertyRow
+      .locator('div[class*="cursor-pointer"], button[class*="cursor-pointer"], button.w-full, button, div')
+      .filter({ hasText: /\bAgent\b/i })
+      .filter({ hasNotText: /\bBroker\b/i })
       .or(
         this.page
-          .locator("button.w-full, button")
-          .filter({ hasText: /Subrato/i })
-          .filter({ hasText: /Agent|Counter|offer|\$/i })
+          .locator('div[class*="cursor-pointer"], button.w-full, button')
+          .filter({ hasText: new RegExp(shortName, "i") })
+          .filter({ hasText: /\bAgent\b/i })
+          .filter({ hasNotText: /\bBroker\b/i })
       )
-      .last();
-
-    if (await childChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log("Agent/Buyer child chat button found, clicking...");
-      await childChatButton.click();
-      if (await waitForChatOpened(15_000)) {
-        console.log("Chatroom opened successfully after clicking child chat button.");
-        return;
-      }
-    }
-
-    /*
-     * Step 3:
-     * Fallback: try roleConversation inside propertyRow
-     */
-    const roleConversation = propertyRow
-      .locator("button, div")
-      .filter({ has: this.page.getByText(/Buyer/i) })
-      .filter({ has: this.page.getByText(/Agent/i) })
-      .last();
-
-    if (await roleConversation.isVisible({ timeout: 3000 }).catch(() => false)) {
-      console.log("Agent/Buyer conversation found inside selected property.");
-      await roleConversation.click();
-      if (await waitForChatOpened(10_000)) {
-        return;
-      }
-    }
-
-    /*
-     * Step 4:
-     * Fallback: chatCount button
-     */
-    const chatCount = propertyRow
-      .getByText(/\d+\s*chat(?:s)?/i)
+      .or(
+        propertyRow
+          .locator("button, div")
+          .filter({ hasText: /Subrato/i })
+          .filter({ hasNotText: /\bBroker\b/i })
+      )
       .first();
 
-    if (await chatCount.isVisible({ timeout: 3000 }).catch(() => false)) {
-      console.log(`Opening available chat via chat count for ${expectedPropertyName}`);
-      await chatCount.click();
-      if (await waitForChatOpened(10_000)) {
-        return;
-      }
-    }
+    if (await agentChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log("Agent child chat button found, clicking...");
+      await agentChatButton.click();
+      await this.page.waitForTimeout(1500);
 
-    /*
-     * Step 5:
-     * Last fallback: click propertyRow itself
-     */
-    await propertyRow.click();
-    if (await waitForChatOpened(10_000)) {
+      // Verify chat opened with Agent
+      const headerNow = this.page.locator('header, div[class*="header"], [class*="chat-header"]').first();
+      await expect(
+        headerNow,
+        `Chat with Agent for ${expectedPropertyName} should be open`
+      ).toBeVisible({ timeout: 10_000 });
       return;
     }
 
-    throw new Error(
-      `Could not open Agent/Buyer conversation for "${expectedPropertyName}".`
-    );
+    // Fallback: click propertyRow itself
+    await propertyRow.click();
+    await this.page.waitForTimeout(1500);
   }
 
   async openAgentConversation(
@@ -463,16 +393,15 @@ class ConversationsPage {
 
     const shortName = expectedPropertyName.split(",")[0].trim();
 
-    // 1. If buyer chat is ALREADY open on screen, return
+    // 1. Check if buyer chat for this property is ALREADY open on screen
+    const activeHeader = this.page
+      .locator('header, div[class*="header"], [class*="chat-header"]')
+      .first();
+    const activeHeaderText = await activeHeader.innerText().catch(() => "");
     const isAlreadyOpen =
-      (this.page.url().includes("/chat/") &&
-        (await this.page.getByText(/Buyer|Siam/i).first().isVisible().catch(() => false))) ||
-      (await this.page
-        .locator('header, div[class*="header"], [class*="chat-header"]')
-        .filter({ hasText: /Buyer|Siam/i })
-        .first()
-        .isVisible()
-        .catch(() => false));
+      this.page.url().includes("/chat/") &&
+      new RegExp(shortName, "i").test(activeHeaderText) &&
+      /\bBuyer\b/i.test(activeHeaderText);
 
     if (isAlreadyOpen) {
       console.log(
@@ -485,16 +414,24 @@ class ConversationsPage {
       `Opening Buyer conversation for: ${expectedPropertyName}`
     );
 
+    // Filter via sidebar search if present
+    const searchInput = this.page
+      .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
+      .first();
+    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await searchInput.fill(shortName);
+      await this.page.waitForTimeout(1000);
+    }
+
     // 2. Expand property row
-    const propertyRow = await this.expandConversationList(
-      expectedPropertyName
-    );
+    const propertyRow = await this.expandConversationList(expectedPropertyName);
     await this.page.waitForTimeout(1000);
 
-    // 3. Specifically locate the Buyer child chat (e.g. Siam Mondol [Buyer])
+    // 3. Specifically locate the Buyer child chat (excluding Agent and Broker)
     const buyerChatButton = propertyRow
-      .locator("button")
-      .filter({ hasText: /Buyer|Siam/i })
+      .locator('div[class*="cursor-pointer"], button[class*="cursor-pointer"], button.w-full, button, div')
+      .filter({ hasText: /\bBuyer\b/i })
+      .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
       .or(
         propertyRow
           .locator("button")
@@ -641,7 +578,9 @@ class ConversationsPage {
     const declineButton = this.page.getByRole("button", {
       name: "Decline",
       exact: true,
-    });
+    }).or(
+      this.page.locator('button:has-text("Decline")')
+    ).first();
 
     await expect(
       declineButton,
