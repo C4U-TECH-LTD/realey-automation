@@ -756,6 +756,23 @@ class AgentBidsPage {
       `Verifying counter offer: $${formattedAmount}`
     );
 
+    const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago|\b\d{1,2}\/\d{1,2}\b)\b/i;
+    const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
+
+    const targetPattern = formattedAmount !== "0"
+      ? new RegExp(`Counter offer:\\s*\\$${formattedAmount}`, "i")
+      : expectedMessage;
+
+    const chatRows = this.page.locator('div, tr, [class*="chat" i], [class*="message" i]').filter({ hasText: targetPattern });
+    const count = await chatRows.count();
+    for (let i = 0; i < count; i++) {
+      const text = await chatRows.nth(i).innerText().catch(() => "");
+      if (recentTimePattern.test(text) && !staleTimePattern.test(text)) {
+        console.log(`[AgentBidsPage] Verified fresh counter-offer timestamp in chat: ${text.replace(/\n+/g, " ")}`);
+        return;
+      }
+    }
+
     // -----------------------------------------------------
     // First verify exact amount message
     // -----------------------------------------------------

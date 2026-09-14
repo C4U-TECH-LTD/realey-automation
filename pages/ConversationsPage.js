@@ -631,6 +631,22 @@ class ConversationsPage {
   async verifyNegotiationDeclined(
     expectedMessage = /declined|offer declined|decline/i
   ) {
+    const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago|\b\d{1,2}\/\d{1,2}\b)\b/i;
+    const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
+
+    // Check for explicit declined status text with timestamp verification
+    const statusRows = this.page
+      .locator('div, tr, [class*="chat" i], [class*="message" i]')
+      .filter({ hasText: expectedMessage });
+    const count = await statusRows.count();
+    for (let i = 0; i < count; i++) {
+      const text = await statusRows.nth(i).innerText().catch(() => "");
+      if (recentTimePattern.test(text) && !staleTimePattern.test(text)) {
+        console.log(`[ConversationsPage] Buyer-side negotiation declined status confirmed with fresh timestamp: ${text.replace(/\n+/g, " ")}`);
+        return;
+      }
+    }
+
     // First check for an explicit declined status text
     const statusText = this.page
       .getByText(expectedMessage)

@@ -549,10 +549,20 @@ When(
 When(
   "the Second Buyer opens the Passed-In Auction Declined agent conversation",
   async function () {
-    await this.conversationsPage.openAgentConversation(
-      passedInAuctionDeclinedFlowData.agent.listing
-        .expectedPropertyName
+    const propName =
+      passedInAuctionDeclinedFlowData.agent.listing.expectedPropertyName;
+    await this.conversationsPage.openAgentConversation(propName);
+
+    // Strict timestamp freshness check: counter offer message in chat must be recent (just now / today time) and not stale from past days
+    const hasRecentMessage = await this.conversationsPage.verifyRecentMessage(
+      /Counter offer|negotiat|\$/i,
+      propName,
+      15000
     );
+    expect(
+      hasRecentMessage,
+      "Second Buyer must see fresh counter offer message with recent timestamp (just now or today clock time), not stale from past days"
+    ).toBe(true);
   }
 );
 
