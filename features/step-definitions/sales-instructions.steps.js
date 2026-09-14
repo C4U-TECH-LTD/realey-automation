@@ -170,10 +170,31 @@ async function checkInAppNotification(target, expectedRegex) {
     const drawer = page.locator('[data-radix-popper-content-wrapper], [role="dialog"]').first();
 
     if (await drawer.isVisible({ timeout: 4000 }).catch(() => false)) {
-      const drawerText = await drawer.innerText().catch(() => "");
-      console.log(`[Flow 7] Notification drawer text: ${drawerText.substring(0, 200).replace(/\n+/g, " ")}`);
+      const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
+      const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b)/i;
+
+      // Check all individual notification items inside the drawer
+      const notifItems = drawer.locator('div, li, a').filter({ hasText: expectedRegex });
+      const count = await notifItems.count();
+      console.log(`[Flow 7] Found ${count} notification element(s) matching ${expectedRegex}`);
+
+      let foundRecent = false;
+      for (let i = 0; i < count; i++) {
+        const itemText = await notifItems.nth(i).innerText().catch(() => "");
+        const isStale = staleTimePattern.test(itemText);
+        const isRecent = recentTimePattern.test(itemText);
+
+        if (isRecent && !isStale) {
+          console.log(`[Flow 7] Confirmed RECENT notification timestamp: ${itemText.replace(/\n+/g, " ")}`);
+          foundRecent = true;
+          break;
+        } else if (isStale) {
+          console.warn(`[Flow 7] REJECTED stale notification from past run: ${itemText.replace(/\n+/g, " ")}`);
+        }
+      }
+
       await page.keyboard.press("Escape").catch(() => {});
-      return expectedRegex.test(drawerText);
+      return foundRecent;
     }
   } else {
     console.warn(`[Flow 7] In-app notification bell was not visible on ${page.url()}`);
@@ -206,7 +227,6 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     } else if (conversationsPage) {
       await conversationsPage.openConversations().catch(() => {});
     } else {
-      // Fallback: direct navigation using authentic dashboard query param
       const url = page.url();
       let fallbackUrl = "/dashboard/general-user?tab=conversations";
       if (url.includes("/dashboard/agent")) {
@@ -237,14 +257,7 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
 
   const shortName = (propertyName || "10 London Circuit").split(",")[0].trim();
 
-  // If chat message is already visible in page text, return true immediately
-  let bodyText = await page.locator("body").innerText().catch(() => "");
-  if (expectedRegex.test(bodyText)) {
-    console.log(`[Flow 7] Chatroom message matching ${expectedRegex} detected immediately!`);
-    return true;
-  }
-
-  // Click matching property accordion card header to expand
+  // Expand top property accordion matching the property name
   const propHeader = page.getByText(new RegExp(shortName, "i")).first();
   if (await propHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
     await propHeader.scrollIntoViewIfNeeded().catch(() => {});
@@ -252,16 +265,37 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     await page.waitForTimeout(1500);
   }
 
-  // Poll for up to 10s to allow for WebSocket / backend chat delivery latency
+  const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
+  const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b)/i;
+
+  const helperFindRecentChat = async () => {
+    // Find all chat rows / entries that contain the expected text
+    const chatRows = page.locator('div, tr, [class*="chat" i], [class*="message" i]').filter({ hasText: expectedRegex });
+    const count = await chatRows.count();
+
+    for (let i = 0; i < count; i++) {
+      const rowText = await chatRows.nth(i).innerText().catch(() => "");
+      const isStale = staleTimePattern.test(rowText);
+      const isRecent = recentTimePattern.test(rowText);
+
+      if (isRecent && !isStale) {
+        console.log(`[Flow 7] Confirmed RECENT chatroom message: ${rowText.replace(/\n+/g, " ")}`);
+        return true;
+      } else if (isStale) {
+        console.warn(`[Flow 7] REJECTED stale chatroom message from past run: ${rowText.replace(/\n+/g, " ")}`);
+      }
+    }
+    return false;
+  };
+
+  // Poll for up to 10s for WebSocket / backend delivery
   const startedAt = Date.now();
   const timeoutMs = 10000;
   while (Date.now() - startedAt < timeoutMs) {
-    bodyText = await page.locator("body").innerText().catch(() => "");
-    if (expectedRegex.test(bodyText)) {
-      console.log(`[Flow 7] Chatroom message matching ${expectedRegex} detected!`);
+    if (await helperFindRecentChat()) {
       return true;
     }
-    // Re-click if it was collapsed by accident after 4s
+    // Re-expand accordion if needed after 4s
     if (Date.now() - startedAt > 4000 && Date.now() - startedAt < 5500) {
       if (await propHeader.isVisible().catch(() => false)) {
         await propHeader.click().catch(() => {});
@@ -270,7 +304,7 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     await page.waitForTimeout(1000);
   }
 
-  console.log(`[Flow 7] Chatroom message matching ${expectedRegex} not found within ${timeoutMs}ms`);
+  console.log(`[Flow 7] No recent chatroom message matching ${expectedRegex} found within ${timeoutMs}ms`);
   return false;
 }
 
