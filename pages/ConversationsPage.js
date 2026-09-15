@@ -34,18 +34,21 @@ class ConversationsPage {
       .or(this.page.locator('button:has-text("Go to Conversation")'))
       .first();
 
-    if (await goToConvBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await goToConvBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
       console.log("Clicking 'Go to Conversation' button from modal...");
       await goToConvBtn.click();
+      await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
       await this.page.waitForLoadState("domcontentloaded");
       await this.page.waitForTimeout(1000);
-      return;
+      if (this.page.url().includes("tab=conversations") || this.page.url().includes("/chat/")) {
+        return;
+      }
     }
 
     // 2. Dismiss any open modal/dialog if present
     const closeDialogBtn = this.page
       .locator(
-        '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i]'
+        '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i], [role="dialog"] button:has-text("Close"), [role="dialog"] button:has-text("✕")'
       )
       .first();
     if (await closeDialogBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -53,88 +56,82 @@ class ConversationsPage {
       await this.page.waitForTimeout(500);
     }
 
-    const alreadyOnConversation =
-      (await this.counterNegotiateButton
-        .isVisible()
-        .catch(() => false)) ||
-      (await this.page
-        .getByText(/Counter offer:/i)
-        .first()
-        .isVisible()
-        .catch(() => false)) ||
-      this.page.url().includes("tab=conversations") ||
-      this.page.url().includes("/chat/");
-
-    if (alreadyOnConversation) {
-      console.log("Already on conversation page");
+    // 3. Strictly check URL: only already on conversations if URL contains tab=conversations
+    if (this.page.url().includes("tab=conversations")) {
+      console.log("Already on conversations page:", this.page.url());
       return;
     }
 
-    let conversationsVisible = await this.conversationsButton
-      .isVisible()
-      .catch(() => false);
+    // 4. If sidebar Conversations button is visible right now, click it
+    let convBtn = this.page
+      .getByRole("button", { name: "Conversations", exact: true })
+      .or(this.page.locator('aside, nav, [class*="sidebar"]').locator('text=Conversations').first())
+      .first();
 
-    if (!conversationsVisible) {
-      // Try direct navigation fallback based on current dashboard/user context
-      const isAgent = this.page.url().includes("agent");
-      const fallbackUrl = isAgent
-        ? "/dashboard/agent?tab=conversations"
-        : "/dashboard/general-user?tab=conversations";
-
-      try {
-        await this.page.goto(fallbackUrl, { waitUntil: "domcontentloaded" });
-        await this.page.waitForTimeout(1000);
-
-        conversationsVisible = await this.conversationsButton
-          .isVisible()
-          .catch(() => false);
-
-        if (this.page.url().includes("tab=conversations")) {
-          return;
-        }
-      } catch {}
-    }
-
-    if (!conversationsVisible) {
-      const profileName = this.page
-        .locator("span.text-xs.font-medium")
-        .filter({ hasText: /\S+/ })
-        .first();
-
-      if (await profileName.isVisible({ timeout: 5000 }).catch(() => false)) {
-        const profileInner = profileName.locator(
-          "xpath=ancestor::div[contains(@class,'items-center')]" +
-            "[.//*[contains(@class,'lucide-chevron-down')]][1]"
-        );
-
-        const profileButton = profileInner.locator(
-          "xpath=ancestor::button[1]"
-        );
-
-        if (
-          await profileButton
-            .isVisible()
-            .catch(() => false)
-        ) {
-          await profileButton.click();
-        } else {
-          await profileInner.click();
-        }
-
-        const viewDashboard = this.page.getByRole("menuitem", {
-          name: "View Dashboard",
-          exact: true,
-        });
-
-        if (await viewDashboard.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await viewDashboard.click();
-          await this.page.waitForLoadState("domcontentloaded");
-          await this.page.waitForTimeout(1000);
-        }
+    if (await convBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await convBtn.click();
+      await this.page.waitForURL(/tab=conversations/, { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForLoadState("domcontentloaded");
+      await this.page.waitForTimeout(1000);
+      if (this.page.url().includes("tab=conversations")) {
+        return;
       }
     }
 
-    const convBtn = this.page
+    // 5. Direct navigation fallback if sidebar not visible (e.g. from listing detail page)
+    const currentUrl = this.page.url();
+    let fallbackUrl = "/dashboard/general-user?tab=conversations";
+    if (currentUrl.includes("/dashboard/agent") || currentUrl.includes("/agent")) {
+      fallbackUrl = "/dashboard/agent?tab=conversations";
+    } else if (currentUrl.includes("/dashboard/solicitor") || currentUrl.includes("/solicitor")) {
+      fallbackUrl = "/dashboard/solicitor?tab=conversations";
+    } else if (currentUrl.includes("/dashboard/mortgage-broker") || currentUrl.includes("/mortgage-broker")) {
+      fallbackUrl = "/dashboard/mortgage-broker?tab=conversations";
+    }
+
+    try {
+      console.log(`Navigating to fallback conversations URL: ${fallbackUrl}`);
+      await this.page.goto(fallbackUrl, { waitUntil: "domcontentloaded" });
+      await this.page.waitForURL(/tab=conversations/, { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForTimeout(1000);
+      if (this.page.url().includes("tab=conversations")) {
+        return;
+      }
+    } catch {}
+
+    // 6. If direct navigation didn't reach conversations, try profile menu "View Dashboard"
+    const profileName = this.page
+      .locator("span.text-xs.font-medium, [class*='avatar']")
+      .filter({ hasText: /\S+/ })
+      .first();
+
+    if (await profileName.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const profileInner = profileName.locator(
+        "xpath=ancestor::div[contains(@class,'items-center')]" +
+          "[.//*[contains(@class,'lucide-chevron-down')]][1]"
+      );
+
+      const profileButton = profileInner.locator("xpath=ancestor::button[1]");
+
+      if (await profileButton.isVisible().catch(() => false)) {
+        await profileButton.click();
+      } else {
+        await profileInner.click();
+      }
+
+      const viewDashboard = this.page.getByRole("menuitem", {
+        name: "View Dashboard",
+        exact: true,
+      });
+
+      if (await viewDashboard.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await viewDashboard.click();
+        await this.page.waitForLoadState("domcontentloaded");
+        await this.page.waitForTimeout(1000);
+      }
+    }
+
+    convBtn = this.page
       .getByRole("button", { name: "Conversations", exact: true })
       .or(this.page.locator('aside, nav, [class*="sidebar"]').locator('text=Conversations').first())
       .first();
@@ -145,9 +142,9 @@ class ConversationsPage {
     ).toBeVisible({ timeout: 20_000 });
 
     await convBtn.click();
-
+    await this.page.waitForURL(/tab=conversations/, { timeout: 15_000 }).catch(() => {});
     await this.page.waitForLoadState("domcontentloaded");
-    await this.page.waitForTimeout(700);
+    await this.page.waitForTimeout(1000);
   }
 
   /**
@@ -325,13 +322,19 @@ class ConversationsPage {
 
     const shortName = expectedPropertyName.split(",")[0].trim();
 
-    // 1. Check if chatroom for this property or Agent is ALREADY open
+    // 0. Ensure we are on conversations page or chatroom
+    if (!this.page.url().includes("tab=conversations") && !this.page.url().includes("/chat/")) {
+      console.log("Not on conversations page or chat, opening conversations first...");
+      await this.openConversations();
+    }
+
+    // 1. Check if chatroom for this property is ALREADY open
     if (this.page.url().includes("/chat/")) {
       const chatContainer = this.page.locator(
         'main, [class*="chat-container"], [class*="chat_container"]'
       ).first();
       const chatText = await chatContainer.innerText().catch(() => "");
-      if (new RegExp(shortName, "i").test(chatText) || /\bAgent\b/i.test(chatText)) {
+      if (new RegExp(shortName, "i").test(chatText)) {
         console.log(
           `Agent/Buyer conversation for "${expectedPropertyName}" is already open.`
         );
@@ -343,11 +346,11 @@ class ConversationsPage {
       `Opening latest Agent/Buyer conversation for: ${expectedPropertyName}`
     );
 
-    // 2. Check if a direct unread conversation card is present at the top of the conversations page
+    // 2. Check if a direct unread conversation card is present for this property
     const topCard = this.page
       .locator('div[class*="cursor-pointer"], button[class*="cursor-pointer"], [role="button"]')
+      .filter({ hasText: new RegExp(shortName, "i") })
       .filter({ hasText: /\bAgent\b|Subrato/i })
-      .filter({ hasText: /Counter offer|\$|negotiat/i })
       .first();
 
     if (await topCard.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -428,13 +431,19 @@ class ConversationsPage {
 
     const shortName = expectedPropertyName.split(",")[0].trim();
 
+    // 0. Ensure we are on conversations page or chatroom
+    if (!this.page.url().includes("tab=conversations") && !this.page.url().includes("/chat/")) {
+      console.log("Not on conversations page or chat, opening conversations first...");
+      await this.openConversations();
+    }
+
     // 1. Check if buyer chat for this property is ALREADY open on screen
     if (this.page.url().includes("/chat/")) {
       const chatContainer = this.page.locator(
         'main, [class*="chat-container"], [class*="chat_container"]'
       ).first();
       const chatText = await chatContainer.innerText().catch(() => "");
-      if (new RegExp(shortName, "i").test(chatText) || /\bBuyer\b/i.test(chatText)) {
+      if (new RegExp(shortName, "i").test(chatText)) {
         console.log(
           `Buyer conversation for "${expectedPropertyName}" is already open.`
         );
