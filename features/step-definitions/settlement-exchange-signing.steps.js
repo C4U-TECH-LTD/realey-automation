@@ -262,12 +262,12 @@ async function openSettlementCard(worldOrPage, specificTitle = null) {
     .getByRole("button", { name: /close/i })
     .first();
   if (await modalClose.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await modalClose.click();
+    await modalClose.click().catch(() => {});
     await page.waitForTimeout(500);
   }
 
   // 2. Ensure we are on the Settlements tab
-  if (!page.url().includes("settlement")) {
+  if (!page.url().includes("tab=settlements") && !page.url().includes("/settlements")) {
     const settlementsTab = page
       .getByRole("link", { name: /settlements/i })
       .or(page.getByRole("button", { name: /settlements/i }))
@@ -276,52 +276,41 @@ async function openSettlementCard(worldOrPage, specificTitle = null) {
 
     if (await settlementsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
       await settlementsTab.click();
-      await page.waitForLoadState("domcontentloaded");
+      await page.waitForURL(/tab=settlements|settlements/i, { timeout: 10_000 }).catch(() => {});
       await page.waitForTimeout(1000);
     }
   }
 
-  // 3. Scroll to the matching settlement card without clicking "View Details"
-  // (Action buttons like "Initiate Exchange", "Set date", etc. are on the card itself,
-  // whereas "View Details" opens a read-only popup that obscures action buttons)
-  const candidateTitles = [
-    specificTitle,
-    worldOrPage.createdListingTitle,
-    salesInstructionsFlowData?.agent?.listing?.expectedPropertyName,
-    settlementExchangeFlowData?.agent?.listing?.expectedPropertyName,
-    salesInstructionsFlowData?.generalUser?.searchText,
-    settlementExchangeFlowData?.generalUser?.searchText,
-    "Arndale Shopping Centre Access",
-  ].filter(Boolean);
+  // 3. Target title strictly for Flow 6 (Settlement Exchange)
+  const targetTitle =
+    specificTitle ||
+    worldOrPage.createdListingTitle ||
+    settlementExchangeFlowData?.agent?.listing?.expectedPropertyName ||
+    "Arndale Shopping Centre Access";
 
-  for (const title of candidateTitles) {
-    const titleLocator = page.getByText(title, { exact: false }).first();
+  const shortName = targetTitle.split(",")[0].trim();
 
-    if (await titleLocator.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await titleLocator.scrollIntoViewIfNeeded().catch(() => {});
-      return;
-    }
-  }
-
-  // If not visible initially, filter using the property search input
+  // 4. Wait specifically for the settlement search input (do NOT use generic 'search' which matches other tabs)
   const searchInput = page
-    .locator('input[placeholder*="Search by property title" i], input[placeholder*="search" i]')
+    .locator('input[placeholder*="Search by property title" i]')
     .first();
 
-  if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    const query = specificTitle || worldOrPage.createdListingTitle || "Arndale Shopping Centre Access";
-    await searchInput.fill(query);
-    await page.waitForTimeout(1000);
+  await searchInput.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
 
-    for (const title of candidateTitles) {
-      const titleLocator = page.getByText(title, { exact: false }).first();
-
-      if (await titleLocator.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await titleLocator.scrollIntoViewIfNeeded().catch(() => {});
-        return;
-      }
-    }
+  if (await searchInput.isVisible().catch(() => false)) {
+    console.log(`Filtering settlements list by: ${shortName}`);
+    await searchInput.fill(shortName);
+    await searchInput.press("Enter").catch(() => {});
+    await page.waitForTimeout(2000);
   }
+
+  // 5. Locate and scroll to the matching settlement card
+  const titleLocator = page
+    .getByText(shortName, { exact: false })
+    .filter({ visible: true })
+    .first();
+  await expect(titleLocator, `Settlement card for "${targetTitle}" should be visible`).toBeVisible({ timeout: 20_000 });
+  await titleLocator.scrollIntoViewIfNeeded().catch(() => {});
 }
 
 
