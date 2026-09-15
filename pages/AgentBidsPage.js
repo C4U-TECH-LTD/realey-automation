@@ -97,10 +97,10 @@ class AgentBidsPage {
       .waitFor({ state: "hidden", timeout: 20_000 })
       .catch(() => {});
 
-    // Wait for bids cards / buttons or empty state to appear
+    // Wait for bids cards / buttons to appear (do NOT treat temporary "No auction bids yet" placeholder as loaded)
     await this.page
       .locator(
-        'button:has-text("Start negotiation"), button:has-text("Open chat"), button:has-text("Re-list"), button:has-text("Re-open negotiation"), text="No auction bids yet"'
+        'button:has-text("Start negotiation"), button:has-text("Open chat"), button:has-text("Re-list"), button:has-text("Re-open negotiation")'
       )
       .first()
       .waitFor({ state: "visible", timeout: 20_000 })
@@ -1102,57 +1102,71 @@ class AgentBidsPage {
    */
   async verifyNextHighestBidderAvailable(propertyName = "") {
     console.log(
-      "Verifying next-highest genuine bidder is available for negotiation..."
+      `Verifying next-highest genuine bidder is available for negotiation (property: "${propertyName}")...`
     );
 
     await this.page.waitForLoadState("domcontentloaded");
-    await this.page.waitForTimeout(1500);
 
-    // Look for at least one "Start negotiation" button anywhere in the Bids panel
-    const startNegotiationButtons = this.page.getByRole("button", {
-      name: /^Start negotiation$/i,
-    });
+    // Wait for any spinner or temporary "No auction bids yet" placeholder to clear
+    await this.page
+      .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"]')
+      .waitFor({ state: "hidden", timeout: 20_000 })
+      .catch(() => {});
 
-    const count = await startNegotiationButtons.count();
+    await this.page
+      .getByText("No auction bids yet")
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
 
-    console.log(`Found ${count} "Start negotiation" button(s)`);
+    // If propertyName is provided, find and scope to the property's bids card
+    if (propertyName) {
+      const shortPropertyName = this.getShortPropertyName(propertyName);
+      const propertyTitles = this.getPropertyTitles(propertyName);
 
-    if (count > 0) {
-      await expect(
-        startNegotiationButtons.first(),
-        "A 'Start negotiation' button for the next-highest bidder should be visible"
-      ).toBeVisible({ timeout: 20_000 });
+      const titleAppeared = await propertyTitles
+        .first()
+        .waitFor({ state: "visible", timeout: 30_000 })
+        .then(() => true)
+        .catch(() => false);
 
-      console.log(
-        "Next-highest genuine bidder confirmed — Start negotiation button is visible"
-      );
+      if (titleAppeared) {
+        console.log(`Property "${shortPropertyName}" card is visible in Bids.`);
+        const propertyCard = propertyTitles
+          .first()
+          .locator("xpath=ancestor::*[self::div or self::article or self::section][.//button][1]");
 
-      return;
+        const scopedStartBtn = propertyCard
+          .getByRole("button", { name: /^Start negotiation$/i })
+          .or(propertyCard.locator('button:has-text("Start negotiation")'))
+          .first();
+
+        if (await scopedStartBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
+          await expect(
+            scopedStartBtn,
+            `Start negotiation button for next-highest bidder should be visible on "${shortPropertyName}"`
+          ).toBeVisible();
+          console.log(`Next-highest genuine bidder confirmed on property "${shortPropertyName}" card!`);
+          return;
+        }
+      }
     }
 
-    // Fallback: if no Start negotiation, check for any "Negotiate" or related CTA
-    const negotiateButton = this.page
+    // Global fallback: wait up to 30s for any "Start negotiation" button in the Bids panel
+    const startNegotiationButtons = this.page
       .getByRole("button", {
-        name: /negotiate/i,
+        name: /^Start negotiation$/i,
       })
-      .first();
-
-    if (await negotiateButton.isVisible().catch(() => false)) {
-      await expect(negotiateButton).toBeVisible({ timeout: 10_000 });
-
-      console.log(
-        "Next-highest bidder available via generic Negotiate button"
+      .or(
+        this.page.locator('button:has-text("Start negotiation")')
       );
 
-      return;
-    }
+    await expect(
+      startNegotiationButtons.first(),
+      "A 'Start negotiation' button for the next-highest genuine bidder should be visible in Bids"
+    ).toBeVisible({ timeout: 30_000 });
 
-    await this.debugCurrentPage("NEXT-HIGHEST BIDDER DEBUG");
-
-    throw new Error(
-      `No "Start negotiation" button was found after highest bidder declined. ` +
-        `Expected to see next-highest genuine bidder available. ` +
-        `Current URL: ${this.page.url()}`
+    console.log(
+      "Next-highest genuine bidder confirmed — Start negotiation button is visible"
     );
   }
 }
