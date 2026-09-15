@@ -21,21 +21,18 @@ const {
 // =====================================================
 
 async function clearCurrentSession(world) {
-  await world.context.clearCookies();
+  if (world.context) {
+    await world.context.clearCookies().catch(() => {});
+  }
 
-  await world.page.goto(
-    world.baseURL ||
-      "https://uat.realey.au/"
-  );
-
-  await world.page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
-
-  await world.page.goto(
-    loginData.application.loginPath
-  );
+  if (world.page && !world.page.isClosed()) {
+    try {
+      await world.page.evaluate(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+      });
+    } catch (_) {}
+  }
 }
 
 async function loginAs(world, account) {

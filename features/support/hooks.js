@@ -59,9 +59,20 @@ function configurePage(page) {
   page.setDefaultTimeout(15_000);
   page.setDefaultNavigationTimeout(30_000);
 
+  let lastConsoleError = "";
+  let duplicateConsoleErrorCount = 0;
+
   page.on("console", (message) => {
     if (message.type() === "error") {
-      console.error(`[Browser console] ${message.text()}`);
+      const text = message.text();
+      if (text === lastConsoleError) {
+        duplicateConsoleErrorCount++;
+        if (duplicateConsoleErrorCount > 5) return;
+      } else {
+        lastConsoleError = text;
+        duplicateConsoleErrorCount = 0;
+      }
+      console.error(`[Browser console] ${text}`);
     }
   });
 
