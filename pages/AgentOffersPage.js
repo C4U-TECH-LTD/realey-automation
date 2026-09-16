@@ -60,63 +60,56 @@ class AgentOffersPage {
       if (await searchInput.isVisible({ timeout: 5000 }).catch(() => false)) {
         console.log(`Filtering Offers & Bids by: ${shortName}`);
         await searchInput.fill(shortName);
-        await this.page.waitForTimeout(1500);
+        await searchInput.press("Enter");
+        await this.page.waitForTimeout(2000);
       }
 
-      // 2. Look for cards matching this property that have active action buttons (Counter via Chat or Accept)
-      const matchingCards = this.page
+      // 2. The newest offer is always the first card after filtering
+      const firstCard = this.page
         .locator('div[class*="rounded"], div.border, article')
-        .filter({ hasText: new RegExp(shortName, "i") });
+        .filter({ hasText: new RegExp(shortName, "i") })
+        .first();
 
-      const count = await matchingCards.count();
-      for (let i = 0; i < count; i++) {
-        const card = matchingCards.nth(i);
+      await expect(firstCard, `Should find at least one offer for ${shortName}`).toBeVisible({ timeout: 15_000 });
 
-        const counterBtn = card.getByRole("button", {
-          name: "Counter via Chat",
-          exact: true,
-        });
-        const acceptBtn = card.getByRole("button", {
-          name: "Accept",
-          exact: true,
-        });
+      const counterBtn = firstCard.getByRole("button", { name: "Counter via Chat", exact: true });
+      const acceptBtn = firstCard.getByRole("button", { name: "Accept", exact: true });
 
-        if (await counterBtn.isVisible().catch(() => false)) {
-          this.activeCounterButton = counterBtn;
-          console.log(`Found active 'Counter via Chat' button for "${propertyName}".`);
-          return;
-        }
+      // Wait for the newest card to finish loading its state
+      await this.page.waitForTimeout(1000);
 
-        if (await acceptBtn.isVisible().catch(() => false)) {
-          this.activeAcceptButton = acceptBtn;
-          console.log(`Found active 'Accept' button for "${propertyName}".`);
-          return;
-        }
+      if (await counterBtn.isVisible().catch(() => false)) {
+        this.activeCounterButton = counterBtn;
+        console.log(`Found active 'Counter via Chat' button on newest offer for "${propertyName}".`);
+        return;
       }
 
-      // Check if any matching card has counter-offer in progress or already accepted
-      for (let i = 0; i < count; i++) {
-        const card = matchingCards.nth(i);
-        const isCountered = await card
-          .getByText(/counter-offer in progress|countered/i)
-          .first()
-          .isVisible({ timeout: 500 })
-          .catch(() => false);
-        if (isCountered) {
-          console.log(`Offer for "${propertyName}" has counter-offer in progress.`);
-          return;
-        }
+      if (await acceptBtn.isVisible().catch(() => false)) {
+        this.activeAcceptButton = acceptBtn;
+        console.log(`Found active 'Accept' button on newest offer for "${propertyName}".`);
+        return;
+      }
 
-        const isAlreadyAccepted = await card
-          .getByText(/accepted|offer accepted/i)
-          .first()
-          .isVisible({ timeout: 500 })
-          .catch(() => false);
-        if (isAlreadyAccepted) {
-          console.log(`Offer for "${propertyName}" is already in accepted state.`);
-          this.isOfferAlreadyAccepted = true;
-          return;
-        }
+      // Check if the newest card is already countered or accepted
+      const isCountered = await firstCard
+        .getByText(/counter-offer in progress|countered/i)
+        .first()
+        .isVisible({ timeout: 1000 })
+        .catch(() => false);
+      if (isCountered) {
+        console.log(`Newest offer for "${propertyName}" has counter-offer in progress.`);
+        return;
+      }
+
+      const isAlreadyAccepted = await firstCard
+        .getByText(/accepted|offer accepted/i)
+        .first()
+        .isVisible({ timeout: 1000 })
+        .catch(() => false);
+      if (isAlreadyAccepted) {
+        console.log(`Newest offer for "${propertyName}" is already in accepted state.`);
+        this.isOfferAlreadyAccepted = true;
+        return;
       }
     }
 

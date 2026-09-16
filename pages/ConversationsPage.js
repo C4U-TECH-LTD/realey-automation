@@ -174,6 +174,18 @@ class ConversationsPage {
 
     const shortName = expectedPropertyName.split(",")[0].trim();
 
+    // 1. Filter using the search input so the created listing's conversations are isolated
+    const searchInput = this.page
+      .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
+      .first();
+
+    if (await searchInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log(`Filtering Conversations by: ${shortName}`);
+      await searchInput.fill(shortName);
+      await searchInput.press("Enter");
+      await this.page.waitForTimeout(2000);
+    }
+
     // If still showing 0 Properties / loading, wait for data to populate
     const zeroProperties = this.page.getByText(/^0\s*Properties$/i);
     if (await zeroProperties.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -188,6 +200,13 @@ class ConversationsPage {
           .waitFor({ state: "hidden", timeout: 30_000 })
           .catch(() => {});
         await this.page.waitForTimeout(2000);
+        
+        // Refilter after reload
+        if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await searchInput.fill(shortName);
+          await searchInput.press("Enter");
+          await this.page.waitForTimeout(2000);
+        }
       }
     }
 
@@ -203,11 +222,8 @@ class ConversationsPage {
 
     const cardCount = await cardCandidates.count();
     if (cardCount > 0) {
-      // Prioritize card with "1 new" or "new" or "unread" badge
-      const newCard = cardCandidates.filter({ hasText: /\b(?:new|unread)\b/i }).first();
-      const matchedCard = (await newCard.isVisible({ timeout: 1500 }).catch(() => false))
-        ? newCard
-        : cardCandidates.first();
+      // The newest conversation is always the first one when sorted descending by date
+      const matchedCard = cardCandidates.nth(0);
 
       return {
         propertyName: matchedCard.getByText(new RegExp(shortName, "i")).first(),
