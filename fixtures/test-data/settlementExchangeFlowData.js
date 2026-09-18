@@ -307,7 +307,7 @@ const settlementExchangeFlowData = {
       /Ready for Exchange/i,
 
     exchangeInitiated:
-      /exchange initiated|exchange started|initiated successfully|exchange pending|pending exchange/i,
+      /\bInitiated\b|exchange initiated|exchange started|initiated successfully|exchange pending|pending exchange/i,
 
     // Buyer signing
     buyerAssigned:
@@ -322,10 +322,10 @@ const settlementExchangeFlowData = {
 
     // Vendor
     vendorAdded:
-      /vendor.*added|added successfully|Automation Vendor/i,
+      /vendor.*added|added successfully|Automation Vendor|Sandy Bosch/i,
 
     passedToVendor:
-      /passed.*vendor|sent.*vendor|vendor.*received|passed/i,
+      /passed.*vendor|sent.*vendor|vendor.*received|sent to seller|passed/i,
 
     vendorSigned:
       /vendor.*signed|signed.*vendor|signing completed|\bSigned\b|Vendor Signed|Documents Signed/i,

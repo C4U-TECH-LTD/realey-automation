@@ -56,7 +56,7 @@ const fixedPriceTaskListFlowData = {
         "test-assets/listing/offer-floor-1.jpg"
       ),
 
-      sellerSolicitorSearch: "Jamess Anderson",
+      sellerSolicitorSearch: "solicitor.c4utest@yopmail.com",
     },
   },
 
@@ -67,7 +67,7 @@ const fixedPriceTaskListFlowData = {
   sellerSolicitor: {
     email:
       process.env.SELLER_SOLICITOR_EMAIL ||
-      "subratotest99.2@gmail.com",
+      "solicitor.c4utest@yopmail.com",
 
     password:
       process.env.SELLER_SOLICITOR_PASSWORD ||
@@ -78,7 +78,7 @@ const fixedPriceTaskListFlowData = {
       "123456",
 
     name:
-      "Jamess Anderson",
+      "James Anderson",
 
     templateName:
       "Standard Conveyancing Process",
@@ -91,7 +91,7 @@ const fixedPriceTaskListFlowData = {
   generalUser: {
     email:
       process.env.GENERAL_USER_EMAIL ||
-      "siamtest1999+3@gmail.com",
+      "buyer.c4utest@yopmail.com",
 
     password:
       process.env.GENERAL_USER_PASSWORD ||
@@ -121,8 +121,8 @@ const fixedPriceTaskListFlowData = {
   // =====================================================
 
   settlement: {
-    solicitorSearch: "Hasan",
-    brokerSearch: "subrato",
+    solicitorSearch: "Maxel",
+    brokerSearch: "Alen",
   },
 
   // =====================================================
