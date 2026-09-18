@@ -24,8 +24,9 @@ class YopmailHelper {
    * @param {string} username e.g. "broker.c4utest" or "solicitor.c4utest"
    * @param {RegExp|string} subjectRegex
    * @param {number} timeoutMs default 60,000ms (1 minute)
+   * @param {boolean} returnToRealey whether to restore URL
    */
-  async waitForEmail(username, subjectRegex = /sales instructions|sales document/i, timeoutMs = 60_000) {
+  async waitForEmail(username, subjectRegex = /sales instructions|sales document/i, timeoutMs = 60_000, returnToRealey = true) {
     const cleanUser = String(username || "")
       .replace(/@yopmail\.com$/i, "")
       .trim();
@@ -135,12 +136,43 @@ class YopmailHelper {
       return { found: false, error: err.message };
     } finally {
       // Seamlessly return the main scenario page back to Realey so the walkthrough video continues
-      if (returnUrl && returnUrl !== "about:blank" && page.url() !== returnUrl) {
+      if (returnToRealey && returnUrl && returnUrl !== "about:blank" && page.url() !== returnUrl) {
         console.log(`[YopmailHelper] Returning page back to Realey: ${returnUrl}`);
         await page.goto(returnUrl, { waitUntil: "domcontentloaded" }).catch(() => {});
         await page.waitForTimeout(1500);
       }
     }
+  }
+
+  async getLinkFromEmail(username, subjectRegex, linkRegex, timeoutMs = 60_000) {
+    const result = await this.waitForEmail(username, subjectRegex, timeoutMs, false);
+    if (!result.found) return null;
+    
+    let extractedHref = null;
+    try {
+      const page = this.page;
+      const bodyFrame = page.frameLocator('#ifmail');
+      await bodyFrame.locator('body').waitFor({ state: 'visible', timeout: 5000 });
+      
+      const links = await bodyFrame.locator('a').all();
+      for (const link of links) {
+        const href = await link.getAttribute('href');
+        if (href && linkRegex.test(href)) {
+          console.log(`[YopmailHelper] Found matching link: ${href}`);
+          extractedHref = href;
+          break;
+        }
+      }
+      if (!extractedHref) {
+        console.warn(`[YopmailHelper] No link matching ${linkRegex} found in email body.`);
+      }
+    } catch (err) {
+      console.error(`[YopmailHelper] Error extracting link: ${err.message}`);
+    } finally {
+      // Go back to the realey URL now
+      await this.page.goto('https://uat.realey.au/dashboard', { waitUntil: 'domcontentloaded' }).catch(()=>{});
+    }
+    return extractedHref;
   }
 }
 

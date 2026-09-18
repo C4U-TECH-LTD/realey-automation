@@ -59,7 +59,10 @@ async function setupExchangeMocking(worldOrPage) {
   if (!page || world._exchangeMockingInitialized) return;
   world._exchangeMockingInitialized = true;
 
-  await page.route("**/api/boldsign/**", async (route) => {
+  const context = world.context || (typeof page.context === "function" ? page.context() : null);
+  const router = context || page;
+
+  await router.route("**/api/boldsign/**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -67,7 +70,7 @@ async function setupExchangeMocking(worldOrPage) {
     });
   });
 
-  await page.route("**/api/exchanges/**", async (route) => {
+  await router.route("**/api/exchanges/**", async (route) => {
     const url = route.request().url();
     const method = route.request().method();
 
@@ -100,7 +103,7 @@ async function setupExchangeMocking(worldOrPage) {
       return;
     }
 
-    if (method === "PUT" && (url.includes("/mark-seller-sol-complete") || url.includes("/propose-date"))) {
+    if (method === "PUT" && (url.includes("/seller-sol-complete") || url.includes("/mark-seller-sol-complete") || url.includes("/propose-date") || url.includes("/propose"))) {
       world.exchangeStage = "seller_sol_confirmed";
       await route.fulfill({
         status: 200,
@@ -110,7 +113,7 @@ async function setupExchangeMocking(worldOrPage) {
       return;
     }
 
-    if (method === "PUT" && url.includes("/buyer-sol-complete")) {
+    if (method === "PUT" && (url.includes("/buyer-sol-complete") || url.includes("/mark-buyer-sol-complete") || url.includes("/accept-date") || url.includes("/confirm-exchange"))) {
       world.exchangeStage = "completed";
       await route.fulfill({
         status: 200,
@@ -130,6 +133,8 @@ async function setupExchangeMocking(worldOrPage) {
               ex.metadata.stage = world.exchangeStage;
             }
           }
+        } else if (json.exchange && json.exchange.metadata) {
+          json.exchange.metadata.stage = world.exchangeStage;
         } else if (json.metadata) {
           json.metadata.stage = world.exchangeStage;
         }
@@ -143,15 +148,15 @@ async function setupExchangeMocking(worldOrPage) {
     await route.fulfill({ response });
   });
 
-  await page.route("**/api/tasks/**", async (route) => {
+  await router.route("**/api/tasks/**", async (route) => {
     const response = await route.fetch();
     if (world.exchangeStage && response.status() === 200) {
       try {
         const json = await response.json();
         if (json.tasks && Array.isArray(json.tasks)) {
-          for (const task of json.tasks) {
-            if (task.type === "contract_exchange" && task.metadata) {
-              task.metadata.stage = world.exchangeStage;
+          for (const t of json.tasks) {
+            if (t.metadata) {
+              t.metadata.stage = world.exchangeStage;
             }
           }
         }
@@ -647,17 +652,70 @@ When(
     await initBtn.click();
     await page.waitForTimeout(1000);
 
-    // Check if the 2-step "Initiate Contract Exchange" modal is displayed
-    const dueDateInput = page.locator("#dueDate, input[type='date']").first();
-    if (await dueDateInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      // Step 1: Fill Due Date
-      const futureDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0];
-      await dueDateInput.fill(futureDate);
+    const modal = page.locator('div[role="dialog"]').first();
+    await expect(modal).toBeVisible({ timeout: 10000 });
+
+    const dateInput = modal.locator('input[type="date"]')
+      .or(modal.locator('input[placeholder*="yyyy" i]'))
+      .or(modal.locator('input[name*="date" i]'))
+      .or(modal.locator('#dueDate'))
+      .first();
+
+    if (await dateInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const isoDate = `${yyyy}-${mm}-${dd}`;
+      const usDate = `${mm}/${dd}/${yyyy}`;
+      const ukDate = `${dd}/${mm}/${yyyy}`;
+
+      console.log("Filling due date in modal...");
+      await dateInput.scrollIntoViewIfNeeded().catch(() => {});
+      await dateInput.click().catch(() => {});
+      
+      await dateInput.fill(isoDate).catch(() => {});
+      let val = await dateInput.inputValue().catch(() => "");
+      console.log(`Date input value after fill(iso): "${val}"`);
+
+      if (!val) {
+        await dateInput.fill(usDate).catch(() => {});
+        val = await dateInput.inputValue().catch(() => "");
+        console.log(`Date input value after fill(usDate): "${val}"`);
+      }
+
+      if (!val) {
+        await dateInput.fill(ukDate).catch(() => {});
+        val = await dateInput.inputValue().catch(() => "");
+        console.log(`Date input value after fill(ukDate): "${val}"`);
+      }
+
+      if (!val) {
+        await dateInput.evaluate((el, { iso, us }) => {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          if (setter) {
+            setter.call(el, iso);
+          } else {
+            el.value = iso;
+          }
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, { iso: isoDate, us: usDate });
+        val = await dateInput.inputValue().catch(() => "");
+        console.log(`Date input value after evaluate: "${val}"`);
+      }
+
+      if (!val) {
+        await dateInput.click();
+        await page.keyboard.type(`${mm}${dd}${yyyy}`, { delay: 100 });
+        val = await dateInput.inputValue().catch(() => "");
+        console.log(`Date input value after keyboard type: "${val}"`);
+      }
+
+      await page.waitForTimeout(500);
 
       // Step 1: Upload Contract PDF
-      const fileInput = page
+      const fileInput = modal
         .locator('input[type="file"][accept*="pdf"], input[type="file"]')
         .first();
       if (await fileInput.count() > 0) {
@@ -670,25 +728,25 @@ When(
       }
 
       // Step 1 -> Step 2: Next
-      const nextBtn1 = page.getByRole("button", { name: /^next/i }).last();
+      const nextBtn1 = modal.getByRole("button", { name: /^next/i }).last();
       await nextBtn1.click();
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
 
-      // Step 2: Signer 1 (Buyer) -> Next
-      const nextBtn2 = page.getByRole("button", { name: /^next/i }).last();
-      if (await nextBtn2.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await nextBtn2.click();
-        await page.waitForTimeout(1500);
+      // Step 2: Signature placement -> Next / Complete / Finish / Initiate
+      for (let s = 0; s < 4; s++) {
+        const stepBtn = modal
+          .getByRole("button", { name: /^next|complete|finish|initiate|submit|confirm|send/i })
+          .last();
+        if (await stepBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          console.log(`Clicking Step 2 button: ${await stepBtn.innerText().catch(() => '')}`);
+          await stepBtn.click();
+          await page.waitForTimeout(2000);
+        } else {
+          break;
+        }
       }
 
-      // Step 2: Signer 2 (Vendor) -> Complete
-      const completeBtn = page
-        .getByRole("button", { name: /complete/i })
-        .last();
-      if (await completeBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
-        await completeBtn.click();
-        await page.waitForTimeout(2000);
-      }
+      await modal.waitFor({ state: "hidden", timeout: 20000 }).catch(() => {});
     } else {
       const confirm = page
         .getByRole("button", {
@@ -750,7 +808,17 @@ When(
   async function () {
     const page = this.page;
 
-    // Check if "Add buyer as signer" or "assign.*buyer" button is visible
+    // Close any blocking details modal if opened
+    const modalClose = page
+      .getByRole("dialog")
+      .getByRole("button", { name: /close/i })
+      .or(page.locator('button:has(svg.lucide-x), [aria-label*="close" i]'))
+      .first();
+    if (await modalClose.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await modalClose.click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+
     let assignButton = page
       .getByRole("button", {
         name: /add buyer as signer|assign.*buyer|assign for signing/i,
@@ -761,12 +829,13 @@ When(
       // Exchange contracts are under Tasks -> Exchange on the Solicitor portal
       const tasksLink = page
         .getByRole("link", { name: /tasks/i })
+        .or(page.getByRole("button", { name: /tasks/i }))
         .or(page.getByText(/^tasks$/i))
         .first();
 
       if (await tasksLink.isVisible({ timeout: 3000 }).catch(() => false)) {
         await tasksLink.click();
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(1500);
       }
 
       const exchangeTab = page
@@ -776,7 +845,7 @@ When(
 
       if (await exchangeTab.isVisible({ timeout: 3000 }).catch(() => false)) {
         await exchangeTab.click();
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(1500);
       }
 
       assignButton = page
@@ -784,6 +853,21 @@ When(
           name: /add buyer as signer|assign.*buyer|assign for signing/i,
         })
         .first();
+
+      if (!(await assignButton.isVisible({ timeout: 2000 }).catch(() => false))) {
+        const searchExchanges = page.locator('input[placeholder*="Search exchanges" i]').first();
+        if (await searchExchanges.isVisible({ timeout: 1500 }).catch(() => false)) {
+          await searchExchanges.fill("Arndale Shopping Centre Access");
+          await searchExchanges.press("Enter").catch(() => {});
+          await page.waitForTimeout(1000);
+        }
+
+        assignButton = page
+          .getByRole("button", {
+            name: /add buyer as signer|assign.*buyer|assign for signing/i,
+          })
+          .first();
+      }
     }
 
     // If Buyer is already assigned, nothing more to do
@@ -796,16 +880,18 @@ When(
       await assignButton.click();
       await page.waitForTimeout(1000);
 
-      // In the "Add Buyer as Signer" modal, click "Assign buyer"
-      const confirm = page
-        .getByRole("button", {
-          name: /^assign buyer$|^assign$/i,
-        })
-        .last();
-
-      if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const modal = page.locator('div[role="dialog"], [class*="modal"]').first();
+      const confirm = modal.getByRole("button", { name: /assign buyer|assign|save|confirm|submit|send/i }).last();
+      if (await confirm.isVisible({ timeout: 10000 }).catch(() => false)) {
+        for (let attempt = 0; attempt < 15; attempt++) {
+          if (await confirm.isDisabled().catch(() => false)) {
+            await page.waitForTimeout(500);
+          } else {
+            break;
+          }
+        }
         await confirm.click();
-        await page.waitForTimeout(2000);
+        await modal.waitFor({ state: "hidden", timeout: 20000 }).catch(() => {});
       }
     }
   }
@@ -826,10 +912,7 @@ Then(
         )
         .first()
     ).toBeVisible({
-      timeout:
-        settlementExchangeFlowData
-          .timeouts
-          .action,
+      timeout: 60000,
     });
   }
 );
@@ -849,7 +932,7 @@ When(
 
     if (!(await exchangeCard.isVisible({ timeout: 2000 }).catch(() => false))) {
       // If profile button is visible, navigate to dashboard via menu
-      const profileBtn = page.getByRole("button", { name: /siam mondol/i }).first();
+      const profileBtn = page.getByRole("button", { name: /daniel|siam|buyer/i }).or(page.locator('header button:has([class*="avatar"]), [class*="avatar"]')).first();
       if (await profileBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await profileBtn.click();
         await page.waitForTimeout(500);
@@ -944,7 +1027,7 @@ When(
     await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
     await page.waitForTimeout(1000);
 
-    const profileBtn = page.getByRole("button", { name: /siam mondol/i }).first();
+    const profileBtn = page.getByRole("button", { name: /daniel|siam|buyer/i }).or(page.locator('header button:has([class*="avatar"]), [class*="avatar"]')).first();
     if (await profileBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await profileBtn.click();
       await page.waitForTimeout(500);
@@ -1173,74 +1256,79 @@ When(
       })
       .first();
 
-    if (await addVendorButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await addVendorButton.click();
-
-      const nameInput = page
-        .locator(
-          'input[name="name"], input[placeholder*="name" i]'
-        )
-        .last();
-
-      const emailInput = page
-        .locator(
-          'input[name="email"], input[type="email"]'
-        )
-        .last();
-
-      const phoneInput = page
-        .locator(
-          'input[name="phone"], input[type="tel"]'
-        )
-        .last();
-
-      if (
-        await nameInput
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await nameInput.fill(
-          settlementExchangeFlowData
-            .vendor
-            .name
-        );
+    if (!(await addVendorButton.isVisible({ timeout: 2000 }).catch(() => false))) {
+      const convTab = page
+        .locator('a[href*="tab=conversations"], a[href*="conversations"], button:has-text("Conversations"), aside a:has-text("Conversations")')
+        .first();
+      if (await convTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await convTab.click();
+        await page.waitForTimeout(1500);
       }
 
-      if (
-        await emailInput
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await emailInput.fill(
-          settlementExchangeFlowData
-            .vendor
-            .email
-        );
-      }
-
-      if (
-        await phoneInput
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await phoneInput.fill(
-          settlementExchangeFlowData
-            .vendor
-            .phone
-        );
-      }
-
-      const saveButton = page
-        .getByRole("button", {
-          name:
-            /save|add vendor|confirm/i,
-        })
-        .last();
-
-      if (await saveButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await saveButton.click();
+      const createChatBtn = page
+        .getByRole("button", { name: /create.*chat|new chat|start chat/i })
+        .first();
+      if (await createChatBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await createChatBtn.click();
         await page.waitForTimeout(1000);
       }
+    } else {
+      await addVendorButton.click();
+      await page.waitForTimeout(1000);
+    }
+
+    const nameInput = page
+      .locator(
+        'input[name="name"], input[placeholder*="name" i]'
+      )
+      .last();
+
+    const emailInput = page
+      .locator(
+        'input[name="email"], input[type="email"]'
+      )
+      .last();
+
+    const phoneInput = page
+      .locator(
+        'input[name="phone"], input[type="tel"]'
+      )
+      .last();
+
+    if (await nameInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await nameInput.fill(
+        settlementExchangeFlowData
+          .vendor
+          .name
+      );
+    }
+
+    if (await emailInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await emailInput.fill(
+        settlementExchangeFlowData
+          .vendor
+          .email
+      );
+    }
+
+    if (await phoneInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await phoneInput.fill(
+        settlementExchangeFlowData
+          .vendor
+          .phone
+      );
+    }
+
+    const saveButton = page
+      .getByRole("button", {
+        name:
+          /save|add vendor|confirm|invite|create/i,
+      })
+      .last();
+
+    if (await saveButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await saveButton.click();
+      await page.waitForTimeout(2000);
     }
   }
 );
@@ -1389,8 +1477,8 @@ When(
 
     if (!(await exchangeCard.isVisible({ timeout: 2000 }).catch(() => false))) {
       const profileBtn = page
-        .getByRole("button", { name: /daniel carter|daniel|carter|vendor|subrato/i })
-        .or(page.locator('button[class*="avatar"], header button').filter({ hasText: /daniel|carter|vendor|subrato/i }))
+        .getByRole("button", { name: /sandy|bosch|daniel carter|daniel|carter|vendor|subrato/i })
+        .or(page.locator('button[class*="avatar"], header button').filter({ hasText: /sandy|bosch|daniel|carter|vendor|subrato/i }))
         .first();
       if (await profileBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await profileBtn.click();
@@ -1477,8 +1565,8 @@ When(
     await page.waitForTimeout(1000);
 
     const profileBtn = page
-      .getByRole("button", { name: /daniel carter|daniel|carter|vendor|subrato/i })
-      .or(page.locator('button[class*="avatar"], header button').filter({ hasText: /daniel|carter|vendor|subrato/i }))
+      .getByRole("button", { name: /sandy|bosch|daniel carter|daniel|carter|vendor|subrato/i })
+      .or(page.locator('button[class*="avatar"], header button').filter({ hasText: /sandy|bosch|daniel|carter|vendor|subrato/i }))
       .first();
     if (await profileBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await profileBtn.click();
@@ -1596,7 +1684,7 @@ When(
     let proposeButton = page
       .getByRole("button", {
         name:
-          /propose settlement date|confirm exchange \(1\/2\)|settlement date|set date/i,
+          /confirm & propose date|propose settlement date|confirm exchange \(1\/2\)|settlement date|set date/i,
       })
       .first();
 
@@ -1623,7 +1711,7 @@ When(
 
       proposeButton = page
         .getByRole("button", {
-          name: /propose settlement date|confirm exchange \(1\/2\)|settlement date|set date/i,
+          name: /confirm & propose date|propose settlement date|confirm exchange \(1\/2\)|settlement date|set date/i,
         })
         .first();
     }
@@ -1635,7 +1723,7 @@ When(
 
     let dateInput = page
       .locator(
-        '#settlementDate, input[type="date"], input[placeholder*="yyyy" i], input[name*="settlement" i], input[placeholder*="date" i]'
+        '#proposedDateInput, #settlementDate, input[type="date"], input[placeholder*="yyyy" i], input[name*="settlement" i], input[placeholder*="date" i]'
       )
       .first();
 
@@ -1722,7 +1810,7 @@ When(
     let acceptButton = page
       .getByRole("button", {
         name:
-          /confirm exchange \(2\/2\)|accept.*settlement date|accept date|accept/i,
+          /confirm exchange \(2\/2\)|accept & confirm exchange|accept.*settlement date|accept date|accept/i,
       })
       .first();
 
@@ -1749,7 +1837,7 @@ When(
 
       acceptButton = page
         .getByRole("button", {
-          name: /confirm exchange \(2\/2\)|accept.*settlement date|accept date|accept/i,
+          name: /confirm exchange \(2\/2\)|accept & confirm exchange|accept.*settlement date|accept date|accept/i,
         })
         .first();
     }

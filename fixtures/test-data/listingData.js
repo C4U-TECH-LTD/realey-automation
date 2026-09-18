@@ -225,10 +225,10 @@ const listingData = {
 
     settlement: {
       solicitorSearch:
-        "Hasan",
+        "Maxel",
 
       brokerSearch:
-        "subrato",
+        "Alen",
     },
 
     payment: {

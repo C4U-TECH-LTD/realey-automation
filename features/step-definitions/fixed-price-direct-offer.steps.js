@@ -28,6 +28,12 @@ const {
 );
 
 const {
+  settlementExchangeFlowData,
+} = require(
+  "../../fixtures/test-data/settlementExchangeFlowData"
+);
+
+const {
   YopmailHelper,
 } = require(
   "../../pages/YopmailHelper"
@@ -35,6 +41,10 @@ const {
 
 function isFlow7Scenario(world) {
   return Boolean(world?.isFlow7 || world?.pickle?.tags?.some((t) => t.name === "@flow-7"));
+}
+
+function isFlow6Scenario(world) {
+  return Boolean(world?.isFlow6 || world?.pickle?.tags?.some((t) => t.name === "@flow-6"));
 }
 
 function isFlow1Scenario(world) {
@@ -806,6 +816,8 @@ When(
   async function () {
     const solicitorSearch = isFlow7Scenario(this)
       ? salesInstructionsFlowData.settlement.solicitorSearch
+      : isFlow6Scenario(this)
+      ? settlementExchangeFlowData.settlement.solicitorSearch
       : listingData.fixedPriceFlow
           .settlement.solicitorSearch;
 
@@ -821,6 +833,8 @@ When(
   async function () {
     const brokerSearch = isFlow7Scenario(this)
       ? salesInstructionsFlowData.settlement.brokerSearch
+      : isFlow6Scenario(this)
+      ? settlementExchangeFlowData.settlement.brokerSearch
       : listingData.fixedPriceFlow
           .settlement.brokerSearch;
 

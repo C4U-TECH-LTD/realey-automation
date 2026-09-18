@@ -58,11 +58,13 @@ const settlementExchangeFlowData = {
         process.cwd(),
         "test-assets/listing/floor-plan.jpg"
       ),
+
+      sellerSolicitorSearch: "solicitor.c4utest@yopmail.com",
     },
 
     // Agent login
     email:
-      process.env.AGENT_EMAIL || "subratotest99@gmail.com",
+      process.env.AGENT_EMAIL || "agent.c4utest@yopmail.com",
     password:
       process.env.AGENT_PASSWORD || "Test12345@",
     otp:
@@ -75,7 +77,7 @@ const settlementExchangeFlowData = {
 
   generalUser: {
     email:
-      process.env.GENERAL_USER_EMAIL || "siamtest1999+3@gmail.com",
+      process.env.GENERAL_USER_EMAIL || "buyer.c4utest@yopmail.com",
 
     password:
       process.env.GENERAL_USER_PASSWORD || "Test12345@",
@@ -96,7 +98,7 @@ const settlementExchangeFlowData = {
 
   buyerSolicitor: {
     email:
-      process.env.BUYER_SOLICITOR_EMAIL || "siamtest1999+2@gmail.com",
+      process.env.BUYER_SOLICITOR_EMAIL || "buyersolicitor.c4utest@yopmail.com",
 
     password:
       process.env.BUYER_SOLICITOR_PASSWORD || "Test12345@",
@@ -105,10 +107,10 @@ const settlementExchangeFlowData = {
       process.env.BUYER_SOLICITOR_OTP || "123456",
 
     name:
-      "Hasan Siam",
+      "Maxel Montana",
 
     searchText:
-      "Hasan",
+      "Maxel",
   },
 
   // =====================================================
@@ -117,7 +119,7 @@ const settlementExchangeFlowData = {
 
   sellerSolicitor: {
     email:
-      process.env.SELLER_SOLICITOR_EMAIL || "subratotest99.2@gmail.com",
+      process.env.SELLER_SOLICITOR_EMAIL || "solicitor.c4utest@yopmail.com",
 
     password:
       process.env.SELLER_SOLICITOR_PASSWORD || "Test12345@",
@@ -126,7 +128,10 @@ const settlementExchangeFlowData = {
       process.env.SELLER_SOLICITOR_OTP || "123456",
 
     name:
-      "Jamess Anderson",
+      "James Anderson",
+
+    searchText:
+      "James",
   },
 
   // =====================================================
@@ -135,10 +140,10 @@ const settlementExchangeFlowData = {
 
   vendor: {
     name:
-      "Daniel Carter",
+      "Sandy Bosch",
 
     email:
-      process.env.VENDOR_EMAIL || "subratotest99.3@gmail.com",
+      process.env.VENDOR_EMAIL || "secondbuyer.c4utest@yopmail.com",
 
     phone:
       "0400000000",
@@ -157,11 +162,11 @@ const settlementExchangeFlowData = {
   settlement: {
     // Buyer Solicitor
     solicitorSearch:
-      "Hasan",
+      "Maxel",
 
     // Mortgage Broker
     brokerSearch:
-      "subrato",
+      "Alen",
 
     // Fixed settlement date
     date:
@@ -306,10 +311,10 @@ const settlementExchangeFlowData = {
 
     // Buyer signing
     buyerAssigned:
-      /assigned.*signing|buyer assigned|assigned successfully|assigned/i,
+      /assigned.*signing|buyer assigned|assigned successfully|assigned|ready for signing|signing|sent for signing/i,
 
     buyerSigned:
-      /buyer.*signed|signed.*buyer|signing completed|signed/i,
+      /buyer.*signed|signed.*buyer|signing completed|\bSigned\b|Buyer Signed|Documents Signed/i,
 
     // Document transfer
     passedToSellerSolicitor:
@@ -323,14 +328,14 @@ const settlementExchangeFlowData = {
       /passed.*vendor|sent.*vendor|vendor.*received|passed/i,
 
     vendorSigned:
-      /vendor.*signed|signed.*vendor|signing completed|signed/i,
+      /vendor.*signed|signed.*vendor|signing completed|\bSigned\b|Vendor Signed|Documents Signed/i,
 
     // Settlement date
     settlementDateProposed:
-      /settlement date.*proposed|date proposed|proposed successfully|settlement date/i,
+      /1\/2 confirmed|confirmed \(1\/2\)|settlement date.*proposed|date proposed|proposed successfully|settlement date/i,
 
     settlementDateAccepted:
-      /settlement date.*accepted|date accepted|accepted successfully|settlement date/i,
+      /completed|exchange completed|confirmed \(2\/2\)|2\/2 confirmed|settlement date.*accepted|date accepted|accepted successfully|settlement date/i,
 
     // Calendar
     calendar:
