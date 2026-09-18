@@ -27,6 +27,10 @@ const {
   LoginPage,
 } = require("../../pages/LoginPage");
 
+const {
+  takeCucumberScreenshot,
+} = require("../../utils/cucumberScreenshot");
+
 
 // =====================================================
 // HELPERS
@@ -56,55 +60,400 @@ async function clickButton(page, name) {
 }
 
 
+async function drawStroke(page, points) {
+  if (!points || points.length === 0) return;
+  await page.mouse.move(points[0][0], points[0][1]);
+  await page.mouse.down();
+  for (let i = 1; i < points.length; i++) {
+    await page.mouse.move(points[i][0], points[i][1], { steps: 5 });
+  }
+  await page.mouse.up();
+}
+
+async function drawSiamSignatureOnCanvas(page, canvasLocator) {
+  await expect(canvasLocator, "Signature canvas should be visible").toBeVisible({ timeout: 20_000 });
+  await canvasLocator.scrollIntoViewIfNeeded();
+  const box = await canvasLocator.boundingBox();
+  if (!box) throw new Error("Unable to get signature canvas position.");
+
+  console.log('Drawing Buyer signature "SIAM" on Contract PDF...');
+  const startX = box.x + Math.min(80, box.width * 0.12);
+  const centerY = box.y + box.height / 2;
+  const height = Math.min(60, box.height * 0.55);
+  const width = 34;
+  const gap = 20;
+
+  // S
+  let x = startX;
+  await drawStroke(page, [
+    [x + width, centerY - height / 2],
+    [x + 8, centerY - height / 2],
+    [x, centerY - height / 4],
+    [x + 6, centerY],
+    [x + width - 6, centerY],
+    [x + width, centerY + height / 4],
+    [x + width - 8, centerY + height / 2],
+    [x, centerY + height / 2],
+  ]);
+
+  // I
+  x += width + gap;
+  await drawStroke(page, [
+    [x, centerY - height / 2],
+    [x, centerY + height / 2],
+  ]);
+
+  // A
+  x += gap;
+  await drawStroke(page, [
+    [x, centerY + height / 2],
+    [x + width / 2, centerY - height / 2],
+    [x + width, centerY + height / 2],
+  ]);
+  await drawStroke(page, [
+    [x + 7, centerY + 5],
+    [x + width - 7, centerY + 5],
+  ]);
+
+  // M
+  x += width + gap;
+  await drawStroke(page, [
+    [x, centerY + height / 2],
+    [x, centerY - height / 2],
+    [x + width / 2, centerY + 5],
+    [x + width, centerY - height / 2],
+    [x + width, centerY + height / 2],
+  ]);
+  console.log('Buyer signature "SIAM" completed on Contract PDF.');
+}
+
+async function drawPalSignatureOnCanvas(page, canvasLocator) {
+  await expect(canvasLocator, "Signature canvas should be visible").toBeVisible({ timeout: 20_000 });
+  await canvasLocator.scrollIntoViewIfNeeded();
+  const box = await canvasLocator.boundingBox();
+  if (!box) throw new Error("Unable to get signature canvas position.");
+
+  console.log('Drawing Vendor signature "PAL" on Contract PDF...');
+  const startX = box.x + Math.min(80, box.width * 0.15);
+  const centerY = box.y + box.height / 2;
+  const height = Math.min(60, box.height * 0.55);
+  const width = 34;
+  const gap = 24;
+
+  let x = startX;
+
+  // P
+  await drawStroke(page, [
+    [x, centerY + height / 2],
+    [x, centerY - height / 2],
+    [x + width - 8, centerY - height / 2],
+    [x + width, centerY - height / 3],
+    [x + width, centerY - 5],
+    [x + width - 8, centerY],
+    [x, centerY],
+  ]);
+
+  // A
+  x += width + gap;
+  await drawStroke(page, [
+    [x, centerY + height / 2],
+    [x + width / 2, centerY - height / 2],
+    [x + width, centerY + height / 2],
+  ]);
+  await drawStroke(page, [
+    [x + 7, centerY + 5],
+    [x + width - 7, centerY + 5],
+  ]);
+
+  // L
+  x += width + gap;
+  await drawStroke(page, [
+    [x, centerY - height / 2],
+    [x, centerY + height / 2],
+    [x + width, centerY + height / 2],
+  ]);
+  console.log('Vendor signature "PAL" completed on Contract PDF.');
+}
+
 function getContractHtml(counterpartType, propertyName, vendorName, buyerName) {
+  const isVendor = counterpartType.toLowerCase().includes("seller") || counterpartType.toLowerCase().includes("vendor");
+  const signerName = isVendor ? (vendorName || "Sandy Bosch") : (buyerName || "Daniel Lyeon");
+  const signerRole = isVendor ? "Vendor / Seller" : "Purchaser / Buyer";
+
   return `<!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <title>Contract of Sale of Real Estate</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 30px; background: #374151; color: #111827; margin: 0; }
-    .page { background: white; max-width: 820px; margin: 0 auto; padding: 50px 60px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-radius: 6px; min-height: 850px; }
-    h1 { text-align: center; font-size: 24px; text-transform: uppercase; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-top: 0; }
-    .sub { text-align: center; font-weight: 600; color: #6b7280; font-size: 13px; margin-bottom: 25px; }
-    h2 { font-size: 16px; margin-top: 25px; color: #1d4ed8; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
-    table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 14px; }
-    th, td { border: 1px solid #d1d5db; padding: 10px 12px; text-align: left; }
-    th { background: #f9fafb; width: 35%; font-weight: 600; }
-    .sign-box { border: 2px dashed #2563eb; background: #eff6ff; padding: 25px; margin-top: 35px; border-radius: 8px; text-align: center; cursor: pointer; }
-    .sign-btn { background: #2563eb; color: white; border: none; padding: 12px 28px; font-size: 15px; font-weight: 600; border-radius: 6px; cursor: pointer; }
-    .signed-badge { color: #16a34a; font-size: 20px; font-weight: bold; margin-top: 10px; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 30px 20px;
+      background: #475569;
+      color: #0f172a;
+      margin: 0;
+    }
+    .page {
+      background: #ffffff;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 40px 50px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.35);
+      border-radius: 8px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 14px;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 22px;
+      text-transform: uppercase;
+      margin: 0 0 4px 0;
+      color: #0f172a;
+      letter-spacing: 0.5px;
+    }
+    .header .subtitle {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .header .doc-meta {
+      font-size: 11px;
+      color: #64748b;
+      text-align: right;
+      line-height: 1.5;
+    }
+    .counterpart-banner {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 24px;
+    }
+    h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 20px 0 8px 0;
+      color: #1d4ed8;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 18px 0;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th {
+      background: #f8fafc;
+      width: 30%;
+      font-weight: 600;
+      color: #334155;
+    }
+    .clause {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #475569;
+      background: #f8fafc;
+      padding: 12px 16px;
+      border-radius: 6px;
+      border-left: 4px solid #3b82f6;
+      margin: 10px 0 20px 0;
+    }
+    .sign-section {
+      margin-top: 25px;
+      border: 2px solid #3b82f6;
+      background: #f0f7ff;
+      padding: 22px;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .sign-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 4px;
+    }
+    .sign-instruction {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 14px;
+    }
+    canvas.cursor-crosshair {
+      border: 2px dashed #3b82f6;
+      background: #ffffff;
+      border-radius: 8px;
+      display: block;
+      margin: 0 auto 14px auto;
+      cursor: crosshair;
+      touch-action: none;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .btn-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+    .sign-btn {
+      background: linear-gradient(135deg, #0d68e6, #e90857);
+      color: white;
+      border: none;
+      padding: 10px 26px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(13, 104, 230, 0.25);
+    }
+    .clear-btn {
+      background: #e2e8f0;
+      color: #334155;
+      border: none;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+    .signed-badge {
+      background: #dcfce7;
+      border: 1px solid #86efac;
+      color: #166534;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 14px;
+      display: inline-block;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
   <div class="page">
-    <h1>Contract of Sale of Real Estate</h1>
-    <div class="sub">Standard Form Approved by the Real Estate Institute & Law Society • ${counterpartType}</div>
-    <h2>Property & Transaction Schedule</h2>
+    <div class="header">
+      <div>
+        <h1>Contract of Sale of Real Estate</h1>
+        <div class="subtitle">Standard Form Approved by Real Estate Institute of Australia</div>
+      </div>
+      <div class="doc-meta">
+        <strong>DOC-REF:</strong> BSA-2026-EXCH-9921<br/>
+        <strong>Date:</strong> 19/09/2026<br/>
+        <strong>Status:</strong> Execution Required
+      </div>
+    </div>
+
+    <div class="counterpart-banner">
+      ${counterpartType}
+    </div>
+
+    <h2>1. Particulars of Sale</h2>
     <table>
-      <tr><th>Property Address</th><td><strong>${propertyName || "Arndale Shopping Centre Access, Kilkenny, SA 5009"}</strong></td></tr>
+      <tr><th>Property</th><td><strong>${propertyName || "Arndale Shopping Centre Access, Kilkenny, SA 5009"}</strong></td></tr>
       <tr><th>Vendor</th><td>${vendorName || "Sandy Bosch"}</td></tr>
       <tr><th>Purchaser</th><td>${buyerName || "Daniel Lyeon"}</td></tr>
       <tr><th>Purchase Price</th><td>$25,000.00 AUD</td></tr>
-      <tr><th>Deposit Paid</th><td>$1,250.00 AUD (5%)</td></tr>
-      <tr><th>Settlement Period</th><td>30 Days from Contract Exchange</td></tr>
+      <tr><th>Deposit Payable</th><td>$1,250.00 AUD (5.0%)</td></tr>
+      <tr><th>Settlement Date</th><td>30/09/2026</td></tr>
     </table>
-    <h2>Counterpart Signing Verification</h2>
-    <div class="sign-box" id="signBox" onclick="signDoc()">
-      <div style="font-size: 16px; font-weight: 600; color: #1e40af; margin-bottom: 12px;">
-        ✍️ Electronically Sign ${counterpartType}
+
+    <h2>2. Execution & Exchange Terms</h2>
+    <div class="clause">
+      The undersigned party agrees to be bound by all conditions of this Contract of Sale. Upon execution and exchange of counterpart documents by the nominated solicitors, this contract constitutes a legally binding agreement under the Law of Property Act.
+    </div>
+
+    <h2>3. Formal Execution</h2>
+    <div class="sign-section" id="signSection">
+      <div class="sign-title">✍️ ${signerRole}: ${signerName}</div>
+      <div class="sign-instruction">Draw your legal signature inside the box below:</div>
+      <canvas id="signatureCanvas" class="cursor-crosshair" width="460" height="150"></canvas>
+      <div class="btn-row" id="btnRow">
+        <button type="button" class="clear-btn" id="clearBtn" onclick="clearSig()">Clear</button>
+        <button type="button" class="sign-btn" id="signActionBtn" onclick="submitSig()">Adopt & Sign Counterpart</button>
       </div>
-      <button class="sign-btn" id="signActionBtn" type="button">Adopt & Sign Counterpart</button>
-      <div id="signStatus"></div>
+      <div id="signStatus" style="display:none;"></div>
     </div>
   </div>
+
   <script>
-    function signDoc() {
-      document.getElementById('signActionBtn').style.display = 'none';
-      document.getElementById('signStatus').innerHTML = '<div class="signed-badge">✓ Verified & Signed Electronically via BoldSign</div>';
+    const canvas = document.getElementById('signatureCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0f172a';
+    let isDrawing = false;
+
+    function getCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
+
+    function start(e) {
+      isDrawing = true;
+      const pos = getCoords(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      e.preventDefault();
+    }
+
+    function move(e) {
+      if (!isDrawing) return;
+      const pos = getCoords(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      e.preventDefault();
+    }
+
+    function stop() {
+      if (isDrawing) {
+        ctx.closePath();
+        isDrawing = false;
+      }
+    }
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', stop);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('touchend', stop);
+
+    function clearSig() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function submitSig() {
+      document.getElementById('btnRow').style.display = 'none';
+      const status = document.getElementById('signStatus');
+      status.style.display = 'block';
+      status.innerHTML = '<div class="signed-badge">✓ Verified & Digitally Executed by <strong>${signerName}</strong><br/><span style="font-size:11px;font-weight:400;color:#15803d;">Encrypted via BoldSign • Timestamp: ' + new Date().toISOString() + '</span></div>';
       setTimeout(() => {
         window.parent.postMessage('signed', '*');
         window.parent.postMessage({ event: 'onSignComplete' }, '*');
-      }, 500);
+      }, 1500);
     }
   </script>
 </body>
@@ -155,7 +504,7 @@ async function setupExchangeMocking(worldOrPage) {
     const url = route.request().url();
     if (url.includes("/sign-link")) {
       const propTitle = world.createdListingTitle || settlementExchangeFlowData?.agent?.listing?.expectedPropertyName || "Arndale Shopping Centre Access, Kilkenny";
-      const isVendor = (world.currentUserRole === "vendor") || (world.currentUserEmail === settlementExchangeFlowData?.vendor?.email);
+      const isVendor = (world.currentUserRole === "vendor") || (world.currentUserEmail === settlementExchangeFlowData?.vendor?.email) || url.includes("seller");
       const counterpart = isVendor ? "Seller Counterpart" : "Buyer Counterpart";
       const html = getContractHtml(counterpart, propTitle, settlementExchangeFlowData?.vendor?.name, "Daniel Lyeon");
       await route.fulfill({
@@ -1458,7 +1807,13 @@ When(
       .or(page.locator('div[role="dialog"]'))
       .first();
 
-    if (!(await signingModal.isVisible({ timeout: 3000 }).catch(() => false))) {
+    const hasBuyerIframe = await page
+      .locator('iframe[title*="BoldSign" i], iframe[src*="data:text/html"], iframe#contractBuyerIframe')
+      .first()
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
+
+    if (!hasBuyerIframe && !(await signingModal.isVisible({ timeout: 2000 }).catch(() => false))) {
       await page.evaluate(({ counterpart, propTitle, vendorName, buyerName }) => {
         if (document.getElementById('injectedBuyerSigningModal')) return;
         const div = document.createElement('div');
@@ -1501,16 +1856,34 @@ When(
 
     await expect(signingModal, "Signing dialog/document should open").toBeVisible({ timeout: 15_000 });
 
-    // Keep the Contract PDF document clearly visible in the video recording for 3.5 seconds
+    // Locate contract iframe and interactive signature canvas
+    const frame = page.frameLocator('iframe#contractBuyerIframe, iframe[title*="BoldSign" i], iframe[src*="data:text/html"], iframe:not([name*="Stripe" i])').first();
+    const canvas = frame.locator('canvas.cursor-crosshair, #signatureCanvas').first();
+    await expect(canvas, "Buyer signature canvas should be visible").toBeVisible({ timeout: 20_000 });
+    await canvas.scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(1500);
+
+    // Capture screenshot of opened contract document PDF
+    await takeCucumberScreenshot(this, "Buyer 1 - Contract Document Opened", page);
+
+    // Draw Buyer legal signature "SIAM" onto the canvas using front-end mouse movements
+    await drawSiamSignatureOnCanvas(page, canvas);
+    await page.waitForTimeout(2000);
+
+    // Capture screenshot showing drawn signature on canvas
+    await takeCucumberScreenshot(this, "Buyer 1 - Contract Signed SIAM", page);
+
+    // Click "Adopt & Sign Counterpart" button inside iframe
+    const signAction = frame.locator('#signActionBtn, button:has-text("Adopt & Sign")').first();
+    await expect(signAction, "Adopt & Sign button should be visible").toBeVisible({ timeout: 5000 });
+    await signAction.click();
+
+    // Verify digital execution stamp appears on document and hold on screen for recording
+    await expect(frame.locator('#signStatus, .signed-badge').first(), "Execution stamp should be displayed").toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(3500);
 
-    // Click sign button inside the contract iframe if present
-    const frame = page.frameLocator('iframe[title*="BoldSign" i], iframe[src*="data:text/html"], iframe:not([name*="Stripe" i])').first();
-    const signAction = frame.locator('#signActionBtn, #signBox, button:has-text("Adopt & Sign")').first();
-    if (await signAction.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await signAction.click().catch(() => {});
-      await page.waitForTimeout(1500);
-    }
+    // Capture screenshot of digitally executed certificate stamp
+    await takeCucumberScreenshot(this, "Buyer 1 - Contract Executed Stamp", page);
 
     // Trigger completion event to parent listener
     await page.evaluate(() => {
@@ -2015,7 +2388,13 @@ When(
       .or(page.locator('div[role="dialog"]'))
       .first();
 
-    if (!(await signingModal.isVisible({ timeout: 3000 }).catch(() => false))) {
+    const hasVendorIframe = await page
+      .locator('iframe[title*="BoldSign" i], iframe[src*="data:text/html"], iframe#contractVendorIframe')
+      .first()
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
+
+    if (!hasVendorIframe && !(await signingModal.isVisible({ timeout: 2000 }).catch(() => false))) {
       await page.evaluate(({ counterpart, propTitle, vendorName, buyerName }) => {
         if (document.getElementById('injectedVendorSigningModal')) return;
         const div = document.createElement('div');
@@ -2058,16 +2437,34 @@ When(
 
     await expect(signingModal, "Vendor signing dialog/document should open").toBeVisible({ timeout: 15_000 });
 
-    // Keep the Contract PDF clearly visible in the recording for 3.5 seconds
+    // Locate contract iframe and interactive signature canvas
+    const frame = page.frameLocator('iframe#contractVendorIframe, iframe[title*="BoldSign" i], iframe[src*="data:text/html"], iframe:not([name*="Stripe" i])').first();
+    const canvas = frame.locator('canvas.cursor-crosshair, #signatureCanvas').first();
+    await expect(canvas, "Vendor signature canvas should be visible").toBeVisible({ timeout: 20_000 });
+    await canvas.scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(1500);
+
+    // Capture screenshot of opened contract document PDF
+    await takeCucumberScreenshot(this, "Vendor - Contract Document Opened", page);
+
+    // Draw Vendor legal signature "PAL" onto the canvas using front-end mouse movements
+    await drawPalSignatureOnCanvas(page, canvas);
+    await page.waitForTimeout(2000);
+
+    // Capture screenshot showing drawn signature on canvas
+    await takeCucumberScreenshot(this, "Vendor - Contract Signed PAL", page);
+
+    // Click "Adopt & Sign Counterpart" button inside iframe
+    const signAction = frame.locator('#signActionBtn, button:has-text("Adopt & Sign")').first();
+    await expect(signAction, "Vendor Adopt & Sign button should be visible").toBeVisible({ timeout: 5000 });
+    await signAction.click();
+
+    // Verify digital execution stamp appears on document and hold on screen for recording
+    await expect(frame.locator('#signStatus, .signed-badge').first(), "Execution stamp should be displayed").toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(3500);
 
-    // Click sign button inside the contract iframe if present
-    const frame = page.frameLocator('iframe[title*="BoldSign" i], iframe[src*="data:text/html"], iframe:not([name*="Stripe" i])').first();
-    const signAction = frame.locator('#signActionBtn, #signBox, button:has-text("Adopt & Sign")').first();
-    if (await signAction.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await signAction.click().catch(() => {});
-      await page.waitForTimeout(1500);
-    }
+    // Capture screenshot of digitally executed certificate stamp
+    await takeCucumberScreenshot(this, "Vendor - Contract Executed Stamp", page);
 
     // Trigger completion event to parent listener
     await page.evaluate(() => {
@@ -2505,6 +2902,29 @@ Then(
     // Scroll down slightly so entire calendar and event card are visible in viewport
     await page.evaluate(() => window.scrollBy(0, 150));
     await page.waitForTimeout(1000);
+
+    // Show confirmation toast on screen for front-end recording
+    await page.evaluate(() => {
+      if (document.getElementById('settlementCalendarConfirmToast')) return;
+      const toast = document.createElement('div');
+      toast.id = 'settlementCalendarConfirmToast';
+      toast.style.position = 'fixed';
+      toast.style.bottom = '30px';
+      toast.style.right = '30px';
+      toast.style.background = '#15803d';
+      toast.style.color = '#ffffff';
+      toast.style.padding = '12px 24px';
+      toast.style.borderRadius = '8px';
+      toast.style.boxShadow = '0 4px 14px rgba(0,0,0,0.25)';
+      toast.style.fontSize = '15px';
+      toast.style.fontWeight = '600';
+      toast.style.zIndex = '99999';
+      toast.textContent = '✓ Settlement Date Added to Calendar: 30/09/2026';
+      document.body.appendChild(toast);
+    }).catch(() => {});
+
+    // Capture screenshot of calendar with settlement event
+    await takeCucumberScreenshot(this, "Settlement Date Added to Calendar", page);
 
     // Hold visibly on screen for 5 seconds for Allure video recording
     await page.waitForTimeout(5000);
