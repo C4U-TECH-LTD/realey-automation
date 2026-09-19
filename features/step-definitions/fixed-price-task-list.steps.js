@@ -485,7 +485,9 @@ When(
   "the General User clicks the Progress tab in the chatroom",
   async function () {
     await this.conversationsPage
-      .clickProgressTab();
+      .clickProgressTab(
+        fixedPriceTaskListFlowData.agent.listing.expectedPropertyName
+      );
   }
 );
 
@@ -511,6 +513,13 @@ When(
     // Switch to Chat tab if currently on Progress tab
     await this.conversationsPage.clickChatTab();
 
+    // Wait for any chat loading spinner to detach
+    await this.page
+      .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
     const acceptBtn = this.page
       .getByRole("button", {
         name: "Accept",
@@ -519,33 +528,69 @@ When(
       .or(this.page.locator('button:has-text("Accept")'))
       .first();
 
-    if (await acceptBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
-      console.log("Buyer accepting counter offer in chatroom...");
-      await acceptBtn.click();
+    await expect(
+      acceptBtn,
+      "Accept button should be visible in chatroom for counter offer"
+    ).toBeVisible({ timeout: 20_000 });
 
+    console.log("Buyer accepting counter offer in chatroom...");
+    await acceptBtn.click();
+
+    const dialog = this.page.locator('[role="dialog"]').last();
+    const dialogAppeared = await dialog
+      .waitFor({ state: "visible", timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (dialogAppeared) {
+      const confirmBtn = dialog
+        .getByRole("button", {
+          name: /Confirm|Accept|Yes/i,
+        })
+        .first();
+
+      await expect(
+        confirmBtn,
+        "Confirm button should be visible in dialog"
+      ).toBeVisible({ timeout: 10_000 });
+
+      await confirmBtn.click();
+      console.log("Offer acceptance confirmed in dialog");
+    } else {
       const confirmBtn = this.page
         .getByRole("button", {
-          name: /Accept|Confirm|Yes/i,
+          name: /Confirm|Accept|Yes/i,
         })
         .last();
 
       if (await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
         await confirmBtn.click();
-      }
-
-      await this.page.waitForTimeout(1500);
-
-      const closeDialogBtn = this.page
-        .locator(
-          '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i], button:has(svg.lucide-x)'
-        )
-        .first();
-
-      if (await closeDialogBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await closeDialogBtn.click();
-        await this.page.waitForTimeout(500);
+        console.log("Offer acceptance confirmed via fallback button");
       }
     }
+
+    await this.page.waitForTimeout(2000);
+
+    // If redirected to listing page with settlement modal, dismiss modal and return to chatroom
+    const settlementModalClose = this.page
+      .locator(
+        '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i], button:has(svg.lucide-x)'
+      )
+      .first();
+
+    if (await settlementModalClose.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log("Closing Property Settlement Process modal...");
+      await settlementModalClose.click().catch(() => {});
+      await this.page.waitForTimeout(1000);
+    }
+
+    console.log("Re-opening agent conversation from Conversations...");
+    await this.conversationsPage.openConversations();
+    await this.conversationsPage.openAgentConversation(
+      fixedPriceTaskListFlowData.agent.listing.expectedPropertyName
+    );
+
+    console.log("Buyer accepted counter offer and returned to chatroom successfully");
   }
 );
 
@@ -782,6 +827,8 @@ Then(
   "the assigned Configure Progress Task List should automatically appear",
   async function () {
     await this.conversationsPage
-      .verifyAssignedProgressTasksVisible();
+      .verifyAssignedProgressTasksVisible(
+        fixedPriceTaskListFlowData.agent.listing.expectedPropertyName
+      );
   }
 );

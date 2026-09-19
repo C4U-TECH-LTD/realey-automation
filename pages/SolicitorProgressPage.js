@@ -131,13 +131,16 @@ class SolicitorProgressPage {
 
   async scrollDownAndSubmit() {
     console.log("Scrolling down and submitting Configure Progress Task...");
-    // Remove the floating support/chat widget that overlaps the bottom-right Update button
+    // Hide floating support/chat widget without detaching React DOM nodes
     await this.page.evaluate(() => {
       document
         .querySelectorAll(
           '.fixed.right-4.bottom-5, [class*="bottom-5"][class*="right-4"]'
         )
-        .forEach((el) => el.remove());
+        .forEach((el) => {
+          el.style.pointerEvents = "none";
+          el.style.opacity = "0";
+        });
     }).catch(() => {});
 
     await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));

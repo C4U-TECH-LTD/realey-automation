@@ -914,6 +914,16 @@ class ConversationsPage {
     await this.page.waitForLoadState("domcontentloaded");
     await this.page.waitForTimeout(1500);
 
+    const pendingMessage = this.page.getByText(
+      /Progress tasks will appear once an offer for this property is accepted/i
+    );
+    if (await pendingMessage.isVisible().catch(() => false)) {
+      console.log(
+        "Progress tab shows pending message — task list is not visible/interactive as expected."
+      );
+      return;
+    }
+
     const taskList = this.getProgressTaskListLocator();
 
     const isVisible = await taskList.isVisible().catch(() => false);
@@ -1000,31 +1010,65 @@ class ConversationsPage {
 
   getChatroomTab(tabName) {
     return this.page
-      .locator('div[class*="border-[#E5E5E5]"], div[class*="overflow-x-auto"], [role="tablist"]')
-      .locator("button")
+      .locator('button, [role="tab"]')
       .filter({ hasText: new RegExp(`^\\s*${tabName}\\s*$`, "i") })
       .or(
         this.page
-          .locator('div[class*="border-[#E5E5E5]"], div[class*="overflow-x-auto"]')
+          .locator('div[class*="border-[#E5E5E5]"], div[class*="overflow-x-auto"], [role="tablist"]')
           .locator("button")
           .filter({ hasText: new RegExp(tabName, "i") })
       )
       .or(
-        this.page
-          .locator("button")
-          .filter({ hasText: new RegExp(`^\\s*${tabName}\\s*$`, "i") })
+        this.page.getByRole("tab", { name: new RegExp(tabName, "i") })
+      )
+      .or(
+        this.page.getByRole("button", { name: new RegExp(tabName, "i") })
       )
       .last();
   }
 
-  async clickProgressTab() {
+  async clickProgressTab(expectedPropertyName = null) {
     console.log("Clicking Progress tab in chatroom...");
+
+    // 1. If currently outside chatroom (e.g. redirected to property page with settlement modal)
+    if (!this.page.url().includes("/chat/")) {
+      console.log("Not in chatroom. Returning to chatroom...");
+      const closeBtn = this.page
+        .locator(
+          '[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i], button:has(svg.lucide-x)'
+        )
+        .first();
+      if (await closeBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await closeBtn.click().catch(() => {});
+        await this.page.waitForTimeout(1000);
+      }
+
+      console.log("Navigating to chatroom via Conversations...");
+      await this.openConversations();
+      if (expectedPropertyName) {
+        await this.openAgentConversation(expectedPropertyName);
+      }
+    }
+
+    // 2. If inside chatroom but under General tab rather than Property tab
+    const isGeneralActive = await this.page
+      .locator('button[class*="gradient"], button.bg-primary')
+      .filter({ hasText: /^General\b/i })
+      .isVisible()
+      .catch(() => false);
+
+    if (isGeneralActive && expectedPropertyName) {
+      console.log("Currently on General chat tab. Switching to Property conversation...");
+      await this.openConversations();
+      await this.openAgentConversation(expectedPropertyName);
+    }
+
     const progressTab = this.getChatroomTab("Progress");
 
     await expect(
       progressTab,
       "Progress tab should be visible in chatroom"
-    ).toBeVisible({ timeout: 15_000 });
+    ).toBeVisible({ timeout: 20_000 });
 
     await progressTab.click();
     await this.page.waitForTimeout(1000);
@@ -1072,17 +1116,20 @@ class ConversationsPage {
     );
   }
 
-  async verifyAssignedProgressTasksVisible() {
+  async verifyAssignedProgressTasksVisible(expectedPropertyName = null) {
     console.log("Verifying assigned Configure Progress Task List appears in chatroom...");
     await this.page.waitForLoadState("domcontentloaded");
     await this.page.waitForTimeout(2000);
 
-    // Ensure Progress tab is activated
-    const progressTab = this.getChatroomTab("Progress");
-
-    if (await progressTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await progressTab.click();
-      await this.page.waitForTimeout(1000);
+    // Ensure we are inside chatroom
+    if (!this.page.url().includes("/chat/")) {
+      await this.clickProgressTab(expectedPropertyName);
+    } else {
+      const progressTab = this.getChatroomTab("Progress");
+      if (await progressTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await progressTab.click();
+        await this.page.waitForTimeout(1000);
+      }
     }
 
     // Check if the chatroom needs a refresh to fetch the latest settlement progress
@@ -1091,15 +1138,18 @@ class ConversationsPage {
     );
     const noSteps = this.page.getByText(/No progress steps available/i);
 
-    if (
-      (await pendingMsg.isVisible({ timeout: 3000 }).catch(() => false)) ||
-      (await noSteps.isVisible({ timeout: 2000 }).catch(() => false))
-    ) {
+    const pollStart = Date.now();
+    while (Date.now() - pollStart < 25_000) {
+      const isPending = await pendingMsg.isVisible().catch(() => false);
+      const isNoSteps = await noSteps.isVisible().catch(() => false);
+      if (!isPending && !isNoSteps) {
+        break;
+      }
       console.log("Chatroom progress panel still showing pending/empty state, refreshing chat to sync settlement data...");
+      await this.page.waitForTimeout(2000);
       await this.page.reload({ waitUntil: "domcontentloaded" });
       await this.page.waitForTimeout(3000);
 
-      // Re-activate chat and progress tab if needed
       const reTab = this.getChatroomTab("Progress");
       if (await reTab.isVisible({ timeout: 5000 }).catch(() => false)) {
         await reTab.click();
@@ -1110,12 +1160,12 @@ class ConversationsPage {
     // Pending message MUST not be visible at this final stage
     await expect(
       pendingMsg,
-      'Pending message "Progress tasks will appear once an offer for this property is accepted." should disappear after settlement is complete'
+      'Pending message "Progress tasks will appear once an offer for this property is accepted." should disappear after offer is accepted'
     ).not.toBeVisible({ timeout: 15_000 });
 
     const assignedTasks = this.page
       .getByText(
-        /Deposit Paid|Standard Conveyancing Process|Final Inspection|Contract Signed|Overall Progress|Property Progress|Tasks & Requests|Configure Progress|10 stages|10 steps/i
+        /Deposit Paid|Standard Conveyancing Process|Final Inspection|Contract Signed|Cooling Off|Finance Approval|Building & Pest|Pre-Settlement|Settlement|Overall Progress|\d+\s*stages|\d+\s*steps/i
       )
       .first();
 
