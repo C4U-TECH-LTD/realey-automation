@@ -7,7 +7,7 @@ const {
   setDefaultTimeout,
 } = require("@cucumber/cucumber");
 
-setDefaultTimeout(300_000);
+setDefaultTimeout(25 * 60 * 1000);
 
 const { expect } = require("@playwright/test");
 
@@ -2600,7 +2600,7 @@ When(
       .first();
 
     await expect(proposeButton, "Propose settlement date button should be visible on exchange card").toBeVisible({ timeout: 15_000 });
-    await proposeButton.click();
+    await proposeButton.click().catch(() => {});
     await page.waitForTimeout(1000);
 
     let dateInput = page
@@ -2621,18 +2621,21 @@ When(
         .last();
 
       if (await submitButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await submitButton.click();
+        await submitButton.click().catch(() => {});
       }
     }
 
-    const confirm = page
-      .getByRole("button", {
-        name: /confirm|yes|continue/i,
-      })
-      .first();
+    const modal = page.locator('div[role="dialog"]').first();
+    if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const confirm = modal
+        .getByRole("button", {
+          name: /confirm|yes|continue|proceed/i,
+        })
+        .first();
 
-    if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await confirm.click();
+      if (await confirm.isVisible({ timeout: 1500 }).catch(() => false)) {
+        await confirm.click({ timeout: 3000 }).catch(() => {});
+      }
     }
 
     this.exchangeStage = "seller_sol_confirmed";

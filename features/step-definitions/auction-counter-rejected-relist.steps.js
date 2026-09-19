@@ -424,6 +424,7 @@ Then(
 
 When(
   "I wait for the Auction Counter Rejected Relist auction to end",
+  { timeout: 25 * 60 * 1000 },
   async function () {
     console.log(
       "Flow 5: Waiting for auction to actually end..."

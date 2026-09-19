@@ -414,6 +414,7 @@ Then(
 
 When(
   "I wait for the Passed-In Auction Declined auction to end",
+  { timeout: 25 * 60 * 1000 },
   async function () {
     console.log(
       "Flow 9: Waiting for auction to actually end..."

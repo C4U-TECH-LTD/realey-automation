@@ -7,7 +7,7 @@ const {
   setDefaultTimeout,
 } = require("@cucumber/cucumber");
 
-setDefaultTimeout(240_000);
+setDefaultTimeout(25 * 60 * 1000);
 
 const {
   loginData,

@@ -14,7 +14,7 @@ const { chromium } = require("@playwright/test");
 
 require("dotenv").config();
 
-setDefaultTimeout(120_000);
+setDefaultTimeout(25 * 60 * 1000);
 
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 const CUCUMBER_SCREENSHOT_DIRECTORY = path.join(

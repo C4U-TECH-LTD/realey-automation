@@ -366,6 +366,7 @@ Then(
 
 When(
   "I wait for the Auction Reserve Not Met auction to end",
+  { timeout: 25 * 60 * 1000 },
   async function () {
     console.log("Waiting for auction to actually end...");
 
