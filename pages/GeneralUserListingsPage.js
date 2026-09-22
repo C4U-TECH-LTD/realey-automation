@@ -262,12 +262,15 @@ class GeneralUserListingsPage {
       if (await modalOrForm.isVisible({ timeout: 5000 }).catch(() => false)) {
         console.log("Contact Agent / Inquiry modal opened successfully");
         // Close modal
-        const closeBtn = this.page.locator('[role="dialog"] button:has(svg.lucide-x), button:has-text("Cancel")').first();
+        const closeBtn = this.page.locator('[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button:has(svg), button[aria-label*="close" i], button:has-text("Cancel")').first();
         if (await closeBtn.isVisible().catch(() => false)) {
           await closeBtn.click();
         } else {
           await this.page.keyboard.press("Escape").catch(() => {});
         }
+        // Wait for modal and any dialog to fully hide/detach to avoid race conditions
+        await modalOrForm.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+        await this.page.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
       }
     } else {
       console.log("Contact Agent button not present on current layout; continuing");

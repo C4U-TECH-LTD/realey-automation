@@ -195,7 +195,7 @@ Before(async function ({ pickle }) {
 
   this.context = await this.browser.newContext({
     baseURL: this.baseURL || process.env.BASE_URL || "https://uat.realey.au/",
-    viewport: headless ? { width: 1920, height: 1080 } : null,
+    viewport: { width: 1920, height: 1080 },
     ignoreHTTPSErrors: false,
     recordVideo: {
       dir: PLAYWRIGHT_VIDEO_TEMP_DIRECTORY,

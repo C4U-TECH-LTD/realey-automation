@@ -39,10 +39,20 @@ class OfferPage {
       "Checking whether Offer amount input is already visible..."
     );
 
-    const dialog = this.page.locator('[role="dialog"]').last();
-    if (await dialog.isVisible().catch(() => false)) {
+    // Only consider dialog open if it actually contains an offer amount input or offer title
+    const offerDialog = this.page.locator(
+      '[role="dialog"]:has(input[placeholder*="amount" i], input[placeholder*="offer" i], input[name*="amount" i], input[name*="offer" i], input[type="number"]), [role="dialog"]:has-text("Submit Your Offer")'
+    ).last();
+    if (await offerDialog.isVisible().catch(() => false)) {
       console.log("Offer modal dialog is already open");
       return;
+    }
+
+    // If an unrelated dialog is lingering from a previous step, wait for it to hide
+    const anyDialog = this.page.locator('[role="dialog"]').last();
+    if (await anyDialog.isVisible().catch(() => false)) {
+      console.log("Waiting for lingering unrelated dialog to close...");
+      await anyDialog.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
     }
 
     const inputAlreadyVisible =
@@ -141,14 +151,16 @@ class OfferPage {
 
     await this.ensureOfferFormOpen();
 
-    // Check if modal dialog is open
-    const dialog = this.page.locator('[role="dialog"]').last();
-    const isDialog = await dialog.isVisible().catch(() => false);
+    // Check if offer modal dialog is open
+    const offerDialog = this.page.locator(
+      '[role="dialog"]:has(input[placeholder*="amount" i], input[placeholder*="offer" i], input[name*="amount" i], input[name*="offer" i], input[type="number"]), [role="dialog"]:has-text("Submit Your Offer")'
+    ).last();
+    const isDialog = await offerDialog.isVisible().catch(() => false);
 
     const input = isDialog
-      ? dialog
+      ? offerDialog
           .locator(
-            'input[placeholder*="amount" i], input[placeholder*="offer" i], input[name*="amount" i], input[name*="offer" i], input[type="number"], input'
+            'input[placeholder*="amount" i], input[placeholder*="offer" i], input[name*="amount" i], input[name*="offer" i], input[type="number"]'
           )
           .first()
       : this.offerAmountInput;

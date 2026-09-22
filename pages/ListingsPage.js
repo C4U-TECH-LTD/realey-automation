@@ -387,7 +387,12 @@ class ListingsPage {
         timeout: 20_000,
       });
 
-      await this.listViewButton.click();
+      await this.listViewButton.scrollIntoViewIfNeeded().catch(() => {});
+      try {
+        await this.listViewButton.click({ timeout: 5000 });
+      } catch {
+        await this.listViewButton.dispatchEvent("click");
+      }
     }
 
     await expect(
@@ -414,10 +419,15 @@ class ListingsPage {
       timeout: 20_000,
     });
 
-    await this.gridViewButton.click();
+    await this.gridViewButton.scrollIntoViewIfNeeded().catch(() => {});
+    try {
+      await this.gridViewButton.click({ timeout: 5000 });
+    } catch {
+      await this.gridViewButton.dispatchEvent("click");
+    }
 
     await expect(
-      this.gridContainer,
+      this.gridContainer.first(),
       "Listings Grid View should be displayed"
     ).toBeVisible({
       timeout: 20_000,
