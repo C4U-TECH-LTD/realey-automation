@@ -1,0 +1,367 @@
+name: Daily 9AM - All Flows (1 to 9) E2E Suite
+
+on:
+  schedule:
+    # 9:00 AM UTC+6 daily (03:00 UTC)
+    # Note: 03:00 UTC = 09:00 AM (UTC+6) / 13:00 AEST (UTC+10)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      recipient_email:
+        description: 'Recipient email address for test results (leave empty for default)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: realey-daily-all-flows
+  cancel-in-progress: false
+
+jobs:
+  run-all-flows:
+    name: Run All Flows (1 to 9)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    env:
+      CI: "true"
+      HEADLESS: "true"
+      SLOW_MO: "0"
+
+      BASE_URL: ${{ secrets.BASE_URL }}
+
+      AGENT_EMAIL: ${{ secrets.AGENT_EMAIL }}
+      AGENT_PASSWORD: ${{ secrets.AGENT_PASSWORD }}
+      AGENT_OTP: ${{ secrets.AGENT_OTP }}
+
+      GENERAL_USER_EMAIL: ${{ secrets.GENERAL_USER_EMAIL }}
+      GENERAL_USER_PASSWORD: ${{ secrets.GENERAL_USER_PASSWORD }}
+      GENERAL_USER_OTP: ${{ secrets.GENERAL_USER_OTP }}
+
+      AUCTION_BUYER_2_EMAIL: ${{ secrets.AUCTION_BUYER_2_EMAIL }}
+      AUCTION_BUYER_2_PASSWORD: ${{ secrets.AUCTION_BUYER_2_PASSWORD }}
+      AUCTION_BUYER_2_OTP: ${{ secrets.AUCTION_BUYER_2_OTP }}
+
+      BUYER_SOLICITOR_EMAIL: ${{ secrets.BUYER_SOLICITOR_EMAIL }}
+      BUYER_SOLICITOR_PASSWORD: ${{ secrets.BUYER_SOLICITOR_PASSWORD }}
+      BUYER_SOLICITOR_OTP: ${{ secrets.BUYER_SOLICITOR_OTP }}
+
+      SELLER_SOLICITOR_EMAIL: ${{ secrets.SELLER_SOLICITOR_EMAIL }}
+      SELLER_SOLICITOR_PASSWORD: ${{ secrets.SELLER_SOLICITOR_PASSWORD }}
+      SELLER_SOLICITOR_OTP: ${{ secrets.SELLER_SOLICITOR_OTP }}
+
+      VENDOR_EMAIL: ${{ secrets.VENDOR_EMAIL }}
+      VENDOR_PASSWORD: ${{ secrets.VENDOR_PASSWORD }}
+      VENDOR_OTP: ${{ secrets.VENDOR_OTP }}
+
+      TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER }}
+      TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY }}
+      TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Install Playwright Browser
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+
+      - name: Verify environment
+        run: |
+          node --version
+          npm --version
+          npx playwright --version
+          npx cucumber-js --version
+          npx allure --version
+          google-chrome --version
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+          rm -rf allure-report
+          rm -rf reports/cucumber
+          rm -rf screenshots/cucumber
+          rm -rf videos
+
+      - name: Record Start Time
+        id: timing
+        run: |
+          echo "start_time=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
+          echo "start_seconds=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Run All Flows Cucumber Test (Sequentially Flow 1 to 9)
+        id: cucumber-tests
+        continue-on-error: true
+        run: |
+          npx cucumber-js --tags "@all-flows" --retry 1
+
+      - name: Record End Time & Calculate Duration
+        if: always()
+        id: duration
+        run: |
+          end_seconds=$(date +%s)
+          duration_seconds=$((end_seconds - ${{ steps.timing.outputs.start_seconds }}))
+          minutes=$((duration_seconds / 60))
+          seconds=$((duration_seconds % 60))
+          echo "formatted_duration=${minutes}m ${seconds}s" >> "$GITHUB_OUTPUT"
+          echo "end_time=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "Generating Allure report..."
+            npx allure generate allure-results --clean -o allure-report
+          else
+            echo "No Allure results generated."
+            mkdir -p allure-report
+            echo "<h1>No Allure results generated</h1>" > allure-report/index.html
+          fi
+
+      - name: Upload Cucumber Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-cucumber-report
+          path: reports/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure Raw Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-allure-results
+          path: allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-allure-html-report
+          path: allure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-cucumber-screenshots
+          path: screenshots/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Test Videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-cucumber-videos
+          path: videos/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Configure GitHub Pages
+        if: always()
+        uses: actions/configure-pages@v5
+
+      - name: Upload Allure Report To GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: allure-report/
+
+  deploy-allure:
+    name: Publish Allure Report
+    if: always()
+    needs:
+      - run-all-flows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Allure Report
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Add Allure Link To Job Summary
+        run: |
+          echo "## 📊 Realey All Flows Daily 9AM Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Daily automated execution of Flows 1 through 9." >> "$GITHUB_STEP_SUMMARY"
+
+  send-email:
+    name: Send Email Report
+    if: always()
+    needs:
+      - run-all-flows
+      - deploy-allure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check SMTP Configuration
+        id: check-smtp
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASS: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          if [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASS" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SMTP_USERNAME / SMTP_PASSWORD secrets not configured in repository. Email notification skipped."
+          fi
+
+      - name: Prepare Email HTML Content
+        id: prepare-email
+        run: |
+          TEST_OUTCOME="${{ needs.run-all-flows.result }}"
+          ALLURE_URL="${{ needs.deploy-allure.outputs.page_url || 'https://c4u-tech-ltd.github.io/realey-automation/' }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          if [ "$TEST_OUTCOME" = "success" ]; then
+            STATUS_COLOR="#16a34a"
+            STATUS_TEXT="PASSED"
+            STATUS_BG="#f0fdf4"
+            STATUS_BORDER="#86efac"
+          else
+            STATUS_COLOR="#dc2626"
+            STATUS_TEXT="FAILED"
+            STATUS_BG="#fef2f2"
+            STATUS_BORDER="#fca5a5"
+          fi
+
+          cat << 'EOF' > email-body.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+              .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+              .header { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: #ffffff; padding: 28px; text-align: center; }
+              .header h1 { margin: 0 0 6px 0; font-size: 22px; font-weight: 700; }
+              .header p { margin: 0; font-size: 14px; opacity: 0.9; }
+              .content { padding: 28px; }
+              .status-banner { padding: 16px 20px; border-radius: 8px; font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 24px; border: 1px solid; }
+              .details-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+              .details-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+              .details-table td.label { font-weight: 600; color: #64748b; width: 35%; }
+              .details-table td.value { color: #0f172a; }
+              .flow-list { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px; font-size: 13px; line-height: 1.6; }
+              .flow-list ol { margin: 0; padding-left: 20px; }
+              .btn-container { text-align: center; margin: 28px 0 12px 0; }
+              .btn { display: inline-block; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 0 6px; }
+              .btn-primary { background-color: #2563eb; color: #ffffff !important; }
+              .btn-secondary { background-color: #f1f5f9; color: #334155 !important; border: 1px solid #cbd5e1; }
+              .footer { background: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Realey Daily 9AM E2E Automation</h1>
+                <p>Scheduled Full Suite Execution (Flows 1 to 9)</p>
+              </div>
+              <div class="content">
+                <div class="status-banner" style="background-color: STATUS_BG_VAL; color: STATUS_COLOR_VAL; border-color: STATUS_BORDER_VAL;">
+                  Suite Status: STATUS_TEXT_VAL
+                </div>
+                <table class="details-table">
+                  <tr><td class="label">Repository</td><td class="value">REPO_VAL</td></tr>
+                  <tr><td class="label">Trigger</td><td class="value">TRIGGER_VAL</td></tr>
+                  <tr><td class="label">Executed At</td><td class="value">DATE_VAL</td></tr>
+                  <tr><td class="label">GitHub Run</td><td class="value"><a href="RUN_URL_VAL" style="color: #2563eb;">#RUN_ID_VAL</a></td></tr>
+                  <tr><td class="label">Allure Report</td><td class="value"><a href="ALLURE_URL_VAL" style="color: #2563eb; font-weight: 600;">View Full Report &rarr;</a></td></tr>
+                </table>
+                <div class="flow-list">
+                  <strong>Suite Scope:</strong>
+                  <ol>
+                    <li>Flow 1 — Fixed Price Direct Offer Acceptance & Settlement</li>
+                    <li>Flow 2 — Offer Counter-Offer Negotiation & Deposit Payment</li>
+                    <li>Flow 3 — Auction Two-Bidder War & Settlement</li>
+                    <li>Flow 4 — Auction Reserve Not Met Counter Negotiation</li>
+                    <li>Flow 5 — Auction Counter Rejected & Relisted as Fixed Price</li>
+                    <li>Flow 6 — Settlement Document Exchange & Mouse Signature Drawing</li>
+                    <li>Flow 7 — Sales Instructions Delivery & Timing</li>
+                    <li>Flow 8 — Progress Task List Verification in Chatroom</li>
+                    <li>Flow 9 — Passed-In Auction Negotiation Declined</li>
+                  </ol>
+                </div>
+                <div class="btn-container">
+                  <a href="ALLURE_URL_VAL" class="btn btn-primary">Open Allure Report</a>
+                  <a href="RUN_URL_VAL" class="btn btn-secondary">View GitHub Action Run</a>
+                </div>
+              </div>
+              <div class="footer">
+                Automated notification generated by Realey Automation CI/CD &bull; Daily 9:00 AM Run
+              </div>
+            </div>
+          </body>
+          </html>
+          EOF
+
+          sed -i "s|STATUS_TEXT_VAL|$STATUS_TEXT|g" email-body.html
+          sed -i "s|STATUS_COLOR_VAL|$STATUS_COLOR|g" email-body.html
+          sed -i "s|STATUS_BG_VAL|$STATUS_BG|g" email-body.html
+          sed -i "s|STATUS_BORDER_VAL|$STATUS_BORDER|g" email-body.html
+          sed -i "s|REPO_VAL|${{ github.repository }}|g" email-body.html
+          sed -i "s|TRIGGER_VAL|${{ github.event_name }}|g" email-body.html
+          sed -i "s|DATE_VAL|$(date -u +'%Y-%m-%d %H:%M:%S UTC')|g" email-body.html
+          sed -i "s|RUN_URL_VAL|$RUN_URL|g" email-body.html
+          sed -i "s|RUN_ID_VAL|${{ github.run_id }}|g" email-body.html
+          sed -i "s|ALLURE_URL_VAL|$ALLURE_URL|g" email-body.html
+
+      - name: Send Email Notification
+        if: steps.check-smtp.outputs.configured == 'true'
+        uses: dawidd6/action-send-mail@v4
+        with:
+          server_address: ${{ secrets.SMTP_SERVER || 'smtp.gmail.com' }}
+          server_port: ${{ secrets.SMTP_PORT || 465 }}
+          secure: true
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[${{ needs.run-all-flows.result == 'success' && 'PASSED' || 'FAILED' }}] Realey Daily 9AM E2E Report - Flows 1 to 9 (#${{ github.run_id }})"
+          to: ${{ github.event.inputs.recipient_email || secrets.NOTIFY_EMAIL || 'contact.szaman@gmail.com' }}
+          from: "Realey Automation <${{ secrets.SMTP_USERNAME }}>"
+          html_body: file://email-body.html
+
+      - name: Final Suite Failure Gate
+        if: needs.run-all-flows.result != 'success'
+        run: |
+          echo "Daily All Flows test run ended with failures. Check Allure Report / Job artifacts."
+          exit 1
