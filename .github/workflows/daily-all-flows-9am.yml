@@ -2,13 +2,14 @@ name: Daily 9AM - All Flows (1 to 9) E2E Suite
 
 on:
   schedule:
-    # 9:00 AM UTC+6 daily (03:00 UTC)
-    # Note: 03:00 UTC = 09:00 AM (UTC+6) / 13:00 AEST (UTC+10)
-    - cron: '0 3 * * *'
+    # 9:05 AM UTC+6 daily (03:05 UTC)
+    # Note: 03:05 UTC = 09:05 AM (UTC+6) / 13:05 AEST (UTC+10)
+    # Using 5-minute offset to prevent GitHub Actions top-of-hour (:00) drop
+    - cron: '5 3 * * *'
   workflow_dispatch:
     inputs:
       recipient_email:
-        description: 'Recipient email address for test results (leave empty for default)'
+        description: 'Recipient email address(es), comma-separated (leave empty for default)'
         required: false
         default: ''
 
@@ -233,6 +234,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Download Cucumber Report
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-cucumber-report
+          path: reports/cucumber/
+        continue-on-error: true
+
       - name: Check SMTP Configuration
         id: check-smtp
         env:
@@ -246,105 +254,21 @@ jobs:
             echo "::warning::SMTP_USERNAME / SMTP_PASSWORD secrets not configured in repository. Email notification skipped."
           fi
 
-      - name: Prepare Email HTML Content
+      - name: Prepare Email HTML & Resolve Recipients
         id: prepare-email
+        env:
+          TEST_OUTCOME: ${{ needs.run-all-flows.result }}
+          ALLURE_URL: ${{ needs.deploy-allure.outputs.page_url || 'https://c4u-tech-ltd.github.io/realey-automation/#behaviors' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          TRIGGER: ${{ github.event_name }}
+          DATE: ${{ steps.timing.outputs.start_time }}
+          JSON_REPORT_PATH: reports/cucumber/cucumber-report.json
+          OUTPUT_FILE: email-body.html
+          INPUT_RECIPIENT_EMAILS: ${{ github.event.inputs.recipient_email }}
         run: |
-          TEST_OUTCOME="${{ needs.run-all-flows.result }}"
-          ALLURE_URL="${{ needs.deploy-allure.outputs.page_url || 'https://c4u-tech-ltd.github.io/realey-automation/' }}"
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          
-          if [ "$TEST_OUTCOME" = "success" ]; then
-            STATUS_COLOR="#16a34a"
-            STATUS_TEXT="PASSED"
-            STATUS_BG="#f0fdf4"
-            STATUS_BORDER="#86efac"
-          else
-            STATUS_COLOR="#dc2626"
-            STATUS_TEXT="FAILED"
-            STATUS_BG="#fef2f2"
-            STATUS_BORDER="#fca5a5"
-          fi
-
-          cat << 'EOF' > email-body.html
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
-              .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-              .header { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: #ffffff; padding: 28px; text-align: center; }
-              .header h1 { margin: 0 0 6px 0; font-size: 22px; font-weight: 700; }
-              .header p { margin: 0; font-size: 14px; opacity: 0.9; }
-              .content { padding: 28px; }
-              .status-banner { padding: 16px 20px; border-radius: 8px; font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 24px; border: 1px solid; }
-              .details-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
-              .details-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
-              .details-table td.label { font-weight: 600; color: #64748b; width: 35%; }
-              .details-table td.value { color: #0f172a; }
-              .flow-list { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px; font-size: 13px; line-height: 1.6; }
-              .flow-list ol { margin: 0; padding-left: 20px; }
-              .btn-container { text-align: center; margin: 28px 0 12px 0; }
-              .btn { display: inline-block; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 0 6px; }
-              .btn-primary { background-color: #2563eb; color: #ffffff !important; }
-              .btn-secondary { background-color: #f1f5f9; color: #334155 !important; border: 1px solid #cbd5e1; }
-              .footer { background: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>Realey Daily 9AM E2E Automation</h1>
-                <p>Scheduled Full Suite Execution (Flows 1 to 9)</p>
-              </div>
-              <div class="content">
-                <div class="status-banner" style="background-color: STATUS_BG_VAL; color: STATUS_COLOR_VAL; border-color: STATUS_BORDER_VAL;">
-                  Suite Status: STATUS_TEXT_VAL
-                </div>
-                <table class="details-table">
-                  <tr><td class="label">Repository</td><td class="value">REPO_VAL</td></tr>
-                  <tr><td class="label">Trigger</td><td class="value">TRIGGER_VAL</td></tr>
-                  <tr><td class="label">Executed At</td><td class="value">DATE_VAL</td></tr>
-                  <tr><td class="label">GitHub Run</td><td class="value"><a href="RUN_URL_VAL" style="color: #2563eb;">#RUN_ID_VAL</a></td></tr>
-                  <tr><td class="label">Allure Report</td><td class="value"><a href="ALLURE_URL_VAL" style="color: #2563eb; font-weight: 600;">View Full Report &rarr;</a></td></tr>
-                </table>
-                <div class="flow-list">
-                  <strong>Suite Scope:</strong>
-                  <ol>
-                    <li>Flow 1 — Fixed Price Direct Offer Acceptance & Settlement</li>
-                    <li>Flow 2 — Offer Counter-Offer Negotiation & Deposit Payment</li>
-                    <li>Flow 3 — Auction Two-Bidder War & Settlement</li>
-                    <li>Flow 4 — Auction Reserve Not Met Counter Negotiation</li>
-                    <li>Flow 5 — Auction Counter Rejected & Relisted as Fixed Price</li>
-                    <li>Flow 6 — Settlement Document Exchange & Mouse Signature Drawing</li>
-                    <li>Flow 7 — Sales Instructions Delivery & Timing</li>
-                    <li>Flow 8 — Progress Task List Verification in Chatroom</li>
-                    <li>Flow 9 — Passed-In Auction Negotiation Declined</li>
-                  </ol>
-                </div>
-                <div class="btn-container">
-                  <a href="ALLURE_URL_VAL" class="btn btn-primary">Open Allure Report</a>
-                  <a href="RUN_URL_VAL" class="btn btn-secondary">View GitHub Action Run</a>
-                </div>
-              </div>
-              <div class="footer">
-                Automated notification generated by Realey Automation CI/CD &bull; Daily 9:00 AM Run
-              </div>
-            </div>
-          </body>
-          </html>
-          EOF
-
-          sed -i "s|STATUS_TEXT_VAL|$STATUS_TEXT|g" email-body.html
-          sed -i "s|STATUS_COLOR_VAL|$STATUS_COLOR|g" email-body.html
-          sed -i "s|STATUS_BG_VAL|$STATUS_BG|g" email-body.html
-          sed -i "s|STATUS_BORDER_VAL|$STATUS_BORDER|g" email-body.html
-          sed -i "s|REPO_VAL|${{ github.repository }}|g" email-body.html
-          sed -i "s|TRIGGER_VAL|${{ github.event_name }}|g" email-body.html
-          sed -i "s|DATE_VAL|$(date -u +'%Y-%m-%d %H:%M:%S UTC')|g" email-body.html
-          sed -i "s|RUN_URL_VAL|$RUN_URL|g" email-body.html
-          sed -i "s|RUN_ID_VAL|${{ github.run_id }}|g" email-body.html
-          sed -i "s|ALLURE_URL_VAL|$ALLURE_URL|g" email-body.html
+          node scripts/generate-email-body.js
 
       - name: Send Email Notification
         if: steps.check-smtp.outputs.configured == 'true'
@@ -356,7 +280,7 @@ jobs:
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
           subject: "[${{ needs.run-all-flows.result == 'success' && 'PASSED' || 'FAILED' }}] Realey Daily 9AM E2E Report - Flows 1 to 9 (#${{ github.run_id }})"
-          to: ${{ github.event.inputs.recipient_email || secrets.NOTIFY_EMAIL || 'contact.szaman@gmail.com' }}
+          to: ${{ steps.prepare-email.outputs.recipients || 'contact.szaman@gmail.com, management@realey.au' }}
           from: "Realey Automation <${{ secrets.SMTP_USERNAME }}>"
           html_body: file://email-body.html
 
