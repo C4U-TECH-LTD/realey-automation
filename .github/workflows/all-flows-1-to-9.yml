@@ -230,3 +230,9 @@ jobs:
       - name: Workflow Summary
         run: |
           echo "All Flows (1 to 9) automation workflow completed."
+
+      - name: Check Suite Outcome
+        if: needs.run-all-flows.result != 'success'
+        run: |
+          echo "Test suite failed. Failing workflow run."
+          exit 1

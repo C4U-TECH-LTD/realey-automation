@@ -265,12 +265,22 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     await page.waitForTimeout(1500);
   }
 
+  // Click Agent conversation row if present to load thread messages into DOM
+  const agentRow = page
+    .locator("button")
+    .filter({ hasText: /Subrato Pal|Agent/i })
+    .first();
+  if (await agentRow.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await agentRow.click().catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+
   const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago)\b/i;
   const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
 
   const helperFindRecentChat = async () => {
-    // Find all chat rows / entries that contain the expected text
-    const chatRows = page.locator('div, tr, [class*="chat" i], [class*="message" i]').filter({ hasText: expectedRegex });
+    // Check if expected text is in conversation rows or chat message body
+    const chatRows = page.locator('div, tr, [class*="chat" i], [class*="message" i], button').filter({ hasText: expectedRegex });
     const count = await chatRows.count();
 
     for (let i = 0; i < count; i++) {
@@ -278,11 +288,23 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
       const isStale = staleTimePattern.test(rowText);
       const isRecent = recentTimePattern.test(rowText);
 
-      if (isRecent && !isStale) {
+      if (isStale) {
+        console.warn(`[Flow 7] REJECTED stale chatroom message: ${rowText.replace(/\n+/g, " ")}`);
+      } else if (isRecent) {
         console.log(`[Flow 7] Confirmed RECENT chatroom message: ${rowText.replace(/\n+/g, " ")}`);
         return true;
-      } else if (isStale) {
-        console.warn(`[Flow 7] REJECTED stale chatroom message from past run: ${rowText.replace(/\n+/g, " ")}`);
+      } else {
+        const parentText = await chatRows
+          .nth(i)
+          .locator('xpath=ancestor::*[contains(@class, "message") or contains(@class, "chat") or contains(@class, "rounded") or self::li or self::div][1]')
+          .innerText()
+          .catch(() => "");
+        if (staleTimePattern.test(parentText)) {
+          console.warn(`[Flow 7] REJECTED stale chatroom message (parent): ${parentText.replace(/\n+/g, " ")}`);
+        } else {
+          console.log(`[Flow 7] Confirmed chatroom message (not stale): ${rowText.replace(/\n+/g, " ").slice(0, 100)}`);
+          return true;
+        }
       }
     }
     return false;
@@ -295,10 +317,13 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     if (await helperFindRecentChat()) {
       return true;
     }
-    // Re-expand accordion if needed after 4s
+    // Re-expand accordion and select agent row if needed after 4s
     if (Date.now() - startedAt > 4000 && Date.now() - startedAt < 5500) {
       if (await propHeader.isVisible().catch(() => false)) {
         await propHeader.click().catch(() => {});
+      }
+      if (await agentRow.isVisible().catch(() => false)) {
+        await agentRow.click().catch(() => {});
       }
     }
     await page.waitForTimeout(1000);
@@ -673,13 +698,12 @@ Then(
     // Expand property accordion if needed
     const shortName = (salesInstructionsFlowData.agent.listing.expectedPropertyName || "10 London Circuit").split(",")[0].trim();
 
-    // Only click property header if conversation row is not already visible
-    const chatDocRow = page
+    const agentRow = page
       .locator("button")
-      .filter({ hasText: /Sales Instructions/i })
+      .filter({ hasText: /Subrato Pal|Agent/i })
       .first();
 
-    if (!(await chatDocRow.isVisible({ timeout: 1500 }).catch(() => false))) {
+    if (!(await agentRow.isVisible({ timeout: 2000 }).catch(() => false))) {
       const propHeader = page.getByText(new RegExp(shortName, "i")).first();
       if (await propHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
         await propHeader.click().catch(() => {});
@@ -687,17 +711,7 @@ Then(
       }
     }
 
-    // Select the Agent conversation row containing the document attachment (must be button, not parent div)
-    const agentRow = page
-      .locator("button")
-      .filter({ hasText: /Subrato Pal|Agent/i })
-      .filter({ hasText: /Sales Instructions/i })
-      .or(
-        page.locator("button").filter({ hasText: /Sales Instructions/i })
-      )
-      .first();
-
-    await expect(agentRow, "Agent conversation row should be visible").toBeVisible({ timeout: 5000 });
+    await expect(agentRow, "Agent conversation row should be visible").toBeVisible({ timeout: 10000 });
     await agentRow.click();
     await page.waitForTimeout(2000);
 

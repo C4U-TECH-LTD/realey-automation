@@ -29,12 +29,40 @@ class SolicitorProgressPage {
   // SETTLEMENTS TAB NAVIGATION (Flow 8 Updated Step)
   // =====================================================
 
+  async dismissBlockingProgressModal() {
+    const modal = this.page
+      .locator('[role="dialog"], [class*="modal" i], div.fixed')
+      .filter({ hasText: /Please configure the progress/i })
+      .first();
+
+    if (await modal.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log("Detected 'Please configure the progress to continue' modal. Dismissing...");
+      const closeBtn = modal
+        .locator('button:has(svg.lucide-x), [aria-label*="close" i], button:has-text("Close"), button:has-text("Later"), button:has-text("Cancel")')
+        .first();
+      if (await closeBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+        await closeBtn.click().catch(() => {});
+      } else {
+        await this.page.keyboard.press("Escape").catch(() => {});
+      }
+      await this.page.waitForTimeout(1000);
+    }
+  }
+
   async openSettlementsTab() {
     console.log("Opening Seller Solicitor Settlements tab...");
+    await this.dismissBlockingProgressModal();
     const url = this.page.url();
     if (!url.includes("tab=settlements")) {
       if (await this.settlementsMenu.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await this.settlementsMenu.click();
+        try {
+          await this.settlementsMenu.click({ timeout: 5000 });
+        } catch (_) {
+          await this.dismissBlockingProgressModal();
+          await this.page.goto("/dashboard/solicitor?tab=settlements", {
+            waitUntil: "domcontentloaded",
+          });
+        }
       } else {
         await this.page.goto("/dashboard/solicitor?tab=settlements", {
           waitUntil: "domcontentloaded",
@@ -42,6 +70,7 @@ class SolicitorProgressPage {
       }
     }
 
+    await this.dismissBlockingProgressModal();
     await this.page.waitForLoadState("domcontentloaded");
     await this.page
       .getByText(/loading settlements/i)
@@ -53,6 +82,7 @@ class SolicitorProgressPage {
       .waitFor({ state: "hidden", timeout: 30_000 })
       .catch(() => {});
     await this.page.waitForTimeout(1500);
+    await this.dismissBlockingProgressModal();
 
     await expect(
       this.page
@@ -67,6 +97,7 @@ class SolicitorProgressPage {
 
   async openConfigureProgressTask(propertyName) {
     console.log(`Opening Configure Progress Task for property: ${propertyName}...`);
+    await this.dismissBlockingProgressModal();
     const shortName = propertyName ? String(propertyName).split(",")[0].trim() : "";
 
     // 1. If search input exists, filter by shortName
@@ -81,6 +112,8 @@ class SolicitorProgressPage {
         .waitFor({ state: "hidden", timeout: 15_000 })
         .catch(() => {});
     }
+
+    await this.dismissBlockingProgressModal();
 
     // 2. Find Configure Progress button on matching property card
     const card = this.page

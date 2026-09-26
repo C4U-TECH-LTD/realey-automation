@@ -28,6 +28,10 @@ jobs:
     name: Run All Flows (1 to 9)
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    outputs:
+      test_outcome: ${{ steps.cucumber-tests.outcome }}
+      formatted_duration: ${{ steps.duration.outputs.formatted_duration }}
+      start_time: ${{ steps.timing.outputs.start_time }}
 
     env:
       CI: "true"
@@ -257,13 +261,13 @@ jobs:
       - name: Prepare Email HTML & Resolve Recipients
         id: prepare-email
         env:
-          TEST_OUTCOME: ${{ needs.run-all-flows.result }}
+          TEST_OUTCOME: ${{ needs.run-all-flows.outputs.test_outcome }}
           ALLURE_URL: ${{ needs.deploy-allure.outputs.page_url || 'https://c4u-tech-ltd.github.io/realey-automation/#behaviors' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
           TRIGGER: ${{ github.event_name }}
-          DATE: ${{ steps.timing.outputs.start_time }}
+          DATE: ${{ needs.run-all-flows.outputs.start_time }}
           JSON_REPORT_PATH: reports/cucumber/cucumber-report.json
           OUTPUT_FILE: email-body.html
           INPUT_RECIPIENT_EMAILS: ${{ github.event.inputs.recipient_email }}
@@ -279,13 +283,13 @@ jobs:
           secure: true
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "[${{ needs.run-all-flows.result == 'success' && 'PASSED' || 'FAILED' }}] Realey Daily 9AM E2E Report - Flows 1 to 9 (#${{ github.run_id }})"
+          subject: "[${{ needs.run-all-flows.outputs.test_outcome == 'success' && 'PASSED' || 'FAILED' }}] Realey Daily 9AM E2E Report - Flows 1 to 9 (#${{ github.run_id }})"
           to: ${{ steps.prepare-email.outputs.recipients || 'contact.szaman@gmail.com, management@realey.au' }}
           from: "Realey Automation <${{ secrets.SMTP_USERNAME }}>"
           html_body: file://email-body.html
 
       - name: Final Suite Failure Gate
-        if: needs.run-all-flows.result != 'success'
+        if: always() && (needs.run-all-flows.outputs.test_outcome == 'failure' || needs.run-all-flows.result != 'success')
         run: |
           echo "Daily All Flows test run ended with failures. Check Allure Report / Job artifacts."
           exit 1
