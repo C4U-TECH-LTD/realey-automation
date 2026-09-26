@@ -68,6 +68,29 @@ async function clearSession(world) {
   await world.page.goto("/login");
 }
 
+async function dismissSolicitorProgressModal(page) {
+  const modal = page
+    .locator('[role="dialog"], [class*="modal" i], div.fixed')
+    .filter({ hasText: /Please configure the progress/i })
+    .first();
+
+  if (await modal.isVisible({ timeout: 3000 }).catch(() => false)) {
+    console.log("[Flow 7] Detected 'Please configure the progress to continue' modal on Solicitor dashboard. Dismissing...");
+    const closeBtn = modal
+      .locator(
+        'button:has(svg.lucide-x), button.absolute.right-4.top-4, [aria-label*="close" i], button:has-text("Close"), button:has-text("Later")'
+      )
+      .first();
+
+    if (await closeBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await closeBtn.click().catch(() => {});
+    } else {
+      await page.keyboard.press("Escape").catch(() => {});
+    }
+    await page.waitForTimeout(1000);
+  }
+}
+
 async function loginAsAccount(world, account) {
   if (!account?.email) {
     throw new Error("Missing account email for loginAsAccount");
@@ -82,6 +105,7 @@ async function loginAsAccount(world, account) {
   await world.loginPage.submitOtp();
   await world.page.waitForLoadState("domcontentloaded");
   await world.page.waitForTimeout(2000);
+  await dismissSolicitorProgressModal(world.page);
 }
 
 // =====================================================
@@ -153,6 +177,8 @@ async function checkInAppNotification(target, expectedRegex) {
     await page.waitForTimeout(1500);
   }
 
+  await dismissSolicitorProgressModal(page);
+
   const bell = page.locator(
     [
       'button:has(img[src*="bell"]):visible',
@@ -210,6 +236,8 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     ? new RegExp(`${expectedRegex.source}|${target.salesInstructionsRef}`, "i")
     : expectedRegex;
   console.log(`[Flow 7] Checking chatroom for: ${effectiveRegex}`);
+
+  await dismissSolicitorProgressModal(page);
 
   // 1. If not already on conversations tab/view, navigate appropriately
   const isAlreadyOnConversations =
