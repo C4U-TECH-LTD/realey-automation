@@ -330,6 +330,7 @@ When(
       this,
       fixedPriceTaskListFlowData.sellerSolicitor
     );
+    await this.solicitorProgressPage.dismissBlockingProgressModal();
   }
 );
 
@@ -339,6 +340,13 @@ When(
     await this.solicitorProgressPage.openSettlementsTab(
       fixedPriceTaskListFlowData.agent.listing.expectedPropertyName
     );
+  }
+);
+
+When(
+  "the Seller Solicitor opens the Listings tab for the created Fixed Price listing",
+  async function () {
+    await this.solicitorProgressPage.openListingsTab();
   }
 );
 
@@ -354,7 +362,7 @@ When(
 When(
   "the Seller Solicitor scrolls down and submits the progress tasks configuration",
   async function () {
-    await this.solicitorProgressPage.scrollDownAndSubmit();
+    this.configuredTasksCount = await this.solicitorProgressPage.scrollDownAndSubmit();
   }
 );
 
@@ -904,9 +912,14 @@ Then(
 Then(
   "the assigned Configure Progress Task List should automatically appear",
   async function () {
+    const expectedCount =
+      this.configuredTasksCount ||
+      this.solicitorProgressPage.totalConfiguredTasks ||
+      24;
     await this.conversationsPage
       .verifyAssignedProgressTasksVisible(
-        fixedPriceTaskListFlowData.agent.listing.expectedPropertyName
+        fixedPriceTaskListFlowData.agent.listing.expectedPropertyName,
+        expectedCount
       );
   }
 );

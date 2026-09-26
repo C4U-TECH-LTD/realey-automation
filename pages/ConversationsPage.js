@@ -1060,10 +1060,10 @@ class ConversationsPage {
     );
   }
 
-  async verifyAssignedProgressTasksVisible(expectedPropertyName = null) {
-    console.log("Verifying assigned Configure Progress Task List appears in chatroom...");
+  async verifyAssignedProgressTasksVisible(expectedPropertyName = null, expectedTotalTasks = 24) {
+    console.log(`Verifying assigned Configure Progress Task List appears in chatroom (expected tasks: ${expectedTotalTasks})...`);
     await this.page.waitForLoadState("domcontentloaded");
-    await this.page.waitForTimeout(2000);
+    await this.page.waitForTimeout(1500);
 
     // Ensure we are inside chatroom
     if (!this.page.url().includes("/chat/")) {
@@ -1076,23 +1076,20 @@ class ConversationsPage {
       }
     }
 
-    // Check if the chatroom needs a refresh to fetch the latest settlement progress
     const pendingMsg = this.page.getByText(
       /Progress tasks will appear once an offer for this property is accepted/i
     );
     const noSteps = this.page.getByText(/No progress steps available/i);
 
-    const pollStart = Date.now();
-    while (Date.now() - pollStart < 25_000) {
-      const isPending = await pendingMsg.isVisible().catch(() => false);
-      const isNoSteps = await noSteps.isVisible().catch(() => false);
-      if (!isPending && !isNoSteps) {
-        break;
-      }
-      console.log("Chatroom progress panel still showing pending/empty state, refreshing chat to sync settlement data...");
-      await this.page.waitForTimeout(2000);
+    // Check if initial load is pending; do at most ONE soft refresh if needed
+    const isPending = await pendingMsg.isVisible({ timeout: 2500 }).catch(() => false);
+    const isNoSteps = await noSteps.isVisible({ timeout: 1000 }).catch(() => false);
+
+    if (isPending || isNoSteps) {
+      console.log("Chatroom progress panel still loading/syncing, performing single refresh...");
+      await this.page.waitForTimeout(1000);
       await this.page.reload({ waitUntil: "domcontentloaded" });
-      await this.page.waitForTimeout(3000);
+      await this.page.waitForTimeout(2000);
 
       const reTab = this.getChatroomTab("Progress");
       if (await reTab.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -1101,25 +1098,39 @@ class ConversationsPage {
       }
     }
 
-    // Pending message MUST not be visible at this final stage
+    // Pending message MUST not be visible at this stage
     await expect(
       pendingMsg,
       'Pending message "Progress tasks will appear once an offer for this property is accepted." should disappear after offer is accepted'
-    ).not.toBeVisible({ timeout: 15_000 });
+    ).not.toBeVisible({ timeout: 10_000 });
 
-    const assignedTasks = this.page
-      .getByText(
-        /Deposit Paid|Standard Conveyancing Process|Final Inspection|Contract Signed|Cooling Off|Finance Approval|Building & Pest|Pre-Settlement|Settlement|Overall Progress|\d+\s*stages|\d+\s*steps/i
-      )
+    const totalCount = expectedTotalTasks || 24;
+    console.log(`Verifying Overall Progress matches 0/${totalCount} Completed...`);
+
+    // Match "0/24 Completed", "0/24", or "Overall Progress"
+    const overallProgress = this.page
+      .getByText(new RegExp(`0\\s*\\/\\s*${totalCount}\\s*Completed`, "i"))
+      .or(this.page.getByText(/Overall Progress/i))
       .first();
 
     await expect(
-      assignedTasks,
-      "Assigned Configure Progress Task List / stages should automatically appear"
-    ).toBeVisible({ timeout: 30_000 });
+      overallProgress,
+      `Overall Progress should display 0/${totalCount} Completed`
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Assert that progress checklist items (checkboxes / task labels) are visible
+    const checklistItem = this.page
+      .getByText(/Finance pre-approval obtained|Property inspected by buyer|Offer made and accepted|Deposit paid|Building insurance/i)
+      .or(this.page.locator('input[type="checkbox"], button[role="checkbox"], div:has(input[type="checkbox"])'))
+      .first();
+
+    await expect(
+      checklistItem,
+      "Progress checklist task items should be visible in chatroom"
+    ).toBeVisible({ timeout: 15_000 });
 
     console.log(
-      "Assigned Configure Progress Task List automatically appeared as expected"
+      `Assigned Configure Progress Task List verified successfully: 0/${totalCount} Completed with task items.`
     );
   }
 

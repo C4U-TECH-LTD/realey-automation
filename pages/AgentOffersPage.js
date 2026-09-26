@@ -171,37 +171,30 @@ class AgentOffersPage {
   }
 
   async verifyCounterOfferSent(expectedMessage) {
-    const formattedAmount = Number(
-      this.lastCounterAmount || 0
-    ).toLocaleString("en-US");
+    console.log("Verifying 'Counter Offer Sent' confirmation message on upper right...");
 
-    if (formattedAmount !== "0") {
-      const amountMessage = this.page
-        .getByText(
-          new RegExp(`Counter offer:\\s*\\$${formattedAmount}`, "i")
-        )
-        .first();
-
-      if (await amountMessage.isVisible().catch(() => false)) {
-        await expect(amountMessage).toBeVisible();
-        return;
-      }
-    }
-
-    const genericMessage = this.page
-      .getByText(expectedMessage)
+    // 1. Verify confirmation message "Counter Offer Sent" on upper right
+    const counterOfferSentToast = this.page
+      .locator('[data-sonner-toast], [role="status"], [class*="toast" i], div.fixed')
+      .getByText(/Counter Offer Sent/i)
+      .or(this.page.getByText(/Counter Offer Sent/i))
       .first();
 
-    if (await genericMessage.isVisible().catch(() => false)) {
-      await expect(genericMessage).toBeVisible();
-      return;
-    }
-
-    // Send & Open Chat should navigate/open the chat even if the app
-    // does not show a dedicated success toast.
     await expect(
-      this.page.getByText(/Conversations|Counter offer/i).first()
-    ).toBeVisible({ timeout: 20_000 });
+      counterOfferSentToast,
+      "Confirmation message 'Counter Offer Sent' should be displayed on upper right"
+    ).toBeVisible({ timeout: 15_000 });
+
+    console.log("Confirmation message 'Counter Offer Sent' confirmed on upper right.");
+
+    // 2. Verify redirect to chat URL
+    console.log("Verifying redirect to chat URL...");
+    await this.page.waitForURL(
+      (url) => url.pathname.includes("/chat") || url.search.includes("tab=conversations"),
+      { timeout: 20_000 }
+    );
+
+    console.log("Redirected to chat successfully:", this.page.url());
   }
 
   async acceptSubmittedOffer() {
