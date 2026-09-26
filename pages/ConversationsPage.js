@@ -486,12 +486,25 @@ class ConversationsPage {
   }
 
   async clickCounterNegotiate() {
+    // Wait for any chat loading spinner to detach
+    await this.page
+      .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
+    const btn = this.counterNegotiateButton.or(
+      this.page.getByRole("button", { name: /counter negotiate/i })
+    ).or(
+      this.page.locator("button").filter({ hasText: /counter negotiate/i })
+    ).first();
+
     await expect(
-      this.counterNegotiateButton,
+      btn,
       "Counter Negotiate button should be visible"
     ).toBeVisible({ timeout: 20_000 });
 
-    await this.counterNegotiateButton.click();
+    await btn.click();
 
     await expect(
       this.counterAmountInput,

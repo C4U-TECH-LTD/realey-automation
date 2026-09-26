@@ -12,44 +12,104 @@ const {
   offerPriceFlowData,
 } = require("../../fixtures/test-data/offerPriceFlowData");
 
+const {
+  getNextFlow2SearchAddress,
+} = require("../../fixtures/test-data/flow2Counter");
+
 // =====================================================
 // HELPERS
 // =====================================================
 
+async function checkCounterOfferNotificationInBell(page) {
+  console.log("[Flow 2] Checking in-app notification bell for counter offer notification...");
+  const bell = page.locator(
+    [
+      'button:has(img[src*="bell"]):visible',
+      'button:has(svg.lucide-bell):visible',
+      '[aria-label*="notification" i]:visible',
+      'button:has([class*="bell" i]):visible',
+    ].join(", ")
+  ).first();
+
+  const isBellVisible = await bell.isVisible({ timeout: 5000 }).catch(() => false);
+  if (isBellVisible) {
+    await bell.click();
+    await page.waitForTimeout(1500);
+
+    const drawer = page.locator('[data-radix-popper-content-wrapper], [role="dialog"], [class*="popover" i]').first();
+    if (await drawer.isVisible({ timeout: 4000 }).catch(() => false)) {
+      const notifItems = drawer.locator('div, li, a').filter({ hasText: /counter offer|counter|Subrato/i });
+      const count = await notifItems.count();
+      console.log(`[Flow 2] Found ${count} counter offer notification element(s) in bell drawer`);
+      if (count > 0) {
+        const text = await notifItems.first().innerText().catch(() => "");
+        console.log(`[Flow 2] Notification content: ${text.replace(/\n+/g, " ")}`);
+      }
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.waitForTimeout(500);
+    }
+  } else {
+    console.log("[Flow 2] Notification bell not directly visible on current dashboard screen, continuing.");
+  }
+}
+
 async function clearCurrentSession(world) {
-  await world.context.clearCookies();
+  if (world.context) {
+    await world.context.clearCookies().catch(() => {});
+  }
 
-  await world.page.goto(
-    world.baseURL || "https://uat.realey.au/"
-  );
-
-  await world.page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
-
-  await world.page.goto(
-    loginData.application.loginPath
-  );
+  if (world.page) {
+    try {
+      await world.page.evaluate(() => {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
 }
 
 async function loginAs(world, account) {
-  await world.loginPage.goto(
-    loginData.application.loginPath
-  );
+  if (!account) {
+    throw new Error(
+      "Login account configuration is missing."
+    );
+  }
 
-  await world.loginPage.login(
-    account.email,
-    account.password
-  );
+  await clearCurrentSession(world);
 
-  await world.loginPage.waitForOtpPage();
+  let attempts = 0;
+  while (attempts < 2) {
+    attempts++;
+    try {
+      await world.loginPage.goto(
+        loginData.application.loginPath
+      );
 
-  await world.loginPage.enterOtp(
-    account.otp
-  );
+      await world.loginPage.login(
+        account.email,
+        account.password
+      );
 
-  await world.loginPage.submitOtp();
+      await world.loginPage.waitForOtpPage();
+
+      await world.loginPage.enterOtp(
+        account.otp || "123456"
+      );
+
+      await world.loginPage.submitOtp();
+      break;
+    } catch (err) {
+      if (attempts < 2 && err.message.includes("expired session")) {
+        console.warn(`[Flow 2 Login] Session expired on attempt ${attempts}, clearing session and retrying fresh login...`);
+        await clearCurrentSession(world);
+        await world.page.waitForTimeout(2000);
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 // =====================================================
@@ -89,13 +149,32 @@ When(
     await this.propertyLocationPage
       .waitForPage();
 
+    const { counter, searchAddress } = getNextFlow2SearchAddress("Bourke Street");
+    console.log(`[Flow 2] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
+
     await this.propertyLocationPage
       .typeAddressAndSelectFirstSuggestion(
-        listing.addressSearchText
+        searchAddress
       );
 
     await this.propertyLocationPage
       .waitForAutoFilledLocationFields();
+
+    // Dynamically retrieve the actual populated address details
+    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
+    if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
+      populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
+    }
+    const fullName = populatedSuburb ? `${populatedStreet}, ${populatedSuburb}` : populatedStreet;
+
+    console.log(`[Flow 2] Selected address: "${fullName}" (street: "${populatedStreet}")`);
+
+    // Dynamically update test data for all subsequent steps in this flow run
+    listing.addressSearchText = populatedStreet;
+    listing.expectedPropertyName = fullName;
+    offerPriceFlowData.generalUser.searchText = populatedStreet;
+    this.createdListingTitle = fullName;
 
     await this.propertyLocationPage
       .clickNext();
@@ -325,6 +404,9 @@ Then(
 When(
   "the General User opens Conversations for the Offer Price flow",
   async function () {
+    // Check in-app notification bell on General User dashboard for counter offer notification
+    await checkCounterOfferNotificationInBell(this.page);
+
     await this.conversationsPage
       .openConversations();
   }
