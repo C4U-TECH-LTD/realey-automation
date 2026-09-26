@@ -657,6 +657,25 @@ class LoginPage {
 
   await this.verifyOtpButton.click();
 
+  // Check if "Invalid or expired session" banner appeared
+  const expiredBanner = this.page
+    .locator('[role="alert"], div, span, p')
+    .filter({ hasText: /invalid or expired session/i })
+    .first();
+
+  if (await expiredBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
+    console.warn("Detected 'Invalid or expired session' on OTP page. Clicking 'Back to login'...");
+    const backLink = this.page
+      .getByRole("link", { name: /back to login/i })
+      .or(this.page.getByText(/back to login/i))
+      .first();
+    if (await backLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await backLink.click();
+      await this.page.waitForLoadState("domcontentloaded");
+    }
+    throw new Error("Invalid or expired session during OTP verification");
+  }
+
   // Wait until OTP page actually redirects away.
   await this.page.waitForURL(
     (url) => !url.pathname.includes("/login"),

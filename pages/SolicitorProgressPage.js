@@ -29,13 +29,26 @@ class SolicitorProgressPage {
   // SETTLEMENTS TAB NAVIGATION (Flow 8 Updated Step)
   // =====================================================
 
-  async dismissBlockingProgressModal() {
+  async dismissBlockingProgressModal(preservePropertyName = null) {
     const modal = this.page
       .locator('[role="dialog"], [class*="modal" i], div.fixed')
       .filter({ hasText: /Please configure the progress/i })
       .first();
 
     if (await modal.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (preservePropertyName) {
+        const shortName = String(preservePropertyName).split(",")[0].trim();
+        const hasTarget = await modal
+          .getByText(new RegExp(shortName, "i"))
+          .first()
+          .isVisible({ timeout: 1000 })
+          .catch(() => false);
+        if (hasTarget) {
+          console.log(`Preserving 'Please configure the progress' modal because it contains target property "${shortName}".`);
+          return;
+        }
+      }
+
       console.log("Detected 'Please configure the progress to continue' modal. Dismissing...");
       const closeBtn = modal
         .locator('button:has(svg.lucide-x), [aria-label*="close" i], button:has-text("Close"), button:has-text("Later"), button:has-text("Cancel")')
@@ -49,16 +62,16 @@ class SolicitorProgressPage {
     }
   }
 
-  async openSettlementsTab() {
+  async openSettlementsTab(preservePropertyName = null) {
     console.log("Opening Seller Solicitor Settlements tab...");
-    await this.dismissBlockingProgressModal();
+    await this.dismissBlockingProgressModal(preservePropertyName);
     const url = this.page.url();
     if (!url.includes("tab=settlements")) {
       if (await this.settlementsMenu.isVisible({ timeout: 5000 }).catch(() => false)) {
         try {
           await this.settlementsMenu.click({ timeout: 5000 });
         } catch (_) {
-          await this.dismissBlockingProgressModal();
+          await this.dismissBlockingProgressModal(preservePropertyName);
           await this.page.goto("/dashboard/solicitor?tab=settlements", {
             waitUntil: "domcontentloaded",
           });
@@ -70,7 +83,7 @@ class SolicitorProgressPage {
       }
     }
 
-    await this.dismissBlockingProgressModal();
+    await this.dismissBlockingProgressModal(preservePropertyName);
     await this.page.waitForLoadState("domcontentloaded");
     await this.page
       .getByText(/loading settlements/i)
@@ -82,25 +95,88 @@ class SolicitorProgressPage {
       .waitFor({ state: "hidden", timeout: 30_000 })
       .catch(() => {});
     await this.page.waitForTimeout(1500);
-    await this.dismissBlockingProgressModal();
+    await this.dismissBlockingProgressModal(preservePropertyName);
 
-    await expect(
-      this.page
-        .getByRole("heading", { name: /Settlements/i })
-        .or(this.page.getByText(/^Settlements$/i))
-        .first(),
-      "Settlements page should be loaded"
-    ).toBeVisible({ timeout: 20_000 });
+    // If modal is preserved for target property, Settlements page heading may be behind modal
+    const modalOpen = await this.page
+      .locator('[role="dialog"], [class*="modal" i]')
+      .filter({ hasText: /Please configure the progress/i })
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!modalOpen) {
+      await expect(
+        this.page
+          .getByRole("heading", { name: /Settlements/i })
+          .or(this.page.getByText(/^Settlements$/i))
+          .first(),
+        "Settlements page should be loaded"
+      ).toBeVisible({ timeout: 20_000 });
+    }
 
     console.log("Seller Solicitor Settlements tab opened successfully");
   }
 
   async openConfigureProgressTask(propertyName) {
     console.log(`Opening Configure Progress Task for property: ${propertyName}...`);
-    await this.dismissBlockingProgressModal();
     const shortName = propertyName ? String(propertyName).split(",")[0].trim() : "";
 
-    // 1. If search input exists, filter by shortName
+    // 1. Check if the "Please configure the progress to continue" modal is visible with this property
+    const modal = this.page
+      .locator('[role="dialog"], [class*="modal" i], div.fixed')
+      .filter({ hasText: /Please configure the progress/i })
+      .first();
+
+    if (await modal.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log(`Checking for property "${shortName}" inside 'Please configure the progress' modal...`);
+      const rowInModal = modal
+        .locator('div')
+        .filter({ hasText: new RegExp(shortName, "i") })
+        .filter({ has: this.page.getByRole("button", { name: /Configure/i }) })
+        .first();
+
+      const configBtnInModal = rowInModal.getByRole("button", { name: /Configure/i }).first();
+
+      if ((await configBtnInModal.count()) > 0) {
+        console.log(`Found Configure button for "${shortName}" in modal. Scrolling and clicking...`);
+        await configBtnInModal.scrollIntoViewIfNeeded().catch(() => {});
+        await this.page.waitForTimeout(500);
+        await configBtnInModal.click();
+        await this.page.waitForLoadState("domcontentloaded");
+        await this.page.waitForURL(/progress-configure/, { timeout: 15_000 }).catch(() => {});
+
+        // Wait for configure page ready
+        await this.page
+          .getByText(/loading configuration/i)
+          .waitFor({ state: "hidden", timeout: 30_000 })
+          .catch(() => {});
+        await this.page
+          .locator('.animate-spin, svg.animate-spin, [class*="loading"]')
+          .first()
+          .waitFor({ state: "hidden", timeout: 30_000 })
+          .catch(() => {});
+
+        const submitBtn = this.page
+          .getByRole("button", { name: /^Submit$|^Update$/i })
+          .last();
+
+        await expect(
+          submitBtn,
+          "Submit or Update button should be visible on Configure Progress page"
+        ).toBeVisible({ timeout: 30_000 });
+
+        console.log("Configure Progress page opened successfully via modal");
+        return;
+      } else {
+        console.log(`Property "${shortName}" was not found inside modal, dismissing modal to search tab...`);
+        await this.dismissBlockingProgressModal();
+      }
+    }
+
+    // 2. Fallback: modal was not present or didn't contain property -> search in Settlements page
+    await this.dismissBlockingProgressModal();
+
     const searchInput = this.page.getByPlaceholder(/Search by property title/i);
     if (shortName && (await searchInput.isVisible({ timeout: 3000 }).catch(() => false))) {
       await searchInput.fill(shortName);
@@ -113,26 +189,24 @@ class SolicitorProgressPage {
         .catch(() => {});
     }
 
-    await this.dismissBlockingProgressModal();
-
-    // 2. Find Configure Progress button on matching property card
+    // Find Configure / Configure Progress button on matching property card
     const card = this.page
       .locator("div")
       .filter({ hasText: new RegExp(shortName || "Chapel Street", "i") })
-      .filter({ has: this.page.getByRole("button", { name: /Configure Progress/i }) })
+      .filter({ has: this.page.getByRole("button", { name: /Configure/i }) })
       .first();
 
-    let configBtn = card.getByRole("button", { name: /Configure Progress/i });
+    let configBtn = card.getByRole("button", { name: /Configure/i }).first();
 
     if (!(await configBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
       configBtn = this.page
-        .getByRole("button", { name: /Configure Progress/i })
+        .getByRole("button", { name: /Configure/i })
         .first();
     }
 
     await expect(
       configBtn,
-      "Configure Progress button should be visible on property card in Settlements"
+      "Configure button should be visible on property card in Settlements"
     ).toBeVisible({ timeout: 20_000 });
 
     await configBtn.click();

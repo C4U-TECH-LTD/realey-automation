@@ -138,6 +138,17 @@ class DashboardPage {
       timeout: 30_000,
     });
 
+    // Ensure any open listing creation modal is closed before continuing
+    const modal = this.page
+      .locator('[role="dialog"], [class*="modal" i], div.fixed')
+      .filter({ hasText: /Listing Summary|Step 5 of 5|List Your Property/i })
+      .first();
+
+    if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log("Waiting for listing creation modal to close in waitForDashboardAfterPublish...");
+      await modal.waitFor({ state: "hidden", timeout: 45_000 }).catch(() => {});
+    }
+
     await this.page.waitForTimeout(1_500);
   }
 
@@ -249,20 +260,45 @@ class DashboardPage {
   ===================================================== */
 
   async openListingsMenu() {
+    // If modal is still open, wait for it to close
+    const modal = this.page
+      .locator('[role="dialog"], [class*="modal" i], div.fixed')
+      .filter({ hasText: /Listing Summary|Step 5 of 5|List Your Property/i })
+      .first();
+
+    if (await modal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await modal.waitFor({ state: "hidden", timeout: 30_000 }).catch(() => {});
+    }
+
+    if (this.page.url().includes("tab=listings")) {
+      const heading = this.page.getByRole("heading", { name: "Listings", exact: true });
+      if (await heading.isVisible({ timeout: 2000 }).catch(() => false)) {
+        console.log("Already on Listings tab with heading visible.");
+        return;
+      }
+    }
+
+    const listingsBtn = this.listingsMenuButton.or(
+      this.page
+        .locator('aside, nav, [class*="sidebar" i]')
+        .locator('a, button, div[role="button"]')
+        .filter({ hasText: /^Listings$/i })
+    ).first();
+
     await expect(
-      this.listingsMenuButton,
+      listingsBtn,
       "Listings menu button should be visible"
     ).toBeVisible({
       timeout: 20_000,
     });
 
     await expect(
-      this.listingsMenuButton,
+      listingsBtn,
       "Listings menu button should be enabled"
     ).toBeEnabled();
 
-    await this.listingsMenuButton.scrollIntoViewIfNeeded();
-    await this.listingsMenuButton.click();
+    await listingsBtn.scrollIntoViewIfNeeded();
+    await listingsBtn.click();
 
     await expect(
       this.page,

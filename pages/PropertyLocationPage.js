@@ -26,6 +26,9 @@ class PropertyLocationPage {
       }
     );
 
+    this.selectedStreet = "";
+    this.selectedSuburb = "";
+
     // =====================================================
     // GOOGLE AUTOCOMPLETE
     // =====================================================
@@ -282,6 +285,8 @@ class PropertyLocationPage {
       "Waiting for auto-filled location fields..."
     );
 
+    this.selectedStreet = (await this.streetAddressInput.inputValue().catch(() => "")).trim();
+
     // =====================================================
     // SUBURB
     // =====================================================
@@ -313,9 +318,10 @@ class PropertyLocationPage {
         timeout: 15_000,
       });
 
+      this.selectedSuburb = (await suburbInput.inputValue().catch(() => "")).trim();
       console.log(
         "Suburb:",
-        await suburbInput.inputValue()
+        this.selectedSuburb
       );
     } else {
       console.log(

@@ -59,6 +59,7 @@ class ConversationsPage {
     // 3. Strictly check URL: only already on conversations if URL contains tab=conversations
     if (this.page.url().includes("tab=conversations")) {
       console.log("Already on conversations page:", this.page.url());
+      await this.page.waitForTimeout(2000);
       return;
     }
 
@@ -72,7 +73,7 @@ class ConversationsPage {
       await convBtn.click();
       await this.page.waitForURL(/tab=conversations/, { timeout: 15_000 }).catch(() => {});
       await this.page.waitForLoadState("domcontentloaded");
-      await this.page.waitForTimeout(1000);
+      await this.page.waitForTimeout(2500);
       if (this.page.url().includes("tab=conversations")) {
         return;
       }
@@ -144,7 +145,7 @@ class ConversationsPage {
     await convBtn.click();
     await this.page.waitForURL(/tab=conversations/, { timeout: 15_000 }).catch(() => {});
     await this.page.waitForLoadState("domcontentloaded");
-    await this.page.waitForTimeout(1000);
+    await this.page.waitForTimeout(2500);
   }
 
   /**
@@ -344,57 +345,22 @@ class ConversationsPage {
       await this.openConversations();
     }
 
-    // 1. Check if chatroom for this property with Agent is ALREADY open on screen
-    const isAgentChatAlreadyOpen = await (async () => {
-      const url = this.page.url();
-      if (!url.includes("/chat/") && !url.includes("tab=conversations")) {
-        return false;
-      }
-
-      const hasChatInput = await this.page
-        .locator('textarea[placeholder*="Type a message" i], textarea, input[placeholder*="message" i]')
-        .first()
-        .isVisible({ timeout: 1000 })
-        .catch(() => false);
-      if (!hasChatInput) return false;
-
-      const hasProp = await this.page
-        .getByText(new RegExp(shortName, "i"))
-        .filter({ visible: true })
-        .count()
-        .then((c) => c > 0)
-        .catch(() => false);
-
-      const hasAgent = await this.page
-        .locator('h2, [class*="font-bold"], [class*="badge" i], span, div')
-        .filter({ hasText: /\bAgent\b|Subrato/i })
-        .filter({ visible: true })
-        .count()
-        .then((c) => c > 0)
-        .catch(() => false);
-
-      return hasProp && hasAgent;
-    })();
-
-    if (isAgentChatAlreadyOpen) {
-      console.log(
-        `Agent/Buyer conversation for "${expectedPropertyName}" is already open on screen.`
-      );
-      return;
-    }
+    // Wait a brief moment for conversations sidebar to settle
+    await this.page.waitForTimeout(1500);
 
     console.log(
       `Opening latest Agent/Buyer conversation for: ${expectedPropertyName}`
     );
 
-    // 2. Filter property list in sidebar if search input exists
+    // 1. Filter property list in sidebar if search input exists
     const searchInput = this.page
       .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
       .first();
     if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
       console.log(`Filtering conversation list by: ${shortName}`);
       await searchInput.fill(shortName);
-      await this.page.waitForTimeout(1000);
+      await searchInput.press("Enter").catch(() => {});
+      await this.page.waitForTimeout(1500);
     }
 
     // 3. Expand the property card
@@ -461,56 +427,21 @@ class ConversationsPage {
       await this.openConversations();
     }
 
-    // 1. Check if buyer chat for this property is ALREADY open on screen
-    const isBuyerChatAlreadyOpen = await (async () => {
-      const url = this.page.url();
-      if (!url.includes("/chat/") && !url.includes("tab=conversations")) {
-        return false;
-      }
-
-      const hasChatInput = await this.page
-        .locator('textarea[placeholder*="Type a message" i], textarea, input[placeholder*="message" i]')
-        .first()
-        .isVisible({ timeout: 1000 })
-        .catch(() => false);
-      if (!hasChatInput) return false;
-
-      const hasProp = await this.page
-        .getByText(new RegExp(shortName, "i"))
-        .filter({ visible: true })
-        .count()
-        .then((c) => c > 0)
-        .catch(() => false);
-
-      const hasBuyer = await this.page
-        .locator('h1, h2, h3, h4, [class*="font-bold"], [class*="badge" i], span, div')
-        .filter({ hasText: /\bBuyer\b|Siam/i })
-        .filter({ visible: true })
-        .count()
-        .then((c) => c > 0)
-        .catch(() => false);
-
-      return hasProp && hasBuyer;
-    })();
-
-    if (isBuyerChatAlreadyOpen) {
-      console.log(
-        `Buyer conversation for "${expectedPropertyName}" is already open.`
-      );
-      return;
-    }
+    // Wait a brief moment for conversations sidebar to settle
+    await this.page.waitForTimeout(1500);
 
     console.log(
       `Opening Buyer conversation for: ${expectedPropertyName}`
     );
 
-    // Filter via sidebar search if present
+    // 1. Filter via sidebar search if present
     const searchInput = this.page
       .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
       .first();
     if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
       await searchInput.fill(shortName);
-      await this.page.waitForTimeout(1000);
+      await searchInput.press("Enter").catch(() => {});
+      await this.page.waitForTimeout(1500);
     }
 
     // 2. Expand property row

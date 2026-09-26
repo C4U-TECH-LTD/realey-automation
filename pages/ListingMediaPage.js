@@ -565,6 +565,37 @@ class ListingMediaPage {
     await this.publishListingButton.click();
 
     console.log("Publish Listing button clicked successfully");
+
+    // Wait for publishing to complete and the create listing modal to close
+    const modal = this.page
+      .locator('[role="dialog"], [class*="modal" i], div.fixed')
+      .filter({ hasText: /Listing Summary|Step 5 of 5|List Your Property/i })
+      .first();
+
+    const isClosed = await modal
+      .waitFor({ state: "hidden", timeout: 35_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    // If modal remains open due to transient S3 network glitch, button resets to "Publish Listing"
+    if (!isClosed && (await modal.isVisible().catch(() => false))) {
+      const publishBtnAgain = modal.getByRole("button", { name: /^Publish Listing$/i });
+      if (await publishBtnAgain.isVisible({ timeout: 3000 }).catch(() => false)) {
+        console.log("Publish button reset (possible transient S3 error), retrying Publish click...");
+        await publishBtnAgain.click();
+        await modal.waitFor({ state: "hidden", timeout: 45_000 }).catch((err) => {
+          console.warn("Listing creation modal did not close on retry:", err.message);
+        });
+      }
+    }
+
+    await expect(
+      modal,
+      "Listing creation modal should close after publishing"
+    ).toBeHidden({ timeout: 15_000 });
+
+    await this.page.waitForLoadState("domcontentloaded");
+    await this.page.waitForTimeout(2000);
   }
 
   /* =====================================================

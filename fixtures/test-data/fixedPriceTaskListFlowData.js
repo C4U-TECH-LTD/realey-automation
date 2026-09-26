@@ -42,18 +42,18 @@ const fixedPriceTaskListFlowData = {
       propertyPhotos: [
         path.resolve(
           process.cwd(),
-          "test-assets/listing/offer-1.jpg"
+          "test-assets/listing/property-1.jpg"
         ),
 
         path.resolve(
           process.cwd(),
-          "test-assets/listing/offer-2.jpg"
+          "test-assets/listing/property-2.jpg"
         ),
       ],
 
       floorPlan: path.resolve(
         process.cwd(),
-        "test-assets/listing/offer-floor-1.jpg"
+        "test-assets/listing/floor-plan.jpg"
       ),
 
       sellerSolicitorSearch: "solicitor.c4utest@yopmail.com",
