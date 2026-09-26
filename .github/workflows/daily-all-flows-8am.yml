@@ -1,17 +1,12 @@
-name: Daily 9AM - All Flows (1 to 9) E2E Suite
+﻿name: Daily 8AM - All Flows (1 to 9) E2E Suite
 
 on:
   schedule:
-    # 9:05 AM UTC+6 daily (03:05 UTC)
-    # Note: 03:05 UTC = 09:05 AM (UTC+6) / 13:05 AEST (UTC+10)
+    # 8:05 AM UTC+6 daily (02:05 UTC)
+    # Note: 02:05 UTC = 08:05 AM (UTC+6) / 12:05 AEST (UTC+10)
     # Using 5-minute offset to prevent GitHub Actions top-of-hour (:00) drop
-    - cron: '5 3 * * *'
+    - cron: '5 2 * * *'
   workflow_dispatch:
-    inputs:
-      recipient_email:
-        description: 'Recipient email address(es), comma-separated (leave empty for default)'
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -20,7 +15,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: realey-daily-all-flows
+  group: realey-daily-all-flows-8am
   cancel-in-progress: false
 
 jobs:
@@ -221,75 +216,26 @@ jobs:
 
       - name: Add Allure Link To Job Summary
         run: |
-          echo "## 📊 Realey All Flows Daily 9AM Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 📊 Realey All Flows Daily 8AM Allure Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Daily automated execution of Flows 1 through 9." >> "$GITHUB_STEP_SUMMARY"
+          echo "Daily automated execution of Flows 1 through 9 at 8:00 AM." >> "$GITHUB_STEP_SUMMARY"
 
-  send-email:
-    name: Send Email Report
+  final-status:
+    name: Final Test Status
     if: always()
     needs:
       - run-all-flows
       - deploy-allure
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Cucumber Report
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-cucumber-report
-          path: reports/cucumber/
-        continue-on-error: true
-
-      - name: Check SMTP Configuration
-        id: check-smtp
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASS: ${{ secrets.SMTP_PASSWORD }}
+      - name: Workflow Summary
         run: |
-          if [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASS" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::SMTP_USERNAME / SMTP_PASSWORD secrets not configured in repository. Email notification skipped."
-          fi
+          echo "Daily 8AM All Flows (1 to 9) automation workflow completed."
 
-      - name: Prepare Email HTML & Resolve Recipients
-        id: prepare-email
-        env:
-          TEST_OUTCOME: ${{ needs.run-all-flows.outputs.test_outcome }}
-          ALLURE_URL: ${{ needs.deploy-allure.outputs.page_url || 'https://c4u-tech-ltd.github.io/realey-automation/#behaviors' }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          RUN_ID: ${{ github.run_id }}
-          REPO: ${{ github.repository }}
-          TRIGGER: ${{ github.event_name }}
-          DATE: ${{ needs.run-all-flows.outputs.start_time }}
-          JSON_REPORT_PATH: reports/cucumber/cucumber-report.json
-          OUTPUT_FILE: email-body.html
-          INPUT_RECIPIENT_EMAILS: ${{ github.event.inputs.recipient_email }}
-        run: |
-          node scripts/generate-email-body.js
-
-      - name: Send Email Notification
-        if: steps.check-smtp.outputs.configured == 'true'
-        uses: dawidd6/action-send-mail@v4
-        with:
-          server_address: ${{ secrets.SMTP_SERVER || 'smtp.gmail.com' }}
-          server_port: ${{ secrets.SMTP_PORT || 465 }}
-          secure: true
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "[${{ needs.run-all-flows.outputs.test_outcome == 'success' && 'PASSED' || 'FAILED' }}] Realey Daily 9AM E2E Report - Flows 1 to 9 (#${{ github.run_id }})"
-          to: ${{ steps.prepare-email.outputs.recipients || 'contact.szaman@gmail.com, management@realey.au' }}
-          from: "Realey Automation <${{ secrets.SMTP_USERNAME }}>"
-          html_body: file://email-body.html
-
-      - name: Final Suite Failure Gate
+      - name: Check Suite Outcome
         if: always() && (needs.run-all-flows.outputs.test_outcome == 'failure' || needs.run-all-flows.result != 'success')
         run: |
-          echo "Daily All Flows test run ended with failures. Check Allure Report / Job artifacts."
+          echo "Daily 8AM All Flows test run ended with failures. Check Allure Report / Job artifacts."
           exit 1

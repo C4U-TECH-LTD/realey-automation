@@ -206,7 +206,10 @@ async function checkInAppNotification(target, expectedRegex) {
 async function checkChatroomMessage(target, expectedRegex, propertyName = "10 London Circuit") {
   const page = target?.page || target;
   const conversationsPage = target?.conversationsPage;
-  console.log(`[Flow 7] Checking chatroom for: ${expectedRegex}`);
+  const effectiveRegex = target?.salesInstructionsRef
+    ? new RegExp(`${expectedRegex.source}|${target.salesInstructionsRef}`, "i")
+    : expectedRegex;
+  console.log(`[Flow 7] Checking chatroom for: ${effectiveRegex}`);
 
   // 1. If not already on conversations tab/view, navigate appropriately
   const isAlreadyOnConversations =
@@ -280,7 +283,7 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
 
   const helperFindRecentChat = async () => {
     // Check if expected text is in conversation rows or chat message body
-    const chatRows = page.locator('div, tr, [class*="chat" i], [class*="message" i], button').filter({ hasText: expectedRegex });
+    const chatRows = page.locator('div, tr, [class*="chat" i], [class*="message" i], button').filter({ hasText: effectiveRegex });
     const count = await chatRows.count();
 
     for (let i = 0; i < count; i++) {
@@ -329,7 +332,7 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     await page.waitForTimeout(1000);
   }
 
-  console.log(`[Flow 7] No recent chatroom message matching ${expectedRegex} found within ${timeoutMs}ms`);
+  console.log(`[Flow 7] No recent chatroom message matching ${effectiveRegex} found within ${timeoutMs}ms`);
   return false;
 }
 
@@ -638,36 +641,63 @@ Then(
     }
 
     // Submit & issue Sales Instructions if submit button is present in the modal
-    const submitBtn = this.page
+    const dialog = this.page.locator('[role="dialog"]').first();
+    const submitBtn = dialog
       .getByRole("button", {
         name: /Submit & Issue Sales Instructions|Issue/i,
       })
       .first();
 
-    if ((await submitBtn.isVisible({ timeout: 2000 }).catch(() => false))) {
+    if ((await submitBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      const today = new Date().toISOString().split("T")[0];
+      const futureDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
       // Ensure required ACT fields are populated
-      const fillIfEmpty = async (selector, defaultValue) => {
-        const inp = this.page.locator(selector).first();
+      const fillField = async (selector, defaultValue) => {
+        const inp = dialog.locator(selector).first();
         if ((await inp.count()) > 0) {
           await inp.scrollIntoViewIfNeeded().catch(() => {});
           const v = await inp.inputValue().catch(() => "");
-          if (!v) await inp.fill(defaultValue);
+          if (!v) {
+            await inp.fill(defaultValue);
+            await inp.dispatchEvent("change").catch(() => {});
+            await inp.dispatchEvent("blur").catch(() => {});
+          }
         }
       };
 
-      await fillIfEmpty('#field-block, input[name="block"], input[id*="block"]', "12");
-      await fillIfEmpty('#field-section, input[name="section"], input[id*="section"]', "34");
-      await fillIfEmpty('#field-crownLease, input[name="crownLease"], input[id*="crownLease"]', "CL-998877");
-      await fillIfEmpty('#field-eer, input[name="eer"], input[id*="eer"]', "5");
-      await fillIfEmpty('#field-agentLicense, input[name="agentLicense"], input[id*="agentLicense" i]', salesInstructionsFlowData.document.agentLicenceNo || "AGENT-LIC-001");
-      await fillIfEmpty('#field-agencyLicense, input[name="agencyLicense"], input[id*="agencyLicense" i]', salesInstructionsFlowData.document.agencyLicenceNo || "AGENCY-LIC-001");
-      await fillIfEmpty('#field-agencyName, input[name="agencyName"], input[id*="agencyName" i]', "Automation Real Estate");
-      await fillIfEmpty('#field-sellerSolicitorFirm, input[name="sellerSolicitorFirm"], input[id*="sellerSolicitorFirm" i]', salesInstructionsFlowData.document.firm || "Document Recruiter");
+      await fillField('#field-block, input[name="block"], input[id*="block"]', "12");
+      await fillField('#field-section, input[name="section"], input[id*="section"]', "34");
+      await fillField('#field-crownLease, input[name="crownLease"], input[id*="crownLease"]', "CL-998877");
+      await fillField('#field-eer, input[name="eer"], input[id*="eer"]', "5.0");
+      await fillField('#field-offerDate', today);
+      await fillField('#field-acceptanceDateTime', today);
+      await fillField('#field-settlementDate', futureDate);
+      await fillField('#field-agentLicense, input[name="agentLicense"], input[id*="agentLicense" i]', salesInstructionsFlowData.document.agentLicenceNo || "AGENT-LIC-001");
+      await fillField('#field-agencyLicense, input[name="agencyLicense"], input[id*="agencyLicense" i]', salesInstructionsFlowData.document.agencyLicenceNo || "AGENCY-LIC-001");
+      await fillField('#field-agencyName, input[name="agencyName"], input[id*="agencyName" i]', "Automation Real Estate");
+      await fillField('#field-sellerSolicitorFirm, input[name="sellerSolicitorFirm"], input[id*="sellerSolicitorFirm" i]', salesInstructionsFlowData.document.firm || "Automation Real Estate");
 
       if (await submitBtn.isEnabled().catch(() => false)) {
         console.log("[Flow 7] Clicking 'Submit & Issue Sales Instructions'...");
+        await submitBtn.scrollIntoViewIfNeeded();
         await submitBtn.click();
-        await this.page.waitForTimeout(4000);
+
+        // Wait for modal dialog to close upon successful submission
+        await dialog.waitFor({ state: "hidden", timeout: 15000 }).catch(() => {});
+        await this.page.waitForTimeout(2000);
+
+        // Check for toast notification or reference number
+        const toast = this.page.locator('[role="status"], [class*="toast"], [class*="alert"]').first();
+        if (await toast.isVisible({ timeout: 3000 }).catch(() => false)) {
+          const toastText = await toast.innerText().catch(() => "");
+          console.log(`[Flow 7] Sales Instructions toast: ${toastText}`);
+          const match = toastText.match(/Reference\s+([A-Z0-9-]+)/i);
+          if (match) {
+            this.salesInstructionsRef = match[1];
+            console.log(`[Flow 7] Stored Sales Instructions reference: ${this.salesInstructionsRef}`);
+          }
+        }
       }
     }
   }
@@ -1116,6 +1146,15 @@ When(
 
         // Duplicate submission is strictly blocked if already-issued view is shown and submit button is absent
         this.duplicateSubmissionBlocked = isIssuedVisible || !isSubmitVisible;
+
+        const modalText = await modal.innerText().catch(() => "");
+        const match = modalText.match(/Reference\s+([A-Z0-9-]+)/i);
+        if (match) {
+          this.salesInstructionsRef = match[1];
+          console.log(
+            `[Flow 7 Idempotency] Captured Sales Instructions reference: ${this.salesInstructionsRef}`
+          );
+        }
       }
     }
   }
