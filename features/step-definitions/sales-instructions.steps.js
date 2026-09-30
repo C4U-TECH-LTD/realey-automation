@@ -91,21 +91,37 @@ async function dismissSolicitorProgressModal(page) {
   }
 }
 
-async function loginAsAccount(world, account) {
+async function loginAsAccount(world, account, maxAttempts = 3) {
   if (!account?.email) {
     throw new Error("Missing account email for loginAsAccount");
   }
 
   console.log(`[Flow 7] Switching profile to: ${account.email}`);
-  await clearSession(world);
-  await world.loginPage.goto("/login");
-  await world.loginPage.login(account.email, account.password);
-  await world.loginPage.waitForOtpPage();
-  await world.loginPage.enterOtp(account.otp || "123456");
-  await world.loginPage.submitOtp();
-  await world.page.waitForLoadState("domcontentloaded");
-  await world.page.waitForTimeout(2000);
-  await dismissSolicitorProgressModal(world.page);
+  let attempts = 0;
+  let lastErr = null;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      await clearSession(world);
+      await world.loginPage.goto("/login");
+      await world.loginPage.login(account.email, account.password);
+      await world.loginPage.waitForOtpPage();
+      await world.loginPage.enterOtp(account.otp || "123456");
+      await world.loginPage.submitOtp();
+      await world.page.waitForLoadState("domcontentloaded");
+      await world.page.waitForTimeout(2000);
+      await dismissSolicitorProgressModal(world.page);
+      return;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Flow 7 Login Retry] Attempt ${attempts}/${maxAttempts} for ${account.email} failed: ${err.message}. Retrying fresh login in 3s...`);
+      if (attempts < maxAttempts) {
+        await clearSession(world).catch(() => {});
+        await world.page.waitForTimeout(3000);
+      }
+    }
+  }
+  throw lastErr;
 }
 
 // =====================================================

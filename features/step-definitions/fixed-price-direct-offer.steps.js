@@ -94,25 +94,36 @@ async function clearCurrentSession(world) {
   );
 }
 
-async function loginAs(world, account) {
-  await world.loginPage.goto(
-    loginData.application.loginPath
-  );
+async function loginAs(world, account, maxAttempts = 3) {
+  if (!account) {
+    throw new Error("Login account configuration is missing.");
+  }
 
-  await world.loginPage.fillLoginForm(
-    account.email,
-    account.password
-  );
-
-  await world.loginPage.clickLogin();
-
-  await world.loginPage.waitForOtpPage();
-
-  await world.loginPage.enterOtp(
-    account.otp
-  );
-
-  await world.loginPage.submitOtp();
+  let attempts = 0;
+  let lastErr = null;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      if (attempts > 1) {
+        await clearCurrentSession(world).catch(() => {});
+      }
+      await world.loginPage.goto(loginData.application.loginPath);
+      await world.loginPage.fillLoginForm(account.email, account.password);
+      await world.loginPage.clickLogin();
+      await world.loginPage.waitForOtpPage();
+      await world.loginPage.enterOtp(account.otp || "123456");
+      await world.loginPage.submitOtp();
+      return;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Flow 1 Login Retry] Attempt ${attempts}/${maxAttempts} for ${account.email} failed: ${err.message}. Retrying fresh login in 3s...`);
+      if (attempts < maxAttempts) {
+        await clearCurrentSession(world).catch(() => {});
+        await world.page.waitForTimeout(3000);
+      }
+    }
+  }
+  throw lastErr;
 }
 
 Given(

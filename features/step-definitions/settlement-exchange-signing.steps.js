@@ -953,13 +953,33 @@ async function login(worldOrPage, user) {
   const loginPage = worldOrPage.loginPage || new LoginPage(page);
   const loginPath = loginData?.application?.loginPath || "/login";
 
-  await loginPage.goto(loginPath);
-  await loginPage.login(user.email, user.password);
+  let attempts = 0;
+  let lastErr = null;
+  while (attempts < 3) {
+    attempts++;
+    try {
+      if (attempts > 1) {
+        await clearCurrentSession(worldOrPage).catch(() => {});
+      }
+      await loginPage.goto(loginPath);
+      await loginPage.login(user.email, user.password);
 
-  if (user.otp) {
-    await loginPage.waitForOtpPage();
-    await loginPage.enterOtp(user.otp);
-    await loginPage.submitOtp();
+      if (user.otp) {
+        await loginPage.waitForOtpPage();
+        await loginPage.enterOtp(user.otp);
+        await loginPage.submitOtp();
+      }
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Flow 6 Login Retry] Attempt ${attempts}/3 for ${user.email} failed: ${err.message}. Retrying fresh login in 3s...`);
+      if (attempts < 3) {
+        await clearCurrentSession(worldOrPage).catch(() => {});
+        await page.waitForTimeout(3000);
+      } else {
+        throw lastErr;
+      }
+    }
   }
 
   if (typeof worldOrPage.initialisePageObjects === "function") {

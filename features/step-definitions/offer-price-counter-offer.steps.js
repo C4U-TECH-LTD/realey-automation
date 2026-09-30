@@ -70,46 +70,33 @@ async function clearCurrentSession(world) {
   }
 }
 
-async function loginAs(world, account) {
+async function loginAs(world, account, maxAttempts = 3) {
   if (!account) {
-    throw new Error(
-      "Login account configuration is missing."
-    );
+    throw new Error("Login account configuration is missing.");
   }
-
-  await clearCurrentSession(world);
 
   let attempts = 0;
-  while (attempts < 2) {
+  let lastErr = null;
+  while (attempts < maxAttempts) {
     attempts++;
     try {
-      await world.loginPage.goto(
-        loginData.application.loginPath
-      );
-
-      await world.loginPage.login(
-        account.email,
-        account.password
-      );
-
+      await clearCurrentSession(world);
+      await world.loginPage.goto(loginData.application.loginPath || "/login");
+      await world.loginPage.login(account.email, account.password);
       await world.loginPage.waitForOtpPage();
-
-      await world.loginPage.enterOtp(
-        account.otp || "123456"
-      );
-
+      await world.loginPage.enterOtp(account.otp || "123456");
       await world.loginPage.submitOtp();
-      break;
+      return;
     } catch (err) {
-      if (attempts < 2 && err.message.includes("expired session")) {
-        console.warn(`[Flow 2 Login] Session expired on attempt ${attempts}, clearing session and retrying fresh login...`);
+      lastErr = err;
+      console.warn(`[Flow 2 Login Retry] Attempt ${attempts}/${maxAttempts} for ${account.email} failed: ${err.message}. Retrying fresh login in 3s...`);
+      if (attempts < maxAttempts) {
         await clearCurrentSession(world);
-        await world.page.waitForTimeout(2000);
-        continue;
+        await world.page.waitForTimeout(3000);
       }
-      throw err;
     }
   }
+  throw lastErr;
 }
 
 // =====================================================

@@ -521,14 +521,8 @@ class LoginPage {
 
     if (await serverErrorBanner.isVisible().catch(() => false)) {
       const errText = await serverErrorBanner.innerText().catch(() => "");
-      console.warn(`[Login API Warning] Detected server connection issue: "${errText.replace(/\n+/g, " ")}". Retrying Login click in 3 seconds...`);
-      await this.page.waitForTimeout(3000);
-
-      if (await this.loginButton.isVisible().catch(() => false)) {
-        await this.loginButton.click({ force: true }).catch(() => {});
-        await this.page.waitForTimeout(2000);
-      }
-      continue;
+      console.warn(`[Login API Warning] Detected server connection issue: "${errText.replace(/\n+/g, " ")}".`);
+      throw new Error(`Server connection error on login: ${errText.replace(/\n+/g, " ")}`);
     }
 
     // -----------------------------------------------

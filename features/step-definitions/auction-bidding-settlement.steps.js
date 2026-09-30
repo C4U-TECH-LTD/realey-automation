@@ -94,7 +94,8 @@ async function clearCurrentSession(world) {
 async function loginAs(
   world,
   account,
-  accountName
+  accountName,
+  maxAttempts = 3
 ) {
   if (
     !account?.email ||
@@ -110,26 +111,45 @@ async function loginAs(
     `Logging in as ${accountName}...`
   );
 
-  await world.loginPage.goto(
-    loginData.application.loginPath
-  );
+  let attempts = 0;
+  let lastErr = null;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      if (attempts > 1) {
+        await clearCurrentSession(world).catch(() => {});
+      }
+      await world.loginPage.goto(
+        loginData.application.loginPath || "/login"
+      );
 
-  await world.loginPage.login(
-    account.email,
-    account.password
-  );
+      await world.loginPage.login(
+        account.email,
+        account.password
+      );
 
-  await world.loginPage.waitForOtpPage();
+      await world.loginPage.waitForOtpPage();
 
-  await world.loginPage.enterOtp(
-    account.otp
-  );
+      await world.loginPage.enterOtp(
+        account.otp || "123456"
+      );
 
-  await world.loginPage.submitOtp();
+      await world.loginPage.submitOtp();
 
-  console.log(
-    `${accountName} login completed`
-  );
+      console.log(
+        `${accountName} login completed`
+      );
+      return;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Flow 3 Login Retry] Attempt ${attempts}/${maxAttempts} for ${accountName} failed: ${err.message}. Retrying fresh login in 3s...`);
+      if (attempts < maxAttempts) {
+        await clearCurrentSession(world).catch(() => {});
+        await world.page.waitForTimeout(3000);
+      }
+    }
+  }
+  throw lastErr;
 }
 
 // =====================================================
