@@ -156,7 +156,10 @@ class LoginPage {
           '[role="alert"]',
           '[data-testid*="error" i]',
           '[class*="text-red"]',
+          '[class*="bg-red"]',
+          '[class*="border-red"]',
           '[class*="error" i]',
+          'div:has-text("Cannot reach the server")',
         ].join(", ")
       )
       .first();
@@ -509,7 +512,27 @@ class LoginPage {
     }
 
     // -----------------------------------------------
-    // Detect login error instead of waiting 45 sec
+    // Detect transient "Cannot reach the server" API error & retry login click
+    // -----------------------------------------------
+    const serverErrorBanner = this.page
+      .locator('div, [role="alert"]')
+      .filter({ hasText: /Cannot reach the server|check your internet connection/i })
+      .first();
+
+    if (await serverErrorBanner.isVisible().catch(() => false)) {
+      const errText = await serverErrorBanner.innerText().catch(() => "");
+      console.warn(`[Login API Warning] Detected server connection issue: "${errText.replace(/\n+/g, " ")}". Retrying Login click in 3 seconds...`);
+      await this.page.waitForTimeout(3000);
+
+      if (await this.loginButton.isVisible().catch(() => false)) {
+        await this.loginButton.click({ force: true }).catch(() => {});
+        await this.page.waitForTimeout(2000);
+      }
+      continue;
+    }
+
+    // -----------------------------------------------
+    // Detect general login error instead of waiting 45 sec
     // -----------------------------------------------
     if (
       await this.errorMessage
@@ -523,7 +546,7 @@ class LoginPage {
 
       if (errorText.trim()) {
         throw new Error(
-          `Login failed before OTP page appeared: ${errorText}`
+          `Login failed before OTP page appeared: ${errorText.replace(/\n+/g, " ")}`
         );
       }
     }
