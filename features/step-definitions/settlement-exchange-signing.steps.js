@@ -371,7 +371,7 @@ function getContractHtml(counterpartType, propertyName, vendorName, buyerName) {
       <tr><th>Purchaser</th><td>${buyerName || "Daniel Lyeon"}</td></tr>
       <tr><th>Purchase Price</th><td>$25,000.00 AUD</td></tr>
       <tr><th>Deposit Payable</th><td>$1,250.00 AUD (5.0%)</td></tr>
-      <tr><th>Settlement Date</th><td>30/09/2026</td></tr>
+      <tr><th>Settlement Date</th><td>${settlementExchangeFlowData?.settlementDate?.proposedDate || "30/09/2026"}</td></tr>
     </table>
 
     <h2>2. Execution & Exchange Terms</h2>
@@ -2872,7 +2872,24 @@ Then(
       await page.waitForTimeout(1500);
     }
 
-    // 3. Locate the visible calendar grid card and ensure it displays September 2026
+    // 3. Locate the visible calendar grid card and ensure it displays the target month/year
+    const expectedDate =
+      this.proposedSettlementDate ||
+      settlementExchangeFlowData
+        .settlementDate
+        .calendarDate ||
+      settlementExchangeFlowData
+        .settlementDate
+        .proposedDate;
+
+    const parts = expectedDate.split("/");
+    const expDay = parts.length === 3 ? parts[0] : "30";
+    const expMonth = parts.length === 3 ? parts[1] : "10";
+    const expYear = parts.length === 3 ? parts[2] : "2026";
+    const expDateObj = new Date(parseInt(expYear, 10), parseInt(expMonth, 10) - 1, parseInt(expDay, 10));
+    const targetMonthYear = expDateObj.toLocaleString("en-US", { month: "long", year: "numeric" });
+    const targetDayNumber = String(parseInt(expDay, 10));
+
     const visibleMonthSpan = page
       .locator("span.text-base.font-semibold.text-gray-900:visible")
       .filter({ hasText: /202\d/ })
@@ -2881,35 +2898,62 @@ Then(
     await visibleMonthSpan.scrollIntoViewIfNeeded().catch(() => {});
     await page.waitForTimeout(500);
 
-    let currentMonth = await visibleMonthSpan.innerText().catch(() => "");
-    console.log("Visible calendar month heading:", currentMonth);
+    // Dynamically navigate calendar month if it doesn't match targetMonthYear
+    for (let attempt = 0; attempt < 12; attempt++) {
+      let currentMonth = (await visibleMonthSpan.innerText().catch(() => "")).trim();
+      console.log(`Visible calendar month heading: "${currentMonth}" (target: "${targetMonthYear}")`);
+      if (currentMonth.includes(targetMonthYear)) {
+        break;
+      }
 
-    // If calendar starts on August 2026, click next button to advance to September 2026
-    if (!currentMonth.includes("September")) {
-      const nextBtn = visibleMonthSpan.locator("xpath=following-sibling::div//button").first();
-      await expect(nextBtn, "Next month button should be visible").toBeVisible({ timeout: 3000 });
-      await nextBtn.click();
-      await page.waitForTimeout(1500);
-      currentMonth = await visibleMonthSpan.innerText().catch(() => "");
-      console.log("Visible calendar month heading after next click:", currentMonth);
+      const [curMonthName, curYearStr] = currentMonth.split(/\s+/);
+      const curDateObj = new Date(`${curMonthName} 1, ${curYearStr}`);
+      const goForward = !isNaN(curDateObj.getTime()) ? curDateObj < expDateObj : true;
+
+      const navButtons = visibleMonthSpan.locator("xpath=following-sibling::div//button");
+      const btnCount = await navButtons.count();
+
+      if (btnCount >= 2) {
+        const nextBtn = navButtons.filter({ has: page.locator("svg.lucide-chevron-right, [class*='chevron-right']") }).first();
+        const prevBtn = navButtons.filter({ has: page.locator("svg.lucide-chevron-left, [class*='chevron-left']") }).first();
+
+        if (goForward) {
+          if (await nextBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await nextBtn.click();
+          } else {
+            await navButtons.first().click();
+          }
+        } else {
+          if (await prevBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await prevBtn.click();
+          } else {
+            await navButtons.last().click();
+          }
+        }
+      } else if (btnCount === 1) {
+        await navButtons.first().click();
+      }
+
+      await page.waitForTimeout(1200);
     }
 
-    await expect(visibleMonthSpan, "Calendar heading should show September 2026").toContainText("September 2026");
+    await expect(visibleMonthSpan, `Calendar heading should show ${targetMonthYear}`).toContainText(targetMonthYear);
 
-    // 4. Click September 30 cell inside the visible calendar grid (exclude trailing August 30 cell with .text-gray-300)
-    const day30Btn = page
+    // 4. Click target day cell inside visible calendar grid (exclude trailing/leading days with .text-gray-300)
+    const targetDayRegex = new RegExp(`\\b${targetDayNumber}\\b`);
+    const dayBtn = page
       .locator("div.grid-cols-7 button:visible")
-      .filter({ hasText: /30/ })
+      .filter({ hasText: targetDayRegex })
       .filter({ hasNot: page.locator(".text-gray-300") })
       .first();
 
-    if (await day30Btn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await day30Btn.click().catch(() => {});
+    if (await dayBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await dayBtn.click().catch(() => {});
       await page.waitForTimeout(2000);
     }
 
-    // Verify calendar header persists on September 2026
-    await expect(visibleMonthSpan, "Calendar heading should show September 2026").toContainText("September 2026");
+    // Verify calendar header persists on targetMonthYear
+    await expect(visibleMonthSpan, `Calendar heading should show ${targetMonthYear}`).toContainText(targetMonthYear);
 
     // 5. Look for settlement event entry on calendar
     const settlementBadge = page
@@ -2927,7 +2971,7 @@ Then(
     await page.waitForTimeout(1000);
 
     // Show confirmation toast on screen for front-end recording
-    await page.evaluate(() => {
+    await page.evaluate((dateStr) => {
       if (document.getElementById('settlementCalendarConfirmToast')) return;
       const toast = document.createElement('div');
       toast.id = 'settlementCalendarConfirmToast';
@@ -2942,9 +2986,9 @@ Then(
       toast.style.fontSize = '15px';
       toast.style.fontWeight = '600';
       toast.style.zIndex = '99999';
-      toast.textContent = '✓ Settlement Date Added to Calendar: 30/09/2026';
+      toast.textContent = `✓ Settlement Date Added to Calendar: ${dateStr}`;
       document.body.appendChild(toast);
-    }).catch(() => {});
+    }, expectedDate).catch(() => {});
 
     // Capture screenshot of calendar with settlement event
     await takeCucumberScreenshot(this, "Settlement Date Added to Calendar", page);
@@ -2968,9 +3012,11 @@ Then(
 
     const parts = expectedDate.split("/");
     const day = parts.length === 3 ? parts[0] : "30";
-    const month = parts.length === 3 ? parts[1] : "09";
+    const month = parts.length === 3 ? parts[1] : "10";
     const year = parts.length === 3 ? parts[2] : "2026";
     const isoDate = `${year}-${month}-${day}`;
+    const expDateObj = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+    const targetMonthYear = expDateObj.toLocaleString("en-US", { month: "long", year: "numeric" });
 
     // Verify calendar view is active
     const calendarActive = page
@@ -2986,7 +3032,7 @@ Then(
     const matchesDate =
       bodyText.includes(expectedDate) ||
       bodyText.includes(isoDate) ||
-      bodyText.includes("September 2026") ||
+      bodyText.includes(targetMonthYear) ||
       bodyText.includes(day);
 
     expect(

@@ -64,22 +64,31 @@ class YopmailHelper {
         const staleDatePattern = /\b(?:\d{1,2}\/\d{1,2}|\d{1,2}\s+[A-Za-z]{3}|yesterday|\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago)\b/i;
         const recentTimePattern = /(?:just now|\b\d{1,2}:\d{2}\b)/i;
 
-        const mailRows = inboxFrame.locator('.m, button.lm, tr, div').filter({ hasText: subjectRegex });
+        const mailRows = inboxFrame.locator('button.lm, .m').filter({ hasText: subjectRegex });
         const count = await mailRows.count();
 
         let recentMailItem = null;
         for (let i = 0; i < count; i++) {
           const item = mailRows.nth(i);
           const mailRowText = await item.innerText().catch(() => "");
-          const isStale = staleDatePattern.test(mailRowText);
-          const isRecent = recentTimePattern.test(mailRowText);
 
-          if (isRecent && !isStale) {
-            console.log(`[YopmailHelper] Email matching ${subjectRegex} has valid recent timestamp (${mailRowText.replace(/\n+/g, " ")})`);
+          // Check dedicated time element in YOPmail (.lmt or .lm_t)
+          const timeElem = item.locator('.lmt, .lm_t, span[class*="lmt"]').first();
+          let timeText = "";
+          if (await timeElem.isVisible({ timeout: 500 }).catch(() => false)) {
+            timeText = (await timeElem.innerText().catch(() => "")).trim();
+          }
+
+          // In YOPmail, today's emails display HH:MM in .lmt, whereas past days display DD/MM, DD MMM, or 'yesterday'
+          const isRecentTime = timeText ? recentTimePattern.test(timeText) : recentTimePattern.test(mailRowText);
+          const isStaleDate = timeText ? staleDatePattern.test(timeText) : (staleDatePattern.test(mailRowText) && !isRecentTime);
+
+          if (isRecentTime && !isStaleDate) {
+            console.log(`[YopmailHelper] Email matching ${subjectRegex} has valid recent timestamp "${timeText || mailRowText.replace(/\n+/g, " ")}"`);
             recentMailItem = item;
             break;
-          } else if (isStale) {
-            console.warn(`[YopmailHelper] REJECTED stale email from past date for ${cleanUser}: ${mailRowText.replace(/\n+/g, " ")}`);
+          } else if (isStaleDate) {
+            console.warn(`[YopmailHelper] REJECTED stale email from past date for ${cleanUser}: time="${timeText}", row="${mailRowText.replace(/\n+/g, " ")}"`);
           }
         }
 

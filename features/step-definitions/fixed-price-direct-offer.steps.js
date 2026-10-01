@@ -39,6 +39,12 @@ const {
   "../../pages/YopmailHelper"
 );
 
+const {
+  getNextFlow1SearchAddress,
+} = require(
+  "../../fixtures/test-data/flow1Counter"
+);
+
 function isFlow7Scenario(world) {
   return Boolean(world?.isFlow7 || world?.pickle?.tags?.some((t) => t.name === "@flow-7"));
 }
@@ -189,10 +195,31 @@ When(
 When(
   "the agent completes the property location step for the Fixed Price listing",
   async function () {
+    const { counter, searchAddress } = getNextFlow1SearchAddress("King Street");
+    console.log(`[Flow 1] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
+
     await this.propertyLocationPage.typeAddressAndSelectFirstSuggestion(
-      listingData.location.addressSearchText
+      searchAddress
     );
     await this.propertyLocationPage.waitForAutoFilledLocationFields();
+
+    // Dynamically retrieve the actual populated address details
+    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
+    if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
+      populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
+    }
+    const fullName = populatedSuburb ? `${populatedStreet}, ${populatedSuburb}` : populatedStreet;
+
+    console.log(`[Flow 1] Selected address: "${fullName}" (street: "${populatedStreet}")`);
+
+    // Dynamically update test data for all subsequent steps in this flow run
+    listingData.location.addressSearchText = populatedStreet;
+    listingData.location.expectedPropertyName = fullName;
+    listingData.fixedPriceFlow.generalUser.searchText = populatedStreet;
+    this.createdListingStreet = populatedStreet;
+    this.createdListingTitle = fullName;
+
     await this.propertyLocationPage.clickNext();
     await this.propertyDetailsPage.waitForPage();
   }
@@ -467,7 +494,7 @@ When(
     const res = await yopmail.waitForEmail(
       account.email,
       /offer|new offer|received|direct offer/i,
-      35_000
+      60_000
     );
     console.log(
       `Agent YOPmail verification completed: ${
@@ -499,7 +526,7 @@ When(
     const res = await yopmail.waitForEmail(
       account.email,
       /accepted|offer accepted|congratulations/i,
-      35_000
+      60_000
     );
     console.log(
       `Buyer YOPmail verification completed: ${

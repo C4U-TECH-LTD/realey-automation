@@ -1,5 +1,16 @@
 const path = require("path");
 
+function getDynamicSettlementDate(daysAhead = 30) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysAhead);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = String(d.getFullYear());
+  return `${day}/${month}/${year}`;
+}
+
+const dynamicSettlementDate = getDynamicSettlementDate(30);
+
 const settlementExchangeFlowData = {
   // =====================================================
   // AGENT LISTING
@@ -170,7 +181,7 @@ const settlementExchangeFlowData = {
 
     // Fixed settlement date
     date:
-      "30/09/2026",
+      dynamicSettlementDate,
 
     statusReadyForExchange:
       "Ready for Exchange",
@@ -249,7 +260,7 @@ const settlementExchangeFlowData = {
 
   settlementDate: {
     proposedDate:
-      "30/09/2026",
+      dynamicSettlementDate,
 
     proposedStatus:
       "Proposed",
@@ -258,7 +269,7 @@ const settlementExchangeFlowData = {
       "Accepted",
 
     calendarDate:
-      "30/09/2026",
+      dynamicSettlementDate,
   },
 
   // =====================================================
@@ -366,4 +377,5 @@ const settlementExchangeFlowData = {
 
 module.exports = {
   settlementExchangeFlowData,
+  getDynamicSettlementDate,
 };
