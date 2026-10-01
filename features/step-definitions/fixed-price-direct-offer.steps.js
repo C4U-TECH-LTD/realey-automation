@@ -61,6 +61,9 @@ function getAgentAccount(world) {
   if (isFlow7Scenario(world)) {
     return salesInstructionsFlowData.agent;
   }
+  if (isFlow6Scenario(world)) {
+    return settlementExchangeFlowData.agent;
+  }
   if (isFlow1Scenario(world)) {
     return (
       listingData.fixedPriceFlow?.accounts?.agent ||
@@ -73,6 +76,9 @@ function getAgentAccount(world) {
 function getGeneralUserAccount(world) {
   if (isFlow7Scenario(world)) {
     return salesInstructionsFlowData.generalUser;
+  }
+  if (isFlow6Scenario(world)) {
+    return settlementExchangeFlowData.generalUser;
   }
   if (isFlow1Scenario(world)) {
     return (
@@ -617,14 +623,21 @@ When(
   "the agent creates and publishes a Fixed Price listing",
   async function () {
     const isFlow7 = isFlow7Scenario(this);
+    const isFlow6 = isFlow6Scenario(this);
     const addressSearchText = isFlow7
       ? salesInstructionsFlowData.agent.listing.addressSearchText
+      : isFlow6
+      ? settlementExchangeFlowData.agent.listing.addressSearchText
       : listingData.location.addressSearchText;
     const headline = isFlow7
       ? salesInstructionsFlowData.agent.listing.headline
+      : isFlow6
+      ? settlementExchangeFlowData.agent.listing.headline
       : listingData.description.headline;
     const description = isFlow7
       ? salesInstructionsFlowData.agent.listing.propertyDescription
+      : isFlow6
+      ? settlementExchangeFlowData.agent.listing.propertyDescription
       : listingData.description.propertyDescription;
 
     await this.dashboardPage
@@ -718,8 +731,11 @@ Then(
   "the Fixed Price listing is published successfully",
   async function () {
     const isFlow7 = isFlow7Scenario(this);
+    const isFlow6 = isFlow6Scenario(this);
     const expectedName = isFlow7
       ? salesInstructionsFlowData.agent.listing.expectedPropertyName
+      : isFlow6
+      ? settlementExchangeFlowData.agent.listing.expectedPropertyName
       : listingData.location.expectedPropertyName;
 
     this.createdListingTitle = expectedName;
@@ -756,6 +772,8 @@ When(
   async function () {
     const searchText = isFlow7Scenario(this)
       ? salesInstructionsFlowData.generalUser.searchText
+      : isFlow6Scenario(this)
+      ? settlementExchangeFlowData.generalUser.searchText
       : listingData.fixedPriceFlow
           .generalUser.searchText;
 
@@ -771,6 +789,8 @@ When(
   async function () {
     const offerAmount = isFlow7Scenario(this)
       ? salesInstructionsFlowData.generalUser.offerAmount
+      : isFlow6Scenario(this)
+      ? settlementExchangeFlowData.generalUser.offerAmount
       : listingData.fixedPriceFlow
           .generalUser.offerAmount;
 
@@ -832,6 +852,8 @@ When(
   async function () {
     const searchText = isFlow7Scenario(this)
       ? salesInstructionsFlowData.generalUser.searchText
+      : isFlow6Scenario(this)
+      ? settlementExchangeFlowData.generalUser.searchText
       : listingData.fixedPriceFlow
           .generalUser.searchText;
 
@@ -888,6 +910,8 @@ When(
   async function () {
     const payment = isFlow7Scenario(this)
       ? salesInstructionsFlowData.payment
+      : isFlow6Scenario(this)
+      ? settlementExchangeFlowData.payment
       : listingData.fixedPriceFlow
           .payment;
 
