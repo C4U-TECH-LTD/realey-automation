@@ -1,11 +1,9 @@
-﻿name: Daily 8AM - All Flows (1 to 9) E2E Suite
+name: Daily 8AM - All Flows (1 to 9) E2E Suite
 
 on:
   schedule:
-    # 8:05 AM UTC+6 daily (02:05 UTC)
-    # Note: 02:05 UTC = 08:05 AM (UTC+6) / 12:05 AEST (UTC+10)
-    # Using 5-minute offset to prevent GitHub Actions top-of-hour (:00) drop
-    - cron: '5 2 * * *'
+    # 8:00 AM Bangladesh local time (BST, UTC+6) daily (02:00 UTC)
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 permissions:
