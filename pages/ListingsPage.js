@@ -65,22 +65,22 @@ class ListingsPage {
     // =====================================================
 
     this.gridViewButton = page
-      .locator("button")
+      .locator("button.rounded-full")
       .filter({
         has: page.locator(
-          "svg.lucide-grid3x3"
+          "svg.lucide-grid3x3, svg.lucide-grid-2x2, svg.lucide-layout-grid"
         ),
       })
       .first();
 
     this.listViewButton = page
-      .locator("button")
+      .locator("button.rounded-full")
       .filter({
         has: page.locator(
           "svg.lucide-list"
         ),
       })
-      .last();
+      .first();
 
     // =====================================================
     // LIST VIEW
@@ -94,8 +94,7 @@ class ListingsPage {
 
     this.addressHeader =
       this.table.getByRole("columnheader", {
-        name: "Address",
-        exact: true,
+        name: /address/i,
       });
 
     // =====================================================
@@ -369,11 +368,27 @@ class ListingsPage {
     );
   }
 
+  async dismissNotificationPrompts() {
+    const notNow = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /Never miss a message/i })
+      .getByRole("button", { name: /not now|close/i })
+      .or(this.page.getByRole("button", { name: /^not now$/i }))
+      .first();
+
+    if (await notNow.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log("[ListingsPage] Dismissing notification prompt by clicking 'Not now'...");
+      await notNow.click({ force: true }).catch(() => {});
+      await this.page.waitForTimeout(500);
+    }
+  }
+
   // =====================================================
   // LIST VIEW
   // =====================================================
 
   async switchToListView() {
+    await this.dismissNotificationPrompts();
     const tableAlreadyVisible =
       await this.table
         .isVisible()
@@ -389,9 +404,10 @@ class ListingsPage {
 
       await this.listViewButton.scrollIntoViewIfNeeded().catch(() => {});
       try {
-        await this.listViewButton.click({ timeout: 5000 });
+        await this.listViewButton.click({ timeout: 4000 });
       } catch {
-        await this.listViewButton.dispatchEvent("click");
+        await this.dismissNotificationPrompts();
+        await this.listViewButton.click({ force: true }).catch(() => {});
       }
     }
 
@@ -404,7 +420,9 @@ class ListingsPage {
 
     await expect(
       this.addressHeader
-    ).toBeVisible();
+    ).toBeVisible({
+      timeout: 10_000,
+    });
   }
 
   // =====================================================
@@ -412,6 +430,7 @@ class ListingsPage {
   // =====================================================
 
   async switchToGridView() {
+    await this.dismissNotificationPrompts();
     await expect(
       this.gridViewButton,
       "Grid View button should be visible"
@@ -421,9 +440,10 @@ class ListingsPage {
 
     await this.gridViewButton.scrollIntoViewIfNeeded().catch(() => {});
     try {
-      await this.gridViewButton.click({ timeout: 5000 });
+      await this.gridViewButton.click({ timeout: 4000 });
     } catch {
-      await this.gridViewButton.dispatchEvent("click");
+      await this.dismissNotificationPrompts();
+      await this.gridViewButton.click({ force: true }).catch(() => {});
     }
 
     await expect(
