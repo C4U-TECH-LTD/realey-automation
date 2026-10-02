@@ -91,10 +91,12 @@ async function loginAs(world, account, maxAttempts = 3) {
       return;
     } catch (err) {
       lastErr = err;
-      console.warn(`[Flow 8 Login Retry] Attempt ${attempts}/${maxAttempts} for ${account.email} failed: ${err.message}. Retrying fresh login in 3s...`);
+      const isRateLimited = /too many login attempts/i.test(err.message);
+      const retryDelay = isRateLimited ? 60000 : 3000;
+      console.warn(`[Flow 5 Login Retry] Attempt ${attempts}/${maxAttempts} for ${account.email} failed: ${err.message}. Retrying fresh login in ${retryDelay / 1000}s...`);
       if (attempts < maxAttempts) {
         await clearCurrentSession(world);
-        await world.page.waitForTimeout(3000);
+        await world.page.waitForTimeout(retryDelay);
       }
     }
   }

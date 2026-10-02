@@ -134,9 +134,11 @@ const fixedPriceTaskListFlowData = {
 
   settlement: {
     solicitorSearch:
-      process.env.BUYER_SOLICITOR_SEARCH || "Maxel",
+      process.env.BUYER_SOLICITOR_SEARCH ||
+      (isStaging ? "subrato" : "Maxel"),
     brokerSearch:
-      process.env.BROKER_SEARCH || "Alen",
+      process.env.BROKER_SEARCH ||
+      (isStaging ? "subrato" : "Alen"),
   },
 
   // =====================================================

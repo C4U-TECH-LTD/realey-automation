@@ -173,8 +173,10 @@ Before(async function ({ pickle }) {
   this.currentStepName = null;
   this.scenarioArtifactTimestamp = artifactTimestamp();
 
-  // Cooldown buffer between scenarios to allow CloudFront / AWS WAF rate limit tokens to refresh
-  await new Promise((resolve) => setTimeout(resolve, 3000));
+  // Cooldown buffer between scenarios to allow CloudFront / AWS WAF / Auth rate limit tokens to refresh
+  const isStaging = (process.env.BASE_URL || "").includes("staging");
+  const interScenarioCooldown = isStaging ? 15000 : 3000;
+  await new Promise((resolve) => setTimeout(resolve, interScenarioCooldown));
 
   const isGitHub = process.env.CI === "true";
   const headless = isGitHub || process.env.HEADLESS === "true";

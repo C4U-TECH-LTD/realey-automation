@@ -323,6 +323,8 @@ class LoginPage {
   }
 
   async fillLoginForm(email, password) {
+    this.lastEmail = email;
+    this.lastPassword = password;
     await this.fillEmail(email);
     await this.fillPassword(password);
   }
@@ -342,6 +344,8 @@ class LoginPage {
   }
 
   async login(email, password) {
+    this.lastEmail = email;
+    this.lastPassword = password;
     await this.fillLoginForm(email, password);
     await this.clickLogin();
   }
@@ -457,99 +461,148 @@ class LoginPage {
      OTP PAGE
   ===================================================== */
 
- async waitForOtpPage(timeoutMs = 45_000) {
-  console.log("Waiting for OTP verification page...");
+  async waitForOtpPage(timeoutMs = 120_000) {
+    console.log("Waiting for OTP verification page...");
 
-  const startedAt = Date.now();
+    const startedAt = Date.now();
 
-  while (Date.now() - startedAt < timeoutMs) {
-    // -----------------------------------------------
-    // Check whether OTP input is visible
-    // -----------------------------------------------
-    const firstOtpInput = this.otpInputs.first();
+    while (Date.now() - startedAt < timeoutMs) {
+      // -----------------------------------------------
+      // Check whether OTP input is visible
+      // -----------------------------------------------
+      const firstOtpInput = this.otpInputs.first();
 
-    if (
-      await firstOtpInput
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log("OTP input detected");
+      if (
+        await firstOtpInput
+          .isVisible()
+          .catch(() => false)
+      ) {
+        console.log("OTP input detected");
 
-      await expect(
-        firstOtpInput,
-        "At least one OTP input should be visible"
-      ).toBeVisible({
-        timeout: 10_000,
-      });
-
-      return;
-    }
-
-    // -----------------------------------------------
-    // Check OTP / verification heading
-    // -----------------------------------------------
-    if (
-      await this.otpHeading
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log("OTP verification heading detected");
-
-      // Heading can render slightly before inputs
-      try {
-        await firstOtpInput.waitFor({
-          state: "visible",
+        await expect(
+          firstOtpInput,
+          "At least one OTP input should be visible"
+        ).toBeVisible({
           timeout: 10_000,
         });
 
-        console.log("OTP input appeared");
         return;
-      } catch {
-        console.log(
-          "Verification heading visible, waiting for OTP input..."
-        );
       }
-    }
 
-    // -----------------------------------------------
-    // Detect transient "Cannot reach the server" API error & retry login click
-    // -----------------------------------------------
-    const serverErrorBanner = this.page
-      .locator('div, [role="alert"]')
-      .filter({ hasText: /Cannot reach the server|check your internet connection/i })
-      .first();
+      // -----------------------------------------------
+      // Check OTP / verification heading
+      // -----------------------------------------------
+      if (
+        await this.otpHeading
+          .isVisible()
+          .catch(() => false)
+      ) {
+        console.log("OTP verification heading detected");
 
-    if (await serverErrorBanner.isVisible().catch(() => false)) {
-      const errText = await serverErrorBanner.innerText().catch(() => "");
-      console.warn(`[Login API Warning] Detected server connection issue: "${errText.replace(/\n+/g, " ")}".`);
-      throw new Error(`Server connection error on login: ${errText.replace(/\n+/g, " ")}`);
-    }
+        // Heading can render slightly before inputs
+        try {
+          await firstOtpInput.waitFor({
+            state: "visible",
+            timeout: 10_000,
+          });
 
-    // -----------------------------------------------
-    // Detect general login error instead of waiting 45 sec
-    // -----------------------------------------------
-    if (
-      await this.errorMessage
-        .isVisible()
-        .catch(() => false)
-    ) {
-      const errorText =
+          console.log("OTP input appeared");
+          return;
+        } catch {
+          console.log(
+            "Verification heading visible, waiting for OTP input..."
+          );
+        }
+      }
+
+      // -----------------------------------------------
+      // Detect rate limit / too many attempts error
+      // -----------------------------------------------
+      const rateLimitBanner = this.page
+        .locator('div, [role="alert"], p')
+        .filter({ hasText: /Too many login attempts/i })
+        .first();
+
+      if (await rateLimitBanner.isVisible().catch(() => false)) {
+        const bannerText = await rateLimitBanner.innerText().catch(() => "");
+        console.warn(
+          `[Rate Limit Warning] Detected: "${bannerText.replace(/\n+/g, " ")}". Waiting 60s cooldown before retrying login...`
+        );
+        await this.page.waitForTimeout(60_000);
+        if (await this.loginButton.isVisible().catch(() => false)) {
+          if (this.lastEmail && this.lastPassword) {
+            const currentEmail = await this.emailInput.inputValue().catch(() => "");
+            if (!currentEmail) {
+              await this.fillLoginForm(this.lastEmail, this.lastPassword).catch(() => {});
+            }
+          }
+          console.log("Re-clicking Login button after cooldown...");
+          await this.loginButton.click().catch(() => {});
+        }
+        await this.page.waitForTimeout(3000);
+        timeoutMs += 65_000;
+        continue;
+      }
+
+      // -----------------------------------------------
+      // Detect transient "Cannot reach the server" API error & retry login click
+      // -----------------------------------------------
+      const serverErrorBanner = this.page
+        .locator('div, [role="alert"]')
+        .filter({ hasText: /Cannot reach the server|check your internet connection/i })
+        .first();
+
+      if (await serverErrorBanner.isVisible().catch(() => false)) {
+        const errText = await serverErrorBanner.innerText().catch(() => "");
+        console.warn(`[Login API Warning] Detected server connection issue: "${errText.replace(/\n+/g, " ")}".`);
+        throw new Error(`Server connection error on login: ${errText.replace(/\n+/g, " ")}`);
+      }
+
+      // -----------------------------------------------
+      // Detect general login error instead of waiting 45 sec
+      // -----------------------------------------------
+      if (
         await this.errorMessage
-          .innerText()
-          .catch(() => "");
+          .isVisible()
+          .catch(() => false)
+      ) {
+        const errorText =
+          await this.errorMessage
+            .innerText()
+            .catch(() => "");
 
-      if (errorText.trim()) {
-        throw new Error(
-          `Login failed before OTP page appeared: ${errorText.replace(/\n+/g, " ")}`
-        );
+        if (errorText.trim()) {
+          if (/too many login attempts/i.test(errorText)) {
+            console.warn(
+              `[Rate Limit Warning] Detected via errorMessage: "${errorText.replace(/\n+/g, " ")}". Waiting 60s cooldown before retrying login...`
+            );
+            await this.page.waitForTimeout(60_000);
+            if (await this.loginButton.isVisible().catch(() => false)) {
+              if (this.lastEmail && this.lastPassword) {
+                const currentEmail = await this.emailInput.inputValue().catch(() => "");
+                if (!currentEmail) {
+                  await this.fillLoginForm(this.lastEmail, this.lastPassword).catch(() => {});
+                }
+              }
+              console.log("Re-clicking Login button after cooldown...");
+              await this.loginButton.click().catch(() => {});
+            }
+            await this.page.waitForTimeout(3000);
+            timeoutMs += 65_000;
+            continue;
+          }
+
+          throw new Error(
+            `Login failed before OTP page appeared: ${errorText.replace(/\n+/g, " ")}`
+          );
+        }
       }
-    }
 
-    // -----------------------------------------------
-    // Debug current state
-    // -----------------------------------------------
-    await this.page.waitForTimeout(500);
-  }
+      // -----------------------------------------------
+      // Debug current state
+      // -----------------------------------------------
+      await this.page.waitForTimeout(500);
+    }
 
   console.log(
     "OTP page was not detected."
@@ -674,23 +727,33 @@ class LoginPage {
 
   await this.verifyOtpButton.click();
 
-  // Check if "Invalid or expired session" banner appeared
-  const expiredBanner = this.page
+  // Check if "Too many login attempts" or "Invalid or expired session" banner appeared
+  const rateLimitOrExpired = this.page
     .locator('[role="alert"], div, span, p')
-    .filter({ hasText: /invalid or expired session/i })
+    .filter({ hasText: /too many.*attempts|invalid or expired session/i })
     .first();
 
-  if (await expiredBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
-    console.warn("Detected 'Invalid or expired session' on OTP page. Clicking 'Back to login'...");
-    const backLink = this.page
-      .getByRole("link", { name: /back to login/i })
-      .or(this.page.getByText(/back to login/i))
-      .first();
-    if (await backLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await backLink.click();
-      await this.page.waitForLoadState("domcontentloaded");
+  if (await rateLimitOrExpired.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const bannerText = await rateLimitOrExpired.innerText().catch(() => "");
+    if (/too many/i.test(bannerText)) {
+      console.warn(`[OTP Rate Limit Warning] Detected: "${bannerText.replace(/\n+/g, " ")}". Waiting 60s cooldown...`);
+      await this.page.waitForTimeout(60_000);
+      if (await this.verifyOtpButton.isVisible().catch(() => false)) {
+        console.log("Re-submitting OTP after cooldown...");
+        await this.verifyOtpButton.click().catch(() => {});
+      }
+    } else {
+      console.warn("Detected 'Invalid or expired session' on OTP page. Clicking 'Back to login'...");
+      const backLink = this.page
+        .getByRole("link", { name: /back to login/i })
+        .or(this.page.getByText(/back to login/i))
+        .first();
+      if (await backLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await backLink.click();
+        await this.page.waitForLoadState("domcontentloaded");
+      }
+      throw new Error("Invalid or expired session during OTP verification");
     }
-    throw new Error("Invalid or expired session during OTP verification");
   }
 
   // Wait until OTP page actually redirects away.

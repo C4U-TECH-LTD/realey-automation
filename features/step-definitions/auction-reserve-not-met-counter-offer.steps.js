@@ -117,10 +117,12 @@ async function loginAs(
       return;
     } catch (err) {
       lastErr = err;
-      console.warn(`[Flow 4 Login Retry] Attempt ${attempts}/${maxAttempts} for ${accountName} failed: ${err.message}. Retrying fresh login in 3s...`);
+      const isRateLimited = /too many login attempts/i.test(err.message);
+      const retryDelay = isRateLimited ? 60000 : 3000;
+      console.warn(`[Flow 4 Login Retry] Attempt ${attempts}/${maxAttempts} for ${accountName} failed: ${err.message}. Retrying fresh login in ${retryDelay / 1000}s...`);
       if (attempts < maxAttempts) {
         await clearCurrentSession(world).catch(() => {});
-        await world.page.waitForTimeout(3000);
+        await world.page.waitForTimeout(retryDelay);
       }
     }
   }

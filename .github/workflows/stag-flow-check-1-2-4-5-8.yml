@@ -53,6 +53,7 @@ jobs:
       BROKER_EMAIL: ${{ secrets.STAG_BROKER_EMAIL != '' && secrets.STAG_BROKER_EMAIL || 'subratotest99+2@gmail.com' }}
       BROKER_SEARCH: ${{ secrets.STAG_BROKER_SEARCH != '' && secrets.STAG_BROKER_SEARCH || 'subrato' }}
       FLOW1_BROKER_SEARCH: ${{ secrets.STAG_BROKER_SEARCH != '' && secrets.STAG_BROKER_SEARCH || 'subrato' }}
+      BUYER_SOLICITOR_SEARCH: ${{ secrets.STAG_BUYER_SOLICITOR_SEARCH != '' && secrets.STAG_BUYER_SOLICITOR_SEARCH || 'subrato' }}
 
       TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER != '' && secrets.TEST_CARD_NUMBER || '4242 4242 4242 4242' }}
       TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '07/28' }}

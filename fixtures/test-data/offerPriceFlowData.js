@@ -1,5 +1,7 @@
 const path = require("path");
 
+const isStaging = (process.env.BASE_URL || "").includes("staging");
+
 const offerPriceFlowData = {
   // =====================================================
   // AGENT LISTING
@@ -86,8 +88,14 @@ const offerPriceFlowData = {
   // SETTLEMENT
   // =====================================================
   settlement: {
-    solicitorSearch: "Hasan",
-    brokerSearch: "subrato",
+    solicitorSearch:
+      process.env.FLOW2_SOLICITOR_SEARCH ||
+      process.env.BUYER_SOLICITOR_SEARCH ||
+      (isStaging ? "subrato" : "Hasan"),
+    brokerSearch:
+      process.env.FLOW2_BROKER_SEARCH ||
+      process.env.BROKER_SEARCH ||
+      (isStaging ? "subrato" : "subrato"),
   },
 
   // =====================================================

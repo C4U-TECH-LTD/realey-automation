@@ -1,5 +1,7 @@
 const path = require("path");
 
+const isStaging = (process.env.BASE_URL || "").includes("staging");
+
 const auctionReserveNotMetFlowData = {
 
   agent: {
@@ -75,8 +77,14 @@ const auctionReserveNotMetFlowData = {
 
 
   settlement: {
-    solicitorSearch: "Hasan",
-    brokerSearch: "subrato",
+    solicitorSearch:
+      process.env.FLOW4_SOLICITOR_SEARCH ||
+      process.env.BUYER_SOLICITOR_SEARCH ||
+      (isStaging ? "subrato" : "Hasan"),
+    brokerSearch:
+      process.env.FLOW4_BROKER_SEARCH ||
+      process.env.BROKER_SEARCH ||
+      (isStaging ? "subrato" : "subrato"),
   },
 
   payment: {
