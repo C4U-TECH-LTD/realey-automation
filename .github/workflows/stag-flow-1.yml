@@ -1,4 +1,4 @@
-name: Stag flow check 1,2,4,5,8
+name: Stag Flow 1
 
 on:
   workflow_dispatch:
@@ -10,14 +10,14 @@ permissions:
   actions: read
 
 concurrency:
-  group: realey-stag-flow-check-1-2-4-5-8
+  group: realey-stag-flow-1
   cancel-in-progress: false
 
 jobs:
-  run-stag-flows:
-    name: Run Staging Flows (1, 2, 4, 5, 8)
+  run-stag-flow-1:
+    name: Run Staging Flow 1
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 60
     outputs:
       test_outcome: ${{ steps.cucumber-tests.outcome }}
       formatted_duration: ${{ steps.duration.outputs.formatted_duration }}
@@ -60,10 +60,6 @@ jobs:
       TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}
 
       FLOW1_ADDRESS: "199 William Street, Melbourne VIC, Australia"
-      FLOW2_ADDRESS: "199 William Street, Melbourne VIC, Australia"
-      FLOW4_ADDRESS: "199 William Street, Melbourne VIC, Australia"
-      FLOW5_ADDRESS: "199 William Street, Melbourne VIC, Australia"
-      FLOW8_ADDRESS: "199 William Street, Melbourne VIC, Australia"
       DEFAULT_LISTING_ADDRESS: "199 William Street, Melbourne VIC, Australia"
 
     steps:
@@ -113,11 +109,11 @@ jobs:
           echo "start_time=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
           echo "start_seconds=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-      - name: Run Staging Cucumber Tests (Flows 1, 2, 4, 5, 8)
+      - name: Run Staging Cucumber Tests (Flow 1)
         id: cucumber-tests
         continue-on-error: true
         run: |
-          npx cucumber-js --tags "(@flow-1 or @flow-2 or @flow-4 or @flow-5 or @flow-8)" --retry 1
+          npx cucumber-js --tags "@flow-1" --retry 1
 
       - name: Record End Time & Calculate Duration
         if: always()
@@ -201,7 +197,7 @@ jobs:
     name: Publish Allure Report
     if: always()
     needs:
-      - run-stag-flows
+      - run-stag-flow-1
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -219,26 +215,26 @@ jobs:
 
       - name: Add Allure Link To Job Summary
         run: |
-          echo "## 📊 Realey Staging (Flows 1, 2, 4, 5, 8) Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 📊 Realey Staging (Flow 1) Allure Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Execution of Flows 1, 2, 4, 5, 8 on Staging environment." >> "$GITHUB_STEP_SUMMARY"
+          echo "Execution of Flow 1 on Staging environment." >> "$GITHUB_STEP_SUMMARY"
 
   final-status:
     name: Final Test Status
     if: always()
     needs:
-      - run-stag-flows
+      - run-stag-flow-1
       - deploy-allure
     runs-on: ubuntu-latest
     steps:
       - name: Workflow Summary
         run: |
-          echo "Staging Flows (1, 2, 4, 5, 8) automation workflow completed."
+          echo "Staging Flow 1 automation workflow completed."
 
       - name: Check Suite Outcome
-        if: always() && (needs.run-stag-flows.outputs.test_outcome == 'failure' || needs.run-stag-flows.result != 'success')
+        if: always() && (needs.run-stag-flow-1.outputs.test_outcome == 'failure' || needs.run-stag-flow-1.result != 'success')
         run: |
-          echo "Staging Flows (1, 2, 4, 5, 8) test run ended with failures. Check Allure Report / Job artifacts."
+          echo "Staging Flow 1 test run ended with failures. Check Allure Report / Job artifacts."
           exit 1
