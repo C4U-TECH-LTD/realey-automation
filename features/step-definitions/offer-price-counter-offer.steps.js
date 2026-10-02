@@ -136,8 +136,11 @@ When(
     await this.propertyLocationPage
       .waitForPage();
 
-    const { counter, searchAddress } = getNextFlow2SearchAddress("Bourke Street");
-    console.log(`[Flow 2] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
+    const searchAddress =
+      process.env.FLOW2_ADDRESS ||
+      listing.addressSearchText ||
+      "199 William Street, Melbourne VIC, Australia";
+    console.log(`[Flow 2] Listing creation using address query: "${searchAddress}"`);
 
     await this.propertyLocationPage
       .typeAddressAndSelectFirstSuggestion(

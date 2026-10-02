@@ -19,12 +19,18 @@ class PropertyLocationPage {
       }
     );
 
-    this.streetAddressInput = page.getByPlaceholder(
-      "e.g., 15 Smith Avenue",
-      {
+    this.streetAddressInput = page
+      .getByPlaceholder("e.g., 15 Smith Avenue", {
         exact: true,
-      }
-    );
+      })
+      .or(page.locator('input[placeholder*="Smith Avenue" i]'))
+      .or(
+        page
+          .locator("label")
+          .filter({ hasText: /^Street Address/i })
+          .locator("xpath=following-sibling::*//input | following-sibling::input")
+      )
+      .first();
 
     this.selectedStreet = "";
     this.selectedSuburb = "";
@@ -132,7 +138,7 @@ class PropertyLocationPage {
   // =====================================================
 
   async typeAddressAndSelectFirstSuggestion(
-    searchText = "a"
+    searchText = "199 William Street, Melbourne VIC, Australia"
   ) {
     if (!searchText) {
       throw new Error(
@@ -140,19 +146,22 @@ class PropertyLocationPage {
       );
     }
 
+    console.log(`[PropertyLocationPage] Entering street address: "${searchText}"`);
+
     await this.streetAddressInput.click();
-
     await this.streetAddressInput.fill("");
+    await this.page.waitForTimeout(300);
 
-    await this.streetAddressInput.type(
+    // Type with moderate delay to reliably trigger Google Places Autocomplete API
+    await this.streetAddressInput.pressSequentially(
       searchText,
       {
-        delay: 200,
+        delay: 60,
       }
     );
 
     await expect(
-      this.googleSuggestionList,
+      this.googleSuggestionList.first(),
       "Google address suggestion list should appear"
     ).toBeVisible({
       timeout: 15_000,
@@ -169,25 +178,46 @@ class PropertyLocationPage {
     });
 
     const suggestionText =
-      await firstSuggestion.innerText();
+      await firstSuggestion.innerText().catch(() => "");
 
     console.log(
-      `Selecting first address suggestion: ${suggestionText}`
+      `[PropertyLocationPage] Selecting address suggestion: "${suggestionText}"`
     );
 
-    await firstSuggestion.click();
+    await this.page.waitForTimeout(400);
 
-    // =====================================================
-    // WAIT FOR ADDRESS TO ACTUALLY CHANGE OR BE POPULATED
-    // =====================================================
+    // Primary attempt: dispatch mousedown (native Google Places Autocomplete handler) and click
+    await firstSuggestion.dispatchEvent("mousedown").catch(() => {});
+    await firstSuggestion.dispatchEvent("mouseup").catch(() => {});
+    await firstSuggestion.click({ force: true }).catch(() => {});
 
-    if (searchText.length <= 2) {
-      await expect(
-        this.streetAddressInput,
-        "Street Address should be populated after selecting a suggestion"
-      ).not.toHaveValue(searchText, {
-        timeout: 15_000,
-      });
+    await this.page.waitForTimeout(1000);
+
+    // Check if Suburb was auto-filled, or if validation warning persists
+    let suburbVal = (await this.suburbInput.inputValue().catch(() => "")).trim();
+    const validationWarning = this.page.getByText(
+      /Please select your address from the suggestions/i
+    );
+    const hasValidationError = await validationWarning.isVisible().catch(() => false);
+
+    // Fallback attempt: Native keyboard navigation (ArrowDown + Enter)
+    if (!suburbVal || hasValidationError) {
+      console.log(
+        "[PropertyLocationPage] Suburb not populated after click or validation warning visible. Using ArrowDown + Enter fallback..."
+      );
+      await this.streetAddressInput.focus();
+      await this.page.keyboard.press("ArrowDown");
+      await this.page.waitForTimeout(300);
+      await this.page.keyboard.press("Enter");
+      await this.page.waitForTimeout(1000);
+    }
+
+    // Secondary fallback: if suggestion dropdown is still open, click it again
+    suburbVal = (await this.suburbInput.inputValue().catch(() => "")).trim();
+    if (!suburbVal && (await this.googleSuggestions.first().isVisible().catch(() => false))) {
+      console.log("[PropertyLocationPage] Suggestions still visible, re-clicking first item...");
+      await this.googleSuggestions.first().click({ force: true }).catch(() => {});
+      await this.page.waitForTimeout(1000);
     }
 
     const selectedAddress =
@@ -200,7 +230,7 @@ class PropertyLocationPage {
     }
 
     console.log(
-      `Selected address: ${selectedAddress}`
+      `[PropertyLocationPage] Selected address input value: "${selectedAddress}"`
     );
 
     // Give Google Places / React state a short moment
@@ -559,7 +589,7 @@ class PropertyLocationPage {
   // =====================================================
 
   async completeLocationStep({
-    addressSearchText = "a",
+    addressSearchText = "199 William Street, Melbourne VIC, Australia",
   } = {}) {
     await this.waitForPage();
 

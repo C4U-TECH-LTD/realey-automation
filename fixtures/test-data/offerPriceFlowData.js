@@ -6,8 +6,12 @@ const offerPriceFlowData = {
   // =====================================================
   agent: {
     listing: {
-      addressSearchText: "Bourke Street",
-      expectedPropertyName: "Bourke Street, Melbourne",
+      addressSearchText:
+        process.env.FLOW2_ADDRESS ||
+        "199 William Street, Melbourne VIC, Australia",
+      expectedPropertyName:
+        process.env.FLOW2_EXPECTED_PROPERTY_NAME ||
+        "199 William Street, Melbourne",
      
 
       propertyType: "House",
@@ -60,7 +64,9 @@ const offerPriceFlowData = {
     password: process.env.GENERAL_USER_PASSWORD,
     otp: process.env.GENERAL_USER_OTP,
 
-    searchText: "Bourke Street",
+    searchText:
+      process.env.FLOW2_SEARCH_TEXT ||
+      "199 William Street",
 
     // Buyer initial offer
     offerAmount: "500000",

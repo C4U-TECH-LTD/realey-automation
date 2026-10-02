@@ -56,6 +56,9 @@ jobs:
       TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '07/28' }}
       TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}
 
+      FLOW2_ADDRESS: "199 William Street, Melbourne VIC, Australia"
+      DEFAULT_LISTING_ADDRESS: "199 William Street, Melbourne VIC, Australia"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
