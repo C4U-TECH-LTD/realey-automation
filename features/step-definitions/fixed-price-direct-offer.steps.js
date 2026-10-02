@@ -495,8 +495,14 @@ When(
 When(
   "the Agent checks email in YOPmail for the offer received email",
   async function () {
-    const yopmail = new YopmailHelper(this);
     const account = getAgentAccount(this);
+    if (!account.email || !account.email.includes("yopmail")) {
+      console.log(
+        `[YopmailHelper] Skipping Agent YOPmail check for non-yopmail account: ${account.email}`
+      );
+      return;
+    }
+    const yopmail = new YopmailHelper(this);
     const res = await yopmail.waitForEmail(
       account.email,
       /offer|new offer|received|direct offer/i,
@@ -507,12 +513,10 @@ When(
         res.found ? "Email Found" : "Check Completed"
       }`
     );
-    if (account.email && account.email.includes("yopmail")) {
-      expect(
-        res.found,
-        `Agent (${account.email}) must receive recent offer received email in YOPmail (just now or today clock time), not stale from past days`
-      ).toBe(true);
-    }
+    expect(
+      res.found,
+      `Agent (${account.email}) must receive recent offer received email in YOPmail (just now or today clock time), not stale from past days`
+    ).toBe(true);
   }
 );
 
@@ -527,8 +531,14 @@ When(
 When(
   "the General User checks email in YOPmail for the offer accepted email",
   async function () {
-    const yopmail = new YopmailHelper(this);
     const account = getGeneralUserAccount(this);
+    if (!account.email || !account.email.includes("yopmail")) {
+      console.log(
+        `[YopmailHelper] Skipping Buyer YOPmail check for non-yopmail account: ${account.email}`
+      );
+      return;
+    }
+    const yopmail = new YopmailHelper(this);
     const res = await yopmail.waitForEmail(
       account.email,
       /accepted|offer accepted|congratulations/i,
@@ -539,12 +549,10 @@ When(
         res.found ? "Email Found" : "Check Completed"
       }`
     );
-    if (account.email && account.email.includes("yopmail")) {
-      expect(
-        res.found,
-        `Buyer (${account.email}) must receive recent offer accepted email in YOPmail (just now or today clock time), not stale from past days`
-      ).toBe(true);
-    }
+    expect(
+      res.found,
+      `Buyer (${account.email}) must receive recent offer accepted email in YOPmail (just now or today clock time), not stale from past days`
+    ).toBe(true);
   }
 );
 

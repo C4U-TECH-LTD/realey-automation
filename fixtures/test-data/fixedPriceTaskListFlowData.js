@@ -56,7 +56,10 @@ const fixedPriceTaskListFlowData = {
         "test-assets/listing/floor-plan.jpg"
       ),
 
-      sellerSolicitorSearch: "solicitor.c4utest@yopmail.com",
+      sellerSolicitorSearch:
+        process.env.SELLER_SOLICITOR_SEARCH ||
+        process.env.SELLER_SOLICITOR_EMAIL ||
+        "solicitor.c4utest@yopmail.com",
     },
   },
 
@@ -121,8 +124,10 @@ const fixedPriceTaskListFlowData = {
   // =====================================================
 
   settlement: {
-    solicitorSearch: "Maxel",
-    brokerSearch: "Alen",
+    solicitorSearch:
+      process.env.BUYER_SOLICITOR_SEARCH || "Maxel",
+    brokerSearch:
+      process.env.BROKER_SEARCH || "Alen",
   },
 
   // =====================================================

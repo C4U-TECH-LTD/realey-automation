@@ -485,25 +485,26 @@ class PropertyLocationPage {
       await this.page.waitForTimeout(1000);
     }
 
-    // Match solicitor.c4utest@yopmail.com or James Anderson
+    // Match solicitorSearch or solicitor.c4utest@yopmail.com or James Anderson
+    const escapedSearch = (solicitorSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const targetOption = this.page
       .locator("*")
-      .filter({ hasText: /solicitor\.c4utest@yopmail\.com/i })
+      .filter({ hasText: new RegExp(escapedSearch || "solicitor\\.c4utest@yopmail\\.com", "i") })
       .filter({ visible: true })
       .last();
 
     if (await targetOption.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      console.log("Clicking 'solicitor.c4utest@yopmail.com' (James Anderson) solicitor card...");
+      console.log(`Clicking '${solicitorSearch}' solicitor card...`);
       await targetOption.click();
     } else {
       const altOption = this.page
         .locator("*")
-        .filter({ hasText: /James Anderson|Jamess Anderson/i })
+        .filter({ hasText: /solicitor\.c4utest@yopmail\.com|James Anderson|subratotest99/i })
         .filter({ visible: true })
         .last();
 
       if (await altOption.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        console.log("Clicking 'James Anderson' fallback solicitor card...");
+        console.log("Clicking fallback solicitor card...");
         await altOption.click();
       } else {
         console.warn(`Could not find "${solicitorSearch}", selecting first available solicitor option...`);

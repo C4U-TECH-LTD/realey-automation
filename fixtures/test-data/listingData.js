@@ -179,23 +179,29 @@ const listingData = {
       agent: {
         email:
           process.env.FLOW1_AGENT_EMAIL ||
+          process.env.AGENT_EMAIL ||
           "agent.c4utest@yopmail.com",
         password:
           process.env.FLOW1_AGENT_PASSWORD ||
+          process.env.AGENT_PASSWORD ||
           "Test12345@",
         otp:
           process.env.FLOW1_AGENT_OTP ||
+          process.env.AGENT_OTP ||
           "123456",
       },
       generalUser: {
         email:
           process.env.FLOW1_BUYER_EMAIL ||
+          process.env.GENERAL_USER_EMAIL ||
           "buyer.c4utest@yopmail.com",
         password:
           process.env.FLOW1_BUYER_PASSWORD ||
+          process.env.GENERAL_USER_PASSWORD ||
           "Test12345@",
         otp:
           process.env.FLOW1_BUYER_OTP ||
+          process.env.GENERAL_USER_OTP ||
           "123456",
       },
     },
@@ -225,9 +231,13 @@ const listingData = {
 
     settlement: {
       solicitorSearch:
+        process.env.FLOW1_SOLICITOR_SEARCH ||
+        process.env.BUYER_SOLICITOR_SEARCH ||
         "Maxel",
 
       brokerSearch:
+        process.env.FLOW1_BROKER_SEARCH ||
+        process.env.BROKER_SEARCH ||
         "Alen",
     },
 
