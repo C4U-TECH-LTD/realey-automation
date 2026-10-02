@@ -153,11 +153,31 @@ class DashboardPage {
   }
 
   /* =====================================================
+     NOTIFICATION PROMPT DISMISSAL
+  ===================================================== */
+
+  async dismissNotificationPrompts() {
+    const notNow = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /Never miss a message/i })
+      .getByRole("button", { name: /not now|close/i })
+      .or(this.page.getByRole("button", { name: /^not now$/i }))
+      .first();
+
+    if (await notNow.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log("[DashboardPage] Dismissing notification prompt by clicking 'Not now'...");
+      await notNow.click({ force: true }).catch(() => {});
+      await this.page.waitForTimeout(500);
+    }
+  }
+
+  /* =====================================================
      CREATE LISTING
   ===================================================== */
 
   async clickCreateListing() {
     await this.page.waitForLoadState("domcontentloaded");
+    await this.dismissNotificationPrompts();
 
     await expect(
       this.page,
@@ -191,6 +211,17 @@ class DashboardPage {
       timeout: 30_000,
     });
 
+    const clickListingButton = async (btn) => {
+      await this.dismissNotificationPrompts();
+      try {
+        await btn.click({ timeout: 4000 });
+      } catch (err) {
+        console.log("[DashboardPage] Button click intercepted or timed out, dismissing prompt and retrying...");
+        await this.dismissNotificationPrompts();
+        await btn.click({ force: true });
+      }
+    };
+
     const createNewButton = this.page
       .locator('button:has-text("Create New Listing")')
       .first();
@@ -212,7 +243,7 @@ class DashboardPage {
       });
 
       await createNewButton.scrollIntoViewIfNeeded();
-      await createNewButton.click();
+      await clickListingButton(createNewButton);
       return;
     }
 
@@ -229,7 +260,7 @@ class DashboardPage {
       });
 
       await createFirstButton.scrollIntoViewIfNeeded();
-      await createFirstButton.click();
+      await clickListingButton(createFirstButton);
       return;
     }
 
@@ -252,7 +283,7 @@ class DashboardPage {
 
     await expect(anyCreateButton).toBeEnabled();
     await anyCreateButton.scrollIntoViewIfNeeded();
-    await anyCreateButton.click();
+    await clickListingButton(anyCreateButton);
   }
 
   /* =====================================================

@@ -59,6 +59,16 @@ function configurePage(page) {
   page.setDefaultTimeout(15_000);
   page.setDefaultNavigationTimeout(30_000);
 
+  if (typeof page.addLocatorHandler === "function") {
+    page.addLocatorHandler(
+      page.locator('[role="dialog"]').filter({ hasText: /Never miss a message/i }).getByRole("button", { name: /not now|close/i }),
+      async (locator) => {
+        console.log("[AutoHandler] Dismissing 'Never miss a message' notification popup...");
+        await locator.click();
+      }
+    );
+  }
+
   let lastConsoleError = "";
   let duplicateConsoleErrorCount = 0;
 

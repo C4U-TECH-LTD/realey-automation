@@ -100,10 +100,35 @@ class PropertyLocationPage {
   }
 
   // =====================================================
+  // NOTIFICATION PROMPT DISMISSAL
+  // =====================================================
+
+  async dismissNotificationPrompts() {
+    const notNow = this.page
+      .getByRole("button", {
+        name: /not now/i,
+      })
+      .or(
+        this.page
+          .locator('[role="dialog"]:has-text("Never miss a message")')
+          .getByRole("button", { name: /not now|close/i })
+      )
+      .first();
+
+    if (await notNow.isVisible({ timeout: 1500 }).catch(() => false)) {
+      console.log("[PropertyLocationPage] Dismissing notification prompt by clicking 'Not now'...");
+      await notNow.click({ force: true }).catch(() => {});
+      await this.page.waitForTimeout(500);
+    }
+  }
+
+  // =====================================================
   // WAIT FOR PAGE
   // =====================================================
 
   async waitForPage() {
+    await this.dismissNotificationPrompts();
+
     await expect(
       this.modalTitle,
       "List Your Property modal should be visible"
@@ -131,6 +156,8 @@ class PropertyLocationPage {
     ).toBeVisible({
       timeout: 20_000,
     });
+
+    await this.dismissNotificationPrompts();
   }
 
   // =====================================================
@@ -148,23 +175,60 @@ class PropertyLocationPage {
 
     console.log(`[PropertyLocationPage] Entering street address: "${searchText}"`);
 
-    await this.streetAddressInput.click();
-    await this.streetAddressInput.fill("");
-    await this.page.waitForTimeout(300);
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    // Type with moderate delay to reliably trigger Google Places Autocomplete API
-    await this.streetAddressInput.pressSequentially(
-      searchText,
-      {
-        delay: 60,
+    while (attempts < maxAttempts) {
+      attempts++;
+      await this.dismissNotificationPrompts();
+
+      await this.streetAddressInput.click();
+      await this.streetAddressInput.fill("");
+      await this.page.waitForTimeout(300);
+
+      // Type with moderate delay to reliably trigger Google Places Autocomplete API
+      await this.streetAddressInput.pressSequentially(
+        searchText,
+        {
+          delay: 50,
+        }
+      );
+
+      // Check if notification prompt appeared during typing
+      if (
+        await this.page
+          .locator('[role="dialog"]:has-text("Never miss a message"), button:has-text("Not now")')
+          .first()
+          .isVisible({ timeout: 1000 })
+          .catch(() => false)
+      ) {
+        console.warn(`[PropertyLocationPage] Notification prompt appeared during typing (attempt ${attempts}/${maxAttempts}). Dismissing and retyping...`);
+        await this.dismissNotificationPrompts();
+        continue;
       }
-    );
+
+      // Check if suggestion list appeared
+      const isPacVisible = await this.googleSuggestionList
+        .first()
+        .waitFor({ state: "visible", timeout: 8000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!isPacVisible) {
+        console.warn(`[PropertyLocationPage] Suggestion list not visible yet on attempt ${attempts}/${maxAttempts}.`);
+        if (attempts < maxAttempts) {
+          continue;
+        }
+      }
+
+      break;
+    }
 
     await expect(
       this.googleSuggestionList.first(),
       "Google address suggestion list should appear"
     ).toBeVisible({
-      timeout: 15_000,
+      timeout: 10_000,
     });
 
     const firstSuggestion =
