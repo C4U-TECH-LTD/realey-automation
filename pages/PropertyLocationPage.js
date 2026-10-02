@@ -523,8 +523,15 @@ class PropertyLocationPage {
   // ASSIGN SELLER SOLICITOR
   // =====================================================
 
-  async assignSellerSolicitor(solicitorSearch = "solicitor.c4utest@yopmail.com") {
-    console.log("Checking for Assign Seller Solicitor on Location step...");
+  async assignSellerSolicitor(solicitorSearch) {
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const targetSearch =
+      solicitorSearch ||
+      process.env.SELLER_SOLICITOR_SEARCH ||
+      process.env.SELLER_SOLICITOR_EMAIL ||
+      (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com");
+
+    console.log(`Checking for Assign Seller Solicitor on Location step (target: "${targetSearch}")...`);
 
     const addBtn = this.page
       .locator("button")
@@ -574,26 +581,26 @@ class PropertyLocationPage {
       .last();
 
     if (await searchInput.isVisible().catch(() => false)) {
-      console.log(`Searching solicitor with: ${solicitorSearch}`);
-      await searchInput.fill(solicitorSearch);
+      console.log(`Searching solicitor with: ${targetSearch}`);
+      await searchInput.fill(targetSearch);
       await this.page.waitForTimeout(1000);
     }
 
-    // Match solicitorSearch or solicitor.c4utest@yopmail.com or James Anderson
-    const escapedSearch = (solicitorSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Match targetSearch or fallback names
+    const escapedSearch = (targetSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const targetOption = this.page
       .locator("*")
-      .filter({ hasText: new RegExp(escapedSearch || "solicitor\\.c4utest@yopmail\\.com", "i") })
+      .filter({ hasText: new RegExp(escapedSearch, "i") })
       .filter({ visible: true })
       .last();
 
     if (await targetOption.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      console.log(`Clicking '${solicitorSearch}' solicitor card...`);
+      console.log(`Clicking '${targetSearch}' solicitor card...`);
       await targetOption.click();
     } else {
       const altOption = this.page
         .locator("*")
-        .filter({ hasText: /solicitor\.c4utest@yopmail\.com|James Anderson|subratotest99/i })
+        .filter({ hasText: /James Anderson|subratotest99|solicitor\.c4utest@yopmail\.com/i })
         .filter({ visible: true })
         .last();
 
@@ -601,7 +608,7 @@ class PropertyLocationPage {
         console.log("Clicking fallback solicitor card...");
         await altOption.click();
       } else {
-        console.warn(`Could not find "${solicitorSearch}", selecting first available solicitor option...`);
+        console.warn(`Could not find "${targetSearch}", selecting first available solicitor option...`);
         const firstOption = this.page
           .locator('[role="option"], [role="menuitem"], [class*="card" i]')
           .filter({ visible: true })
@@ -619,8 +626,8 @@ class PropertyLocationPage {
   // NEXT
   // =====================================================
 
-  async clickNext() {
-    await this.assignSellerSolicitor();
+  async clickNext(solicitorSearch) {
+    await this.assignSellerSolicitor(solicitorSearch);
 
     const dialog = this.page.locator('[role="dialog"]').last();
     const dialogNext = dialog.getByRole("button", { name: "Next", exact: true }).first();

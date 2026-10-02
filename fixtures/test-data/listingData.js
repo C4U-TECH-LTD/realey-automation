@@ -1,15 +1,21 @@
 const path = require("path");
 
+const isStaging = (process.env.BASE_URL || "").includes("staging");
+
 const listingData = {
   // =====================================================
   // CREATE LISTING
   // =====================================================
 
   location: {
-    addressSearchText: "Arndale Shopping Centre Access",
+    addressSearchText:
+      process.env.FLOW1_ADDRESS ||
+      process.env.DEFAULT_LISTING_ADDRESS ||
+      (isStaging ? "199 William Street, Melbourne VIC, Australia" : "Arndale Shopping Centre Access"),
 
     expectedPropertyName:
-      "Arndale Shopping Centre Access, Kilkenny",
+      process.env.FLOW1_EXPECTED_PROPERTY_NAME ||
+      (isStaging ? "199 William Street, Melbourne" : "Arndale Shopping Centre Access, Kilkenny"),
   },
 
   details: {
@@ -180,7 +186,7 @@ const listingData = {
         email:
           process.env.FLOW1_AGENT_EMAIL ||
           process.env.AGENT_EMAIL ||
-          "agent.c4utest@yopmail.com",
+          (isStaging ? "stag.agent.c4utest@yopmail.com" : "agent.c4utest@yopmail.com"),
         password:
           process.env.FLOW1_AGENT_PASSWORD ||
           process.env.AGENT_PASSWORD ||
@@ -194,7 +200,7 @@ const listingData = {
         email:
           process.env.FLOW1_BUYER_EMAIL ||
           process.env.GENERAL_USER_EMAIL ||
-          "buyer.c4utest@yopmail.com",
+          (isStaging ? "subratotest99.3@gmail.com" : "buyer.c4utest@yopmail.com"),
         password:
           process.env.FLOW1_BUYER_PASSWORD ||
           process.env.GENERAL_USER_PASSWORD ||
@@ -223,7 +229,8 @@ const listingData = {
 
     generalUser: {
       searchText:
-        "Arndale Shopping Centre Access",
+        process.env.FLOW1_ADDRESS ||
+        (isStaging ? "199 William Street" : "Arndale Shopping Centre Access"),
 
       offerAmount:
         "25000",
@@ -233,12 +240,12 @@ const listingData = {
       solicitorSearch:
         process.env.FLOW1_SOLICITOR_SEARCH ||
         process.env.BUYER_SOLICITOR_SEARCH ||
-        "Maxel",
+        (isStaging ? "subrato" : "Maxel"),
 
       brokerSearch:
         process.env.FLOW1_BROKER_SEARCH ||
         process.env.BROKER_SEARCH ||
-        "Alen",
+        (isStaging ? "subrato" : "Alen"),
     },
 
     payment: {

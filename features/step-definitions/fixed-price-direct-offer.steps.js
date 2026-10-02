@@ -201,7 +201,11 @@ When(
 When(
   "the agent completes the property location step for the Fixed Price listing",
   async function () {
-    const { counter, searchAddress } = getNextFlow1SearchAddress("King Street");
+    const configuredAddress =
+      process.env.FLOW1_ADDRESS ||
+      process.env.DEFAULT_LISTING_ADDRESS ||
+      "199 William Street, Melbourne VIC, Australia";
+    const { counter, searchAddress } = getNextFlow1SearchAddress(configuredAddress);
     console.log(`[Flow 1] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
 
     await this.propertyLocationPage.typeAddressAndSelectFirstSuggestion(
@@ -226,7 +230,11 @@ When(
     this.createdListingStreet = populatedStreet;
     this.createdListingTitle = fullName;
 
-    await this.propertyLocationPage.clickNext();
+    const solicitorSearch =
+      process.env.FLOW1_SELLER_SOLICITOR_SEARCH ||
+      process.env.SELLER_SOLICITOR_SEARCH ||
+      process.env.SELLER_SOLICITOR_EMAIL;
+    await this.propertyLocationPage.clickNext(solicitorSearch);
     await this.propertyDetailsPage.waitForPage();
   }
 );

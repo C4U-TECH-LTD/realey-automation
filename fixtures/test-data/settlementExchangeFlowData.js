@@ -11,6 +11,8 @@ function getDynamicSettlementDate(daysAhead = 30) {
 
 const dynamicSettlementDate = getDynamicSettlementDate(30);
 
+const isStaging = (process.env.BASE_URL || "").includes("staging");
+
 const settlementExchangeFlowData = {
   // =====================================================
   // AGENT LISTING
@@ -18,10 +20,14 @@ const settlementExchangeFlowData = {
 
   agent: {
     listing: {
-      addressSearchText: "Arndale Shopping Centre Access",
+      addressSearchText:
+        process.env.FLOW4_ADDRESS ||
+        process.env.DEFAULT_LISTING_ADDRESS ||
+        (isStaging ? "199 William Street, Melbourne VIC, Australia" : "Arndale Shopping Centre Access"),
 
       expectedPropertyName:
-        "Arndale Shopping Centre Access, Kilkenny",
+        process.env.FLOW4_EXPECTED_PROPERTY_NAME ||
+        (isStaging ? "199 William Street, Melbourne" : "Arndale Shopping Centre Access, Kilkenny"),
 
       propertyType: "House",
 
@@ -70,12 +76,15 @@ const settlementExchangeFlowData = {
         "test-assets/listing/floor-plan.jpg"
       ),
 
-      sellerSolicitorSearch: "solicitor.c4utest@yopmail.com",
+      sellerSolicitorSearch:
+        process.env.SELLER_SOLICITOR_SEARCH ||
+        (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com"),
     },
 
     // Agent login
     email:
-      process.env.AGENT_EMAIL || "agent.c4utest@yopmail.com",
+      process.env.AGENT_EMAIL ||
+      (isStaging ? "stag.agent.c4utest@yopmail.com" : "agent.c4utest@yopmail.com"),
     password:
       process.env.AGENT_PASSWORD || "Test12345@",
     otp:
@@ -88,7 +97,8 @@ const settlementExchangeFlowData = {
 
   generalUser: {
     email:
-      process.env.GENERAL_USER_EMAIL || "buyer.c4utest@yopmail.com",
+      process.env.GENERAL_USER_EMAIL ||
+      (isStaging ? "subratotest99.3@gmail.com" : "buyer.c4utest@yopmail.com"),
 
     password:
       process.env.GENERAL_USER_PASSWORD || "Test12345@",
@@ -97,7 +107,8 @@ const settlementExchangeFlowData = {
       process.env.GENERAL_USER_OTP || "123456",
 
     searchText:
-      "Arndale Shopping Centre Access",
+      process.env.FLOW4_ADDRESS ||
+      (isStaging ? "199 William Street" : "Arndale Shopping Centre Access"),
 
     offerAmount:
       "25000",
@@ -109,7 +120,8 @@ const settlementExchangeFlowData = {
 
   buyerSolicitor: {
     email:
-      process.env.BUYER_SOLICITOR_EMAIL || "buyersolicitor.c4utest@yopmail.com",
+      process.env.BUYER_SOLICITOR_EMAIL ||
+      (isStaging ? "subratotest99.3@gmail.com" : "buyersolicitor.c4utest@yopmail.com"),
 
     password:
       process.env.BUYER_SOLICITOR_PASSWORD || "Test12345@",
@@ -118,10 +130,10 @@ const settlementExchangeFlowData = {
       process.env.BUYER_SOLICITOR_OTP || "123456",
 
     name:
-      "Maxel Montana",
+      isStaging ? "Subrato" : "Maxel Montana",
 
     searchText:
-      "Maxel",
+      isStaging ? "subrato" : "Maxel",
   },
 
   // =====================================================
@@ -130,7 +142,8 @@ const settlementExchangeFlowData = {
 
   sellerSolicitor: {
     email:
-      process.env.SELLER_SOLICITOR_EMAIL || "solicitor.c4utest@yopmail.com",
+      process.env.SELLER_SOLICITOR_EMAIL ||
+      (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com"),
 
     password:
       process.env.SELLER_SOLICITOR_PASSWORD || "Test12345@",
@@ -139,10 +152,11 @@ const settlementExchangeFlowData = {
       process.env.SELLER_SOLICITOR_OTP || "123456",
 
     name:
-      "James Anderson",
+      isStaging ? "James Anderson Staging" : "James Anderson",
 
     searchText:
-      "James",
+      process.env.SELLER_SOLICITOR_SEARCH ||
+      (isStaging ? "subratotest99.2@gmail.com" : "James"),
   },
 
   // =====================================================

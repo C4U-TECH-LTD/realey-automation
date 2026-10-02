@@ -48,7 +48,9 @@ jobs:
       SELLER_SOLICITOR_PASSWORD: ${{ secrets.STAG_SELLER_SOLICITOR_PASSWORD != '' && secrets.STAG_SELLER_SOLICITOR_PASSWORD || 'Test12345@' }}
       SELLER_SOLICITOR_OTP: ${{ secrets.STAG_SELLER_SOLICITOR_OTP != '' && secrets.STAG_SELLER_SOLICITOR_OTP || '123456' }}
       SELLER_SOLICITOR_SEARCH: ${{ secrets.STAG_SELLER_SOLICITOR_SEARCH != '' && secrets.STAG_SELLER_SOLICITOR_SEARCH || 'subratotest99.2@gmail.com' }}
+      FLOW1_SELLER_SOLICITOR_SEARCH: ${{ secrets.STAG_SELLER_SOLICITOR_SEARCH != '' && secrets.STAG_SELLER_SOLICITOR_SEARCH || 'subratotest99.2@gmail.com' }}
 
+      BROKER_EMAIL: ${{ secrets.STAG_BROKER_EMAIL != '' && secrets.STAG_BROKER_EMAIL || 'subratotest99+2@gmail.com' }}
       BROKER_SEARCH: ${{ secrets.STAG_BROKER_SEARCH != '' && secrets.STAG_BROKER_SEARCH || 'subrato' }}
       FLOW1_BROKER_SEARCH: ${{ secrets.STAG_BROKER_SEARCH != '' && secrets.STAG_BROKER_SEARCH || 'subrato' }}
 
@@ -56,7 +58,11 @@ jobs:
       TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '07/28' }}
       TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}
 
+      FLOW1_ADDRESS: "199 William Street, Melbourne VIC, Australia"
       FLOW2_ADDRESS: "199 William Street, Melbourne VIC, Australia"
+      FLOW4_ADDRESS: "199 William Street, Melbourne VIC, Australia"
+      FLOW5_ADDRESS: "199 William Street, Melbourne VIC, Australia"
+      FLOW8_ADDRESS: "199 William Street, Melbourne VIC, Australia"
       DEFAULT_LISTING_ADDRESS: "199 William Street, Melbourne VIC, Australia"
 
     steps:

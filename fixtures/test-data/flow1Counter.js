@@ -1,4 +1,4 @@
-﻿const fs = require("fs");
+const fs = require("fs");
 const path = require("path");
 
 const COUNTER_FILE = path.resolve(__dirname, "flow1-counter.json");
@@ -13,7 +13,28 @@ const COUNTER_FILE = path.resolve(__dirname, "flow1-counter.json");
  * In CI (GitHub Actions), if GITHUB_RUN_NUMBER is present, incorporates it
  * so runs across fresh checkouts never repeat the same address.
  */
-function getNextFlow1SearchAddress(baseName = "King Street") {
+function getNextFlow1SearchAddress(baseName = "199 William Street, Melbourne VIC, Australia") {
+  if (process.env.FLOW1_ADDRESS) {
+    return {
+      counter: 1,
+      searchAddress: process.env.FLOW1_ADDRESS,
+    };
+  }
+
+  if (process.env.DEFAULT_LISTING_ADDRESS) {
+    return {
+      counter: 1,
+      searchAddress: process.env.DEFAULT_LISTING_ADDRESS,
+    };
+  }
+
+  if (baseName.includes(",") || baseName.includes("William Street") || baseName.includes("Australia")) {
+    return {
+      counter: 1,
+      searchAddress: baseName,
+    };
+  }
+
   let counter = 1;
 
   try {
