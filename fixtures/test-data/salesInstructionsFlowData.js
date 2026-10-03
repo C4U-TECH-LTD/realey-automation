@@ -1,7 +1,5 @@
 const path = require("path");
 
-const isStaging = (process.env.BASE_URL || "").includes("staging");
-
 const salesInstructionsFlowData = {
   // =====================================================
   // AGENT LISTING (ACT Address required for Sales Instructions)
@@ -11,7 +9,7 @@ const salesInstructionsFlowData = {
     email:
       process.env.FLOW7_AGENT_EMAIL ||
       process.env.AGENT_EMAIL ||
-      (isStaging ? "stag.agent.c4utest@yopmail.com" : "agent.c4utest@yopmail.com"),
+      "agent.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_AGENT_PASSWORD ||
@@ -85,7 +83,7 @@ const salesInstructionsFlowData = {
     email:
       process.env.FLOW7_BUYER_EMAIL ||
       process.env.GENERAL_USER_EMAIL ||
-      (isStaging ? "subratotest99.3@gmail.com" : "buyer.c4utest@yopmail.com"),
+      "buyer.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_BUYER_PASSWORD ||
@@ -97,7 +95,7 @@ const salesInstructionsFlowData = {
       process.env.GENERAL_USER_OTP ||
       "123456",
 
-    name: isStaging ? "Subrato Buyer" : "Daniel Lyeon",
+    name: "Daniel Lyeon",
 
     searchText:
       "10 London Circuit",
@@ -113,8 +111,7 @@ const salesInstructionsFlowData = {
   broker: {
     email:
       process.env.FLOW7_BROKER_EMAIL ||
-      process.env.BROKER_EMAIL ||
-      (isStaging ? "subratotest99+2@gmail.com" : "broker.c4utest@yopmail.com"),
+      "broker.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_BROKER_PASSWORD ||
@@ -124,8 +121,8 @@ const salesInstructionsFlowData = {
       process.env.FLOW7_BROKER_OTP ||
       "123456",
 
-    name: isStaging ? "Subrato Broker" : "Alen Mayer",
-    searchText: process.env.BROKER_SEARCH || (isStaging ? "subrato" : "Alen"),
+    name: "Alen Mayer",
+    searchText: "Alen",
   },
 
   // =====================================================
@@ -136,8 +133,7 @@ const salesInstructionsFlowData = {
     email:
       process.env.FLOW7_SELLER_SOLICITOR_EMAIL ||
       process.env.FLOW7_SOLICITOR_EMAIL ||
-      process.env.SELLER_SOLICITOR_EMAIL ||
-      (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com"),
+      "solicitor.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_SELLER_SOLICITOR_PASSWORD ||
@@ -149,8 +145,8 @@ const salesInstructionsFlowData = {
       process.env.FLOW7_SOLICITOR_OTP ||
       "123456",
 
-    name: isStaging ? "James Anderson Staging" : "James Anderson",
-    searchText: process.env.SELLER_SOLICITOR_SEARCH || (isStaging ? "subratotest99.2@gmail.com" : "James"),
+    name: "James Anderson",
+    searchText: "James",
   },
 
   // =====================================================
@@ -160,8 +156,7 @@ const salesInstructionsFlowData = {
   buyerSolicitor: {
     email:
       process.env.FLOW7_BUYER_SOLICITOR_EMAIL ||
-      process.env.BUYER_SOLICITOR_EMAIL ||
-      (isStaging ? "subratotest99.3@gmail.com" : "buyersolicitor.c4utest@yopmail.com"),
+      "buyersolicitor.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_BUYER_SOLICITOR_PASSWORD ||
@@ -171,16 +166,15 @@ const salesInstructionsFlowData = {
       process.env.FLOW7_BUYER_SOLICITOR_OTP ||
       "123456",
 
-    name: isStaging ? "Subrato Solicitor" : "Maxel Montana",
-    searchText: isStaging ? "subrato" : "Maxel",
+    name: "Maxel Montana",
+    searchText: "Maxel",
   },
 
   // Legacy alias pointing to seller solicitor
   solicitor: {
     email:
       process.env.FLOW7_SOLICITOR_EMAIL ||
-      process.env.SELLER_SOLICITOR_EMAIL ||
-      (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com"),
+      "solicitor.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_SOLICITOR_PASSWORD ||
@@ -190,8 +184,8 @@ const salesInstructionsFlowData = {
       process.env.FLOW7_SOLICITOR_OTP ||
       "123456",
 
-    name: isStaging ? "James Anderson Staging" : "James Anderson",
-    searchText: process.env.SELLER_SOLICITOR_SEARCH || (isStaging ? "subratotest99.2@gmail.com" : "James"),
+    name: "James Anderson",
+    searchText: "James",
   },
 
   // =====================================================

@@ -13,21 +13,7 @@ const COUNTER_FILE = path.resolve(__dirname, "flow2-counter.json");
  * In CI (GitHub Actions), if GITHUB_RUN_NUMBER is present, incorporates it
  * so runs across fresh checkouts never repeat the same address.
  */
-function getNextFlow2SearchAddress(baseName = "199 William Street, Melbourne VIC, Australia") {
-  if (process.env.FLOW2_ADDRESS) {
-    return {
-      counter: 1,
-      searchAddress: process.env.FLOW2_ADDRESS,
-    };
-  }
-
-  if (baseName.includes(",") || baseName.includes("William Street") || baseName.includes("Australia")) {
-    return {
-      counter: 1,
-      searchAddress: baseName,
-    };
-  }
-
+function getNextFlow2SearchAddress(baseName = "Bourke Street") {
   let counter = 1;
 
   try {

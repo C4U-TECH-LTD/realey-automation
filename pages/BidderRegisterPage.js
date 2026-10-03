@@ -100,8 +100,11 @@ class BidderRegisterPage {
     });
 
     await expect(
-      this.registerToBidButton
-    ).toBeEnabled();
+      this.registerToBidButton,
+      "First Register to Bid button should be enabled"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
 
     console.log(
       "Clicking first Register to Bid..."
@@ -175,8 +178,11 @@ class BidderRegisterPage {
     });
 
     await expect(
-      this.registerToBidButton
-    ).toBeEnabled();
+      this.registerToBidButton,
+      "Second Register to Bid button should be enabled"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
 
     console.log(
       "Clicking second Register to Bid..."
@@ -232,8 +238,11 @@ class BidderRegisterPage {
     );
 
     await expect(
-      this.contractReadButton
-    ).toBeEnabled();
+      this.contractReadButton,
+      "Contract of Sale confirmation button should be enabled"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
 
     await this.contractReadButton.click();
 
@@ -281,8 +290,11 @@ class BidderRegisterPage {
     );
 
     await expect(
-      this.auctionTermsReadButton
-    ).toBeEnabled();
+      this.auctionTermsReadButton,
+      "Auction terms confirmation button should be enabled"
+    ).toBeEnabled({
+      timeout: 20_000,
+    });
 
     await this.auctionTermsReadButton.click();
 

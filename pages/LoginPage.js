@@ -463,6 +463,7 @@ class LoginPage {
 
   async waitForOtpPage(timeoutMs = 120_000) {
     console.log("Waiting for OTP verification page...");
+    this.serverErrorRetryCount = 0;
 
     const startedAt = Date.now();
 
@@ -553,8 +554,31 @@ class LoginPage {
         .first();
 
       if (await serverErrorBanner.isVisible().catch(() => false)) {
+        this.serverErrorRetryCount = (this.serverErrorRetryCount || 0) + 1;
         const errText = await serverErrorBanner.innerText().catch(() => "");
-        console.warn(`[Login API Warning] Detected server connection issue: "${errText.replace(/\n+/g, " ")}".`);
+        if (this.serverErrorRetryCount <= 5) {
+          const delaySec = Math.min(this.serverErrorRetryCount * 3, 10);
+          console.warn(
+            `[Login API Warning] Detected server connection issue (attempt ${this.serverErrorRetryCount}/5): "${errText.replace(/\n+/g, " ")}". Retrying Login click in ${delaySec}s...`
+          );
+          await this.page.waitForTimeout(delaySec * 1000);
+
+          if (this.lastEmail && this.lastPassword) {
+            const currentEmail = await this.emailInput.inputValue().catch(() => "");
+            if (!currentEmail) {
+              await this.fillLoginForm(this.lastEmail, this.lastPassword).catch(() => {});
+            }
+          }
+
+          if (await this.loginButton.isVisible().catch(() => false)) {
+            await this.loginButton.click({ force: true }).catch(() => {});
+            await this.page.waitForTimeout(2000);
+          }
+          timeoutMs += (delaySec + 3) * 1000;
+          continue;
+        }
+
+        console.warn(`[Login API Error] Server connection issue persisted after 5 retries.`);
         throw new Error(`Server connection error on login: ${errText.replace(/\n+/g, " ")}`);
       }
 
@@ -589,6 +613,11 @@ class LoginPage {
             }
             await this.page.waitForTimeout(3000);
             timeoutMs += 65_000;
+            continue;
+          }
+
+          if (/cannot reach the server|check your internet connection/i.test(errorText)) {
+            // Handled above by serverErrorBanner retry; do not abort early
             continue;
           }
 

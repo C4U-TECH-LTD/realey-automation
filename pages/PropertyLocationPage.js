@@ -165,7 +165,7 @@ class PropertyLocationPage {
   // =====================================================
 
   async typeAddressAndSelectFirstSuggestion(
-    searchText = "199 William Street, Melbourne VIC, Australia"
+    searchText = "a"
   ) {
     if (!searchText) {
       throw new Error(
@@ -660,7 +660,7 @@ class PropertyLocationPage {
   // =====================================================
 
   async completeLocationStep({
-    addressSearchText = "199 William Street, Melbourne VIC, Australia",
+    addressSearchText = "a",
   } = {}) {
     await this.waitForPage();
 

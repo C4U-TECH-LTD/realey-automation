@@ -1,21 +1,15 @@
 const path = require("path");
 
-const isStaging = (process.env.BASE_URL || "").includes("staging");
-
 const listingData = {
   // =====================================================
   // CREATE LISTING
   // =====================================================
 
   location: {
-    addressSearchText:
-      process.env.FLOW1_ADDRESS ||
-      process.env.DEFAULT_LISTING_ADDRESS ||
-      (isStaging ? "199 William Street, Melbourne VIC, Australia" : "Arndale Shopping Centre Access"),
+    addressSearchText: "Arndale Shopping Centre Access",
 
     expectedPropertyName:
-      process.env.FLOW1_EXPECTED_PROPERTY_NAME ||
-      (isStaging ? "199 William Street, Melbourne" : "Arndale Shopping Centre Access, Kilkenny"),
+      "Arndale Shopping Centre Access, Kilkenny",
   },
 
   details: {
@@ -185,29 +179,23 @@ const listingData = {
       agent: {
         email:
           process.env.FLOW1_AGENT_EMAIL ||
-          process.env.AGENT_EMAIL ||
-          (isStaging ? "stag.agent.c4utest@yopmail.com" : "agent.c4utest@yopmail.com"),
+          "agent.c4utest@yopmail.com",
         password:
           process.env.FLOW1_AGENT_PASSWORD ||
-          process.env.AGENT_PASSWORD ||
           "Test12345@",
         otp:
           process.env.FLOW1_AGENT_OTP ||
-          process.env.AGENT_OTP ||
           "123456",
       },
       generalUser: {
         email:
           process.env.FLOW1_BUYER_EMAIL ||
-          process.env.GENERAL_USER_EMAIL ||
-          (isStaging ? "subratotest99.3@gmail.com" : "buyer.c4utest@yopmail.com"),
+          "buyer.c4utest@yopmail.com",
         password:
           process.env.FLOW1_BUYER_PASSWORD ||
-          process.env.GENERAL_USER_PASSWORD ||
           "Test12345@",
         otp:
           process.env.FLOW1_BUYER_OTP ||
-          process.env.GENERAL_USER_OTP ||
           "123456",
       },
     },
@@ -229,8 +217,7 @@ const listingData = {
 
     generalUser: {
       searchText:
-        process.env.FLOW1_ADDRESS ||
-        (isStaging ? "199 William Street" : "Arndale Shopping Centre Access"),
+        "Arndale Shopping Centre Access",
 
       offerAmount:
         "25000",
@@ -238,14 +225,10 @@ const listingData = {
 
     settlement: {
       solicitorSearch:
-        process.env.FLOW1_SOLICITOR_SEARCH ||
-        process.env.BUYER_SOLICITOR_SEARCH ||
-        (isStaging ? "subrato" : "Maxel"),
+        "Maxel",
 
       brokerSearch:
-        process.env.FLOW1_BROKER_SEARCH ||
-        process.env.BROKER_SEARCH ||
-        (isStaging ? "subrato" : "Alen"),
+        "Alen",
     },
 
     payment: {

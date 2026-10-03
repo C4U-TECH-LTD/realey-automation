@@ -1,19 +1,13 @@
 const path = require("path");
 
-const isStaging = (process.env.BASE_URL || "").includes("staging");
-
 const offerPriceFlowData = {
   // =====================================================
   // AGENT LISTING
   // =====================================================
   agent: {
     listing: {
-      addressSearchText:
-        process.env.FLOW2_ADDRESS ||
-        "199 William Street, Melbourne VIC, Australia",
-      expectedPropertyName:
-        process.env.FLOW2_EXPECTED_PROPERTY_NAME ||
-        "199 William Street, Melbourne",
+      addressSearchText: "Bourke Street",
+      expectedPropertyName: "Bourke Street, Melbourne",
      
 
       propertyType: "House",
@@ -66,9 +60,7 @@ const offerPriceFlowData = {
     password: process.env.GENERAL_USER_PASSWORD,
     otp: process.env.GENERAL_USER_OTP,
 
-    searchText:
-      process.env.FLOW2_SEARCH_TEXT ||
-      "199 William Street",
+    searchText: "Bourke Street",
 
     // Buyer initial offer
     offerAmount: "500000",
@@ -88,14 +80,8 @@ const offerPriceFlowData = {
   // SETTLEMENT
   // =====================================================
   settlement: {
-    solicitorSearch:
-      process.env.FLOW2_SOLICITOR_SEARCH ||
-      process.env.BUYER_SOLICITOR_SEARCH ||
-      (isStaging ? "subrato" : "Hasan"),
-    brokerSearch:
-      process.env.FLOW2_BROKER_SEARCH ||
-      process.env.BROKER_SEARCH ||
-      (isStaging ? "subrato" : "subrato"),
+    solicitorSearch: "Hasan",
+    brokerSearch: "subrato",
   },
 
   // =====================================================

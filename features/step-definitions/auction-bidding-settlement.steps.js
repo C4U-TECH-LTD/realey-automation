@@ -379,8 +379,11 @@ When(
           .searchText
       );
 
+    this.auctionListingUrl = this.page.url();
+
     console.log(
-      "Buyer 1 Auction listing opened"
+      "Buyer 1 Auction listing opened:",
+      this.auctionListingUrl
     );
   }
 );
@@ -487,14 +490,26 @@ When(
 When(
   "the Second Auction Buyer opens the created Auction listing",
   async function () {
-    await this.generalUserListingsPage
-      .openFirstMatchingListing(
-        auctionFlowData.secondBuyer
-          .searchText
+    if (this.auctionListingUrl) {
+      console.log(
+        "Directly navigating to created Auction listing URL:",
+        this.auctionListingUrl
       );
+      await this.page.goto(this.auctionListingUrl, {
+        waitUntil: "domcontentloaded",
+      });
+    } else {
+      await this.generalUserListingsPage
+        .openFirstMatchingListing(
+          auctionFlowData.secondBuyer
+            .searchText
+        );
+      this.auctionListingUrl = this.page.url();
+    }
 
     console.log(
-      "Buyer 2 Auction listing opened"
+      "Buyer 2 Auction listing opened:",
+      this.page.url()
     );
   }
 );
@@ -662,11 +677,21 @@ When(
       "Searching for winning Auction property..."
     );
 
-    await this.generalUserListingsPage
-      .openFirstMatchingListing(
-        auctionFlowData.secondBuyer
-          .searchText
+    if (this.auctionListingUrl) {
+      console.log(
+        "Navigating directly to winning Auction property URL:",
+        this.auctionListingUrl
       );
+      await this.page.goto(this.auctionListingUrl, {
+        waitUntil: "domcontentloaded",
+      });
+    } else {
+      await this.generalUserListingsPage
+        .openFirstMatchingListing(
+          auctionFlowData.secondBuyer
+            .searchText
+        );
+    }
 
     console.log(
       "Winning Auction property opened:",

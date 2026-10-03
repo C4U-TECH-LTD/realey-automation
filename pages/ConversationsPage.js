@@ -176,15 +176,19 @@ class ConversationsPage {
     const shortName = expectedPropertyName.split(",")[0].trim();
 
     // 1. Filter using the search input so the created listing's conversations are isolated
-    const searchInput = this.page
-      .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
-      .first();
-
-    if (await searchInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log(`Filtering Conversations by: ${shortName}`);
-      await searchInput.fill(shortName);
-      await searchInput.press("Enter");
-      await this.page.waitForTimeout(2000);
+    const searchInputs = this.page.locator(
+      'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
+    );
+    const searchCount = await searchInputs.count();
+    for (let s = 0; s < searchCount; s++) {
+      const input = searchInputs.nth(s);
+      if (await input.isVisible().catch(() => false)) {
+        console.log(`Filtering Conversations by: ${shortName}`);
+        await input.fill(shortName);
+        await input.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(2000);
+        break;
+      }
     }
 
     // If still showing 0 Properties / loading, wait for data to populate
@@ -203,10 +207,18 @@ class ConversationsPage {
         await this.page.waitForTimeout(2000);
         
         // Refilter after reload
-        if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await searchInput.fill(shortName);
-          await searchInput.press("Enter");
-          await this.page.waitForTimeout(2000);
+        const reloadSearchInputs = this.page.locator(
+          'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
+        );
+        const reloadSearchCount = await reloadSearchInputs.count();
+        for (let s = 0; s < reloadSearchCount; s++) {
+          const input = reloadSearchInputs.nth(s);
+          if (await input.isVisible().catch(() => false)) {
+            await input.fill(shortName);
+            await input.press("Enter").catch(() => {});
+            await this.page.waitForTimeout(2000);
+            break;
+          }
         }
       }
     }
@@ -223,8 +235,17 @@ class ConversationsPage {
 
     const cardCount = await cardCandidates.count();
     if (cardCount > 0) {
-      // The newest conversation is always the first one when sorted descending by date
-      const matchedCard = cardCandidates.nth(0);
+      // Prefer cards that are NOT marked as completed settlement / settlement setup
+      let matchedCard = cardCandidates.nth(0);
+      for (let c = 0; c < cardCount; c++) {
+        const candidate = cardCandidates.nth(c);
+        const cardText = await candidate.innerText().catch(() => "");
+        if (!/completed.*settlement|settlement setup/i.test(cardText)) {
+          matchedCard = candidate;
+          console.log(`Selected active non-completed card at index ${c} for ${shortName}`);
+          break;
+        }
+      }
 
       return {
         propertyName: matchedCard.getByText(new RegExp(shortName, "i")).first(),
@@ -353,14 +374,19 @@ class ConversationsPage {
     );
 
     // 1. Filter property list in sidebar if search input exists
-    const searchInput = this.page
-      .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
-      .first();
-    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log(`Filtering conversation list by: ${shortName}`);
-      await searchInput.fill(shortName);
-      await searchInput.press("Enter").catch(() => {});
-      await this.page.waitForTimeout(1500);
+    const searchInputs = this.page.locator(
+      'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
+    );
+    const searchCount = await searchInputs.count();
+    for (let s = 0; s < searchCount; s++) {
+      const input = searchInputs.nth(s);
+      if (await input.isVisible().catch(() => false)) {
+        console.log(`Filtering conversation list by: ${shortName}`);
+        await input.fill(shortName);
+        await input.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(1500);
+        break;
+      }
     }
 
     // 3. Expand the property card
@@ -435,13 +461,19 @@ class ConversationsPage {
     );
 
     // 1. Filter via sidebar search if present
-    const searchInput = this.page
-      .locator('input[placeholder*="Search by property title or address" i], input[placeholder*="search" i]')
-      .first();
-    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await searchInput.fill(shortName);
-      await searchInput.press("Enter").catch(() => {});
-      await this.page.waitForTimeout(1500);
+    const searchInputs = this.page.locator(
+      'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
+    );
+    const searchCount = await searchInputs.count();
+    for (let s = 0; s < searchCount; s++) {
+      const input = searchInputs.nth(s);
+      if (await input.isVisible().catch(() => false)) {
+        console.log(`Filtering conversation list by: ${shortName}`);
+        await input.fill(shortName);
+        await input.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(1500);
+        break;
+      }
     }
 
     // 2. Expand property row

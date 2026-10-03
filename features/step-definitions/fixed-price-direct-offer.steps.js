@@ -203,10 +203,10 @@ When(
 When(
   "the agent completes the property location step for the Fixed Price listing",
   async function () {
-    const configuredAddress =
-      process.env.FLOW1_ADDRESS ||
-      process.env.DEFAULT_LISTING_ADDRESS ||
-      "199 William Street, Melbourne VIC, Australia";
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const configuredAddress = isStaging
+      ? (process.env.FLOW1_ADDRESS || "199 William Street, Melbourne VIC, Australia")
+      : "King Street";
     const { counter, searchAddress } = getNextFlow1SearchAddress(configuredAddress);
     console.log(`[Flow 1] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
 
@@ -232,10 +232,9 @@ When(
     this.createdListingStreet = populatedStreet;
     this.createdListingTitle = fullName;
 
-    const solicitorSearch =
-      process.env.FLOW1_SELLER_SOLICITOR_SEARCH ||
-      process.env.SELLER_SOLICITOR_SEARCH ||
-      process.env.SELLER_SOLICITOR_EMAIL;
+    const solicitorSearch = isStaging
+      ? (process.env.FLOW1_SELLER_SOLICITOR_SEARCH || process.env.SELLER_SOLICITOR_SEARCH || "subratotest99.2@gmail.com")
+      : undefined;
     await this.propertyLocationPage.clickNext(solicitorSearch);
     await this.propertyDetailsPage.waitForPage();
   }

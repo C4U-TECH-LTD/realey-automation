@@ -1,7 +1,5 @@
 const path = require("path");
 
-const isStaging = (process.env.BASE_URL || "").includes("staging");
-
 const fixedPriceTaskListFlowData = {
   // =====================================================
   // AGENT LISTING
@@ -9,15 +7,10 @@ const fixedPriceTaskListFlowData = {
 
   agent: {
     listing: {
-      addressSearchText:
-        process.env.FLOW8_ADDRESS ||
-        process.env.DEFAULT_LISTING_ADDRESS ||
-        (isStaging ? "199 William Street, Melbourne VIC, Australia" : "Chapel Street"),
+      addressSearchText: "Chapel Street",
 
       // Change if the actual Google-selected address is different.
-      expectedPropertyName:
-        process.env.FLOW8_EXPECTED_PROPERTY_NAME ||
-        (isStaging ? "199 William Street, Melbourne" : "Chapel Street, South Yarra"),
+      expectedPropertyName: "Chapel Street, South Yarra",
 
       propertyType: "House",
 
@@ -63,10 +56,7 @@ const fixedPriceTaskListFlowData = {
         "test-assets/listing/floor-plan.jpg"
       ),
 
-      sellerSolicitorSearch:
-        process.env.SELLER_SOLICITOR_SEARCH ||
-        process.env.SELLER_SOLICITOR_EMAIL ||
-        (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com"),
+      sellerSolicitorSearch: "solicitor.c4utest@yopmail.com",
     },
   },
 
@@ -77,7 +67,7 @@ const fixedPriceTaskListFlowData = {
   sellerSolicitor: {
     email:
       process.env.SELLER_SOLICITOR_EMAIL ||
-      (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com"),
+      "solicitor.c4utest@yopmail.com",
 
     password:
       process.env.SELLER_SOLICITOR_PASSWORD ||
@@ -88,7 +78,7 @@ const fixedPriceTaskListFlowData = {
       "123456",
 
     name:
-      isStaging ? "James Anderson Staging" : "James Anderson",
+      "James Anderson",
 
     templateName:
       "Standard Conveyancing Process",
@@ -101,7 +91,7 @@ const fixedPriceTaskListFlowData = {
   generalUser: {
     email:
       process.env.GENERAL_USER_EMAIL ||
-      (isStaging ? "subratotest99.3@gmail.com" : "buyer.c4utest@yopmail.com"),
+      "buyer.c4utest@yopmail.com",
 
     password:
       process.env.GENERAL_USER_PASSWORD ||
@@ -112,9 +102,7 @@ const fixedPriceTaskListFlowData = {
       "123456",
 
     // Used for GeneralUserListingsPage search
-    searchText:
-      process.env.FLOW8_ADDRESS ||
-      (isStaging ? "199 William Street" : "Chapel Street"),
+    searchText: "Chapel Street",
 
     // Buyer initial direct offer
     offerAmount: "600000",
@@ -133,12 +121,8 @@ const fixedPriceTaskListFlowData = {
   // =====================================================
 
   settlement: {
-    solicitorSearch:
-      process.env.BUYER_SOLICITOR_SEARCH ||
-      (isStaging ? "subrato" : "Maxel"),
-    brokerSearch:
-      process.env.BROKER_SEARCH ||
-      (isStaging ? "subrato" : "Alen"),
+    solicitorSearch: "Maxel",
+    brokerSearch: "Alen",
   },
 
   // =====================================================

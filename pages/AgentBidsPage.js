@@ -133,6 +133,37 @@ class AgentBidsPage {
   }
 
   // =====================================================
+  // FILTER BIDS BY ADDRESS / SEARCH
+  // =====================================================
+
+  async filterByAddress(propertyName) {
+    const shortPropertyName = this.getShortPropertyName(propertyName);
+    if (!shortPropertyName) {
+      return;
+    }
+
+    const searchInputs = this.page.locator(
+      'input[placeholder*="Search by address" i], input[placeholder*="Search by property" i], input[placeholder*="search" i]'
+    );
+
+    const count = await searchInputs.count();
+    for (let i = 0; i < count; i++) {
+      const input = searchInputs.nth(i);
+      if (await input.isVisible().catch(() => false)) {
+        console.log(`Filtering Bids page by address: "${shortPropertyName}"`);
+        await input.fill(shortPropertyName);
+        await input.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(1500);
+        await this.page
+          .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"]')
+          .waitFor({ state: "hidden", timeout: 10_000 })
+          .catch(() => {});
+        break;
+      }
+    }
+  }
+
+  // =====================================================
   // ESCAPE REGEX
   // =====================================================
 
@@ -230,6 +261,8 @@ class AgentBidsPage {
     console.log(
       `Looking for action "${buttonRegex}" on property "${shortPropertyName}"`
     );
+
+    await this.filterByAddress(propertyName);
 
     await this.page.waitForLoadState(
       "domcontentloaded"
@@ -411,6 +444,8 @@ class AgentBidsPage {
     console.log(
       `Starting negotiation for: ${shortPropertyName}`
     );
+
+    await this.filterByAddress(propertyName);
 
     // -----------------------------------------------------
     // Wait for Bids page content
@@ -630,16 +665,22 @@ class AgentBidsPage {
     }
 
     // Fallback: Check if any Start negotiation button is visible on page
-    const fallbackStart = this.page.getByRole("button", { name: /^Start negotiation$/i }).first();
-    if (await fallbackStart.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log(`Fallback: Clicked first visible Start negotiation button on Bids page`);
-      await fallbackStart.scrollIntoViewIfNeeded();
-      await fallbackStart.click();
-      await expect(
-        this.counterAmountInput,
-        "Counter amount input should be visible after starting negotiation"
-      ).toBeVisible({ timeout: 10_000 });
-      return;
+    const fallbackStartButtons = this.page
+      .getByRole("button", { name: /^Start negotiation$/i })
+      .or(this.page.locator('button:has-text("Start negotiation")'));
+    const fallbackCount = await fallbackStartButtons.count();
+    for (let f = 0; f < fallbackCount; f++) {
+      const btn = fallbackStartButtons.nth(f);
+      if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        console.log(`Fallback: Clicked Start negotiation button index ${f} on Bids page`);
+        await btn.scrollIntoViewIfNeeded();
+        await btn.click();
+        await expect(
+          this.counterAmountInput,
+          "Counter amount input should be visible after starting negotiation"
+        ).toBeVisible({ timeout: 10_000 });
+        return;
+      }
     }
 
     await this.debugCurrentPage(
@@ -875,6 +916,8 @@ class AgentBidsPage {
     console.log(
       `Looking for Open chat for property: ${shortPropertyName}`
     );
+
+    await this.filterByAddress(propertyName);
 
     await this.page.waitForLoadState(
       "domcontentloaded"
@@ -1120,6 +1163,7 @@ class AgentBidsPage {
 
     // If propertyName is provided, find and scope to the property's bids card
     if (propertyName) {
+      await this.filterByAddress(propertyName);
       const shortPropertyName = this.getShortPropertyName(propertyName);
       const propertyTitles = this.getPropertyTitles(propertyName);
 

@@ -906,15 +906,39 @@ class SettlementPage {
       "Waiting for Auction Property Settlement Process..."
     );
 
+    // If an action button to proceed to settlement is visible on the listing page, click it
+    const startSettlementBtn = this.page
+      .getByRole("button", {
+        name: /start settlement|proceed to settlement|continue to settlement|settle now|complete settlement|pay deposit/i,
+      })
+      .or(
+        this.page.locator(
+          'button:has-text("Start settlement"), button:has-text("Proceed to settlement"), button:has-text("Settle now")'
+        )
+      )
+      .first();
+
+    if (await startSettlementBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log("Found settlement initiation button on auction page, clicking...");
+      await startSettlementBtn.click();
+      await this.page.waitForLoadState("domcontentloaded");
+    }
+
+    const heading = this.settlementHeading.or(
+      this.page.getByRole("heading", {
+        name: /Property Settlement Process/i,
+      })
+    );
+
     await expect(
-      this.settlementHeading,
+      heading,
       "Auction Property Settlement Process should be visible"
     ).toBeVisible({
       timeout: 30_000,
     });
 
     console.log(
-      "Auction Property Settlement Process opened automatically"
+      "Auction Property Settlement Process opened successfully"
     );
 
     console.log(

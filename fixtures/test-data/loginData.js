@@ -1,20 +1,18 @@
 require("dotenv").config();
 
-const isStaging = (process.env.BASE_URL || "").includes("staging");
-
 const loginData = {
   application: {
     loginPath: "/login",
   },
 
   agent: {
-    email: process.env.AGENT_EMAIL || (isStaging ? "stag.agent.c4utest@yopmail.com" : "agent.c4utest@yopmail.com"),
+    email: process.env.AGENT_EMAIL || "agent.c4utest@yopmail.com",
     password: process.env.AGENT_PASSWORD || "Test12345@",
     otp: process.env.AGENT_OTP || "123456",
   },
 
   generalUser: {
-    email: process.env.GENERAL_USER_EMAIL || (isStaging ? "subratotest99.3@gmail.com" : "buyer.c4utest@yopmail.com"),
+    email: process.env.GENERAL_USER_EMAIL || "buyer.c4utest@yopmail.com",
     password: process.env.GENERAL_USER_PASSWORD || "Test12345@",
     otp: process.env.GENERAL_USER_OTP || "123456",
   },
