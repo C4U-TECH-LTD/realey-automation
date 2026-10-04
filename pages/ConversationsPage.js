@@ -176,19 +176,16 @@ class ConversationsPage {
     const shortName = expectedPropertyName.split(",")[0].trim();
 
     // 1. Filter using the search input so the created listing's conversations are isolated
-    const searchInputs = this.page.locator(
-      'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
-    );
-    const searchCount = await searchInputs.count();
-    for (let s = 0; s < searchCount; s++) {
-      const input = searchInputs.nth(s);
-      if (await input.isVisible().catch(() => false)) {
-        console.log(`Filtering Conversations by: ${shortName}`);
-        await input.fill(shortName);
-        await input.press("Enter").catch(() => {});
-        await this.page.waitForTimeout(2000);
-        break;
-      }
+    const searchInput = this.page
+      .getByPlaceholder(/search by property title or address/i)
+      .or(this.page.locator('input[placeholder*="Search by property title or address" i]'))
+      .first();
+
+    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`Filtering Conversations by: ${shortName}`);
+      await searchInput.fill(shortName);
+      await searchInput.press("Enter").catch(() => {});
+      await this.page.waitForTimeout(2000);
     }
 
     // If still showing 0 Properties / loading, wait for data to populate
@@ -207,18 +204,10 @@ class ConversationsPage {
         await this.page.waitForTimeout(2000);
         
         // Refilter after reload
-        const reloadSearchInputs = this.page.locator(
-          'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
-        );
-        const reloadSearchCount = await reloadSearchInputs.count();
-        for (let s = 0; s < reloadSearchCount; s++) {
-          const input = reloadSearchInputs.nth(s);
-          if (await input.isVisible().catch(() => false)) {
-            await input.fill(shortName);
-            await input.press("Enter").catch(() => {});
-            await this.page.waitForTimeout(2000);
-            break;
-          }
+        if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await searchInput.fill(shortName);
+          await searchInput.press("Enter").catch(() => {});
+          await this.page.waitForTimeout(2000);
         }
       }
     }
@@ -235,16 +224,28 @@ class ConversationsPage {
 
     const cardCount = await cardCandidates.count();
     if (cardCount > 0) {
-      // Prefer cards that are NOT marked as completed settlement / settlement setup
-      let matchedCard = cardCandidates.nth(0);
+      // Prefer cards that are NOT marked as completed, declined, or accepted
+      const activeCards = [];
       for (let c = 0; c < cardCount; c++) {
         const candidate = cardCandidates.nth(c);
         const cardText = await candidate.innerText().catch(() => "");
-        if (!/completed.*settlement|settlement setup/i.test(cardText)) {
-          matchedCard = candidate;
-          console.log(`Selected active non-completed card at index ${c} for ${shortName}`);
-          break;
+        const isStale = /completed.*settlement|settlement setup|settlement completed|\bdeclined\b|offer declined|\baccepted\b/i.test(cardText);
+        if (!isStale) {
+          activeCards.push({ candidate, index: c, cardText });
+        } else {
+          console.log(`[ConversationsPage] Skipping stale/resolved card at index ${c} for ${shortName}: ${cardText.replace(/\n+/g, " ")}`);
         }
+      }
+
+      // Pick newest active non-stale card from current run
+      let matchedCard = null;
+      if (activeCards.length > 0) {
+        const chosen = activeCards[activeCards.length - 1];
+        console.log(`[ConversationsPage] Selected newest active card at index ${chosen.index} for ${shortName}`);
+        matchedCard = chosen.candidate;
+      } else {
+        console.warn(`[ConversationsPage] No active non-stale card found for ${shortName}, using last candidate`);
+        matchedCard = cardCandidates.last();
       }
 
       return {
@@ -374,19 +375,16 @@ class ConversationsPage {
     );
 
     // 1. Filter property list in sidebar if search input exists
-    const searchInputs = this.page.locator(
-      'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
-    );
-    const searchCount = await searchInputs.count();
-    for (let s = 0; s < searchCount; s++) {
-      const input = searchInputs.nth(s);
-      if (await input.isVisible().catch(() => false)) {
-        console.log(`Filtering conversation list by: ${shortName}`);
-        await input.fill(shortName);
-        await input.press("Enter").catch(() => {});
-        await this.page.waitForTimeout(1500);
-        break;
-      }
+    const searchInput = this.page
+      .getByPlaceholder(/search by property title or address/i)
+      .or(this.page.locator('input[placeholder*="Search by property title or address" i]'))
+      .first();
+
+    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`Filtering conversation list by: ${shortName}`);
+      await searchInput.fill(shortName);
+      await searchInput.press("Enter").catch(() => {});
+      await this.page.waitForTimeout(1500);
     }
 
     // 3. Expand the property card
@@ -394,11 +392,20 @@ class ConversationsPage {
     await this.page.waitForTimeout(1000);
 
     // 4. Click the Agent child chat (strictly matching Agent badge/role, excluding Broker)
-    const agentChatButton = propertyRow
+    let agentChatButton = propertyRow
       .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
       .filter({ hasText: /\bAgent\b|Subrato/i })
       .filter({ hasNotText: /\bBroker\b/i })
+      .filter({ hasNotText: /declined|completed/i })
       .first();
+
+    if (!(await agentChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
+      agentChatButton = propertyRow
+        .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
+        .filter({ hasText: /\bAgent\b|Subrato/i })
+        .filter({ hasNotText: /\bBroker\b/i })
+        .first();
+    }
 
     if (await agentChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log("Agent child chat button found, clicking to open chat...");
@@ -461,19 +468,16 @@ class ConversationsPage {
     );
 
     // 1. Filter via sidebar search if present
-    const searchInputs = this.page.locator(
-      'input[placeholder*="Search by property title or address" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]'
-    );
-    const searchCount = await searchInputs.count();
-    for (let s = 0; s < searchCount; s++) {
-      const input = searchInputs.nth(s);
-      if (await input.isVisible().catch(() => false)) {
-        console.log(`Filtering conversation list by: ${shortName}`);
-        await input.fill(shortName);
-        await input.press("Enter").catch(() => {});
-        await this.page.waitForTimeout(1500);
-        break;
-      }
+    const searchInput = this.page
+      .getByPlaceholder(/search by property title or address/i)
+      .or(this.page.locator('input[placeholder*="Search by property title or address" i]'))
+      .first();
+
+    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`Filtering conversation list by: ${shortName}`);
+      await searchInput.fill(shortName);
+      await searchInput.press("Enter").catch(() => {});
+      await this.page.waitForTimeout(1500);
     }
 
     // 2. Expand property row
@@ -481,16 +485,31 @@ class ConversationsPage {
     await this.page.waitForTimeout(1000);
 
     // 3. Specifically locate the Buyer child chat (excluding Agent and Broker)
-    const buyerChatButton = propertyRow
+    let buyerChatButton = propertyRow
       .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
       .filter({ hasText: /\bBuyer\b/i })
       .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
+      .filter({ hasNotText: /declined|completed/i })
       .or(
         propertyRow
           .locator("button")
           .filter({ hasText: /Counter offer|offer|\$/i })
+          .filter({ hasNotText: /declined|completed/i })
       )
       .first();
+
+    if (!(await buyerChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
+      buyerChatButton = propertyRow
+        .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
+        .filter({ hasText: /\bBuyer\b/i })
+        .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
+        .or(
+          propertyRow
+            .locator("button")
+            .filter({ hasText: /Counter offer|offer|\$/i })
+        )
+        .first();
+    }
 
     if (await buyerChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log("Buyer child chat button found, clicking...");
@@ -675,6 +694,24 @@ class ConversationsPage {
     }).or(
       this.page.locator('button:has-text("Decline")')
     ).first();
+
+    let declineVisible = await declineButton.isVisible({ timeout: 5000 }).catch(() => false);
+    if (!declineVisible) {
+      console.warn("[declineNegotiation] Decline button not immediately visible. Checking for active non-declined conversation...");
+      // Check if sidebar has another conversation item with pending offer ($ or counter offer)
+      const pendingItems = this.page
+        .locator('button, div[class*="cursor-pointer"], [role="button"]')
+        .filter({ hasText: /\bAgent\b|Subrato/i })
+        .filter({ hasText: /\$|counter offer/i })
+        .filter({ hasNotText: /declined|completed/i });
+
+      const pendingCount = await pendingItems.count();
+      if (pendingCount > 0) {
+        console.log(`[declineNegotiation] Found ${pendingCount} pending conversation item(s), clicking newest...`);
+        await pendingItems.last().click();
+        await this.page.waitForTimeout(2000);
+      }
+    }
 
     await expect(
       declineButton,
@@ -1189,12 +1226,19 @@ class ConversationsPage {
 
     const pollStart = Date.now();
     while (Date.now() - pollStart < timeoutMs) {
-      const chatRows = this.page
-        .locator('main, [class*="chat-container"], [class*="chat_container"], div, tr, [class*="chat" i], [class*="message" i]')
-        .filter({ hasText: expectedRegex });
+      // Look strictly inside the main chat content area to avoid false positives from the conversation list sidebar
+      const mainChat = this.page.locator('main, [class*="chat-room" i], [class*="chat_room" i], [class*="chat-container" i], [class*="flex-1"][class*="flex-col"]').last();
+      const chatRows = (await mainChat.isVisible({ timeout: 500 }).catch(() => false))
+        ? mainChat.locator('div, tr, [class*="message" i]').filter({ hasText: expectedRegex })
+        : this.page.locator('main, [class*="chat-container"], [class*="chat_container"], div, tr, [class*="chat" i], [class*="message" i]').filter({ hasText: expectedRegex });
+
       const count = await chatRows.count();
       for (let i = 0; i < count; i++) {
         const rowText = await chatRows.nth(i).innerText().catch(() => "");
+        // If searching for active counter offer, ignore if already marked as declined
+        if (/counter offer|negotiat/i.test(expectedRegex.source || "") && /offer declined|\bdeclined\b/i.test(rowText)) {
+          continue;
+        }
         const isStale = staleTimePattern.test(rowText);
         const isRecent = recentTimePattern.test(rowText);
         if (isRecent && !isStale) {
