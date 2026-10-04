@@ -237,15 +237,15 @@ class ConversationsPage {
         }
       }
 
-      // Pick newest active non-stale card from current run
+      // Pick newest active non-stale card from current run (conversations sorted newest-first at index 0)
       let matchedCard = null;
       if (activeCards.length > 0) {
-        const chosen = activeCards[activeCards.length - 1];
+        const chosen = activeCards[0];
         console.log(`[ConversationsPage] Selected newest active card at index ${chosen.index} for ${shortName}`);
         matchedCard = chosen.candidate;
       } else {
-        console.warn(`[ConversationsPage] No active non-stale card found for ${shortName}, using last candidate`);
-        matchedCard = cardCandidates.last();
+        console.warn(`[ConversationsPage] No active non-stale card found for ${shortName}, using first candidate`);
+        matchedCard = cardCandidates.first();
       }
 
       return {
@@ -301,24 +301,19 @@ class ConversationsPage {
     const { propertyName, propertyRow } =
       await this.getPropertyRow(expectedPropertyName);
 
-    // If already expanded in THIS property card, return
-    const isAlreadyExpanded = await propertyRow
+    // If already expanded in THIS property card (has > 1 button or chevron up), return
+    const buttonCount = await propertyRow.locator("button").count().catch(() => 0);
+    const isAlreadyExpanded = buttonCount > 1 || (await propertyRow
       .locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']")
       .isVisible()
-      .catch(() => false);
+      .catch(() => false));
 
     if (isAlreadyExpanded) {
       console.log(`Property conversation is already expanded: ${expectedPropertyName}`);
       return propertyRow;
     }
 
-    const dropdownButton = propertyRow
-      .locator("button")
-      .filter({
-        has: this.page.locator("svg.lucide-chevron-down, svg.lucide-chevron-right, [class*='lucide-chevron']"),
-      })
-      .or(propertyRow.locator("button.cursor-pointer"))
-      .first();
+    const dropdownButton = propertyRow.locator("button").first();
 
     if (
       await dropdownButton
@@ -418,6 +413,13 @@ class ConversationsPage {
         await agentChatButton.click({ force: true });
         await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
       }
+
+      // Wait for chat loading spinner to detach
+      await this.page
+        .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"], [class*="loading"]')
+        .first()
+        .waitFor({ state: "hidden", timeout: 20_000 })
+        .catch(() => {});
 
       // Verify chat container / elements visible (NOT generic site navbar header)
       const chatTarget = this.page.locator(
@@ -521,6 +523,13 @@ class ConversationsPage {
         await buyerChatButton.click({ force: true });
         await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
       }
+
+      // Wait for chat loading spinner to detach
+      await this.page
+        .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"], [class*="loading"]')
+        .first()
+        .waitFor({ state: "hidden", timeout: 20_000 })
+        .catch(() => {});
 
       const chatTarget = this.page.locator(
         'textarea[placeholder*="Type a message" i], textarea, input[placeholder*="message" i]'
@@ -708,7 +717,7 @@ class ConversationsPage {
       const pendingCount = await pendingItems.count();
       if (pendingCount > 0) {
         console.log(`[declineNegotiation] Found ${pendingCount} pending conversation item(s), clicking newest...`);
-        await pendingItems.last().click();
+        await pendingItems.first().click();
         await this.page.waitForTimeout(2000);
       }
     }
@@ -1226,11 +1235,9 @@ class ConversationsPage {
 
     const pollStart = Date.now();
     while (Date.now() - pollStart < timeoutMs) {
-      // Look strictly inside the main chat content area to avoid false positives from the conversation list sidebar
-      const mainChat = this.page.locator('main, [class*="chat-room" i], [class*="chat_room" i], [class*="chat-container" i], [class*="flex-1"][class*="flex-col"]').last();
-      const chatRows = (await mainChat.isVisible({ timeout: 500 }).catch(() => false))
-        ? mainChat.locator('div, tr, [class*="message" i]').filter({ hasText: expectedRegex })
-        : this.page.locator('main, [class*="chat-container"], [class*="chat_container"], div, tr, [class*="chat" i], [class*="message" i]').filter({ hasText: expectedRegex });
+      const chatRows = this.page
+        .locator('div, tr, [class*="chat" i], [class*="message" i]')
+        .filter({ hasText: expectedRegex });
 
       const count = await chatRows.count();
       for (let i = 0; i < count; i++) {
