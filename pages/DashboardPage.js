@@ -1,4 +1,5 @@
 const { expect } = require("@playwright/test");
+const { dismissWelcomeAndNotificationModals } = require("../utils/modalHelper");
 
 class DashboardPage {
   /**
@@ -86,6 +87,10 @@ class DashboardPage {
      DASHBOARD VERIFICATION
   ===================================================== */
 
+  async dismissWelcomeModal() {
+    await dismissWelcomeAndNotificationModals(this.page, { timeout: 3000 });
+  }
+
   async waitForDashboard() {
   // Wait until navigation reaches agent dashboard
   await this.page.waitForURL(/\/dashboard\/agent(?:\?.*)?$/i, {
@@ -94,6 +99,9 @@ class DashboardPage {
   });
 
   console.log(`✅ Agent dashboard URL confirmed: ${this.page.url()}`);
+
+  // Dismiss "Welcome to Realey" modal if visible upon dashboard load
+  await this.dismissWelcomeModal().catch(() => {});
 
   // Give React dashboard content a chance to render.
   // We don't fail here just because one specific dashboard element
@@ -138,6 +146,9 @@ class DashboardPage {
       timeout: 30_000,
     });
 
+    // Dismiss "Welcome to Realey" modal if visible
+    await this.dismissWelcomeModal().catch(() => {});
+
     // Ensure any open listing creation modal is closed before continuing
     const modal = this.page
       .locator('[role="dialog"], [class*="modal" i], div.fixed')
@@ -157,18 +168,7 @@ class DashboardPage {
   ===================================================== */
 
   async dismissNotificationPrompts() {
-    const notNow = this.page
-      .locator('[role="dialog"]')
-      .filter({ hasText: /Never miss a message/i })
-      .getByRole("button", { name: /not now|close/i })
-      .or(this.page.getByRole("button", { name: /^not now$/i }))
-      .first();
-
-    if (await notNow.isVisible({ timeout: 1000 }).catch(() => false)) {
-      console.log("[DashboardPage] Dismissing notification prompt by clicking 'Not now'...");
-      await notNow.click({ force: true }).catch(() => {});
-      await this.page.waitForTimeout(500);
-    }
+    await dismissWelcomeAndNotificationModals(this.page, { timeout: 1500 });
   }
 
   /* =====================================================

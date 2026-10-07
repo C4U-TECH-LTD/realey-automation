@@ -60,11 +60,77 @@ function configurePage(page) {
   page.setDefaultNavigationTimeout(30_000);
 
   if (typeof page.addLocatorHandler === "function") {
+    // 1. Notification popup handler ("Never miss a message" / "Enable notification" / "Turn on notifications")
     page.addLocatorHandler(
-      page.locator('[role="dialog"]').filter({ hasText: /Never miss a message/i }).getByRole("button", { name: /not now|close/i }),
-      async (locator) => {
-        console.log("[AutoHandler] Dismissing 'Never miss a message' notification popup...");
-        await locator.click();
+      page.locator('[role="dialog"]').filter({
+        hasText: /Never miss a message|enable.*notification|turn on notification/i,
+      }),
+      async (dialog) => {
+        console.log("[AutoHandler] Notification popup detected, dismissing...");
+        const closeBtn = dialog
+          .locator('button.absolute.right-3.top-3, button.absolute, button:has(svg.lucide-x), [aria-label*="close" i], button:has-text("Close"), button:has-text("✕"), button:has-text("×")')
+          .or(dialog.getByRole("button", { name: /^close$/i }))
+          .first();
+
+        if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          console.log("[AutoHandler] Clicking cross (✕) button on notification popup...");
+          await closeBtn.click().catch(() => {});
+        } else {
+          const skipBtn = dialog
+            .getByRole("button", { name: /^skip/i })
+            .or(dialog.locator('button:has-text("Skip")'))
+            .first();
+          if (await skipBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            console.log("[AutoHandler] Clicking 'Skip' button on notification popup...");
+            await skipBtn.click().catch(() => {});
+          } else {
+            const laterBtn = dialog
+              .getByRole("button", { name: /later|not now/i })
+              .or(dialog.locator('button:has-text("Later"), button:has-text("Maybe later"), button:has-text("Not now")'))
+              .first();
+            if (await laterBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+              console.log("[AutoHandler] Clicking 'Later' / 'Not now' button on notification popup...");
+              await laterBtn.click().catch(() => {});
+            }
+          }
+        }
+        await dialog.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+      }
+    );
+
+    // 2. Welcome to Realey popup modal handler
+    page.addLocatorHandler(
+      page.locator('[role="dialog"]').filter({ hasText: /Welcome to Realey/i }),
+      async (dialog) => {
+        console.log("[AutoHandler] Dismissing 'Welcome to Realey' popup modal...");
+        const closeBtn = dialog
+          .locator('button.absolute.right-3.top-3, button.absolute, button:has(svg.lucide-x), [aria-label*="close" i], button:has-text("Close"), button:has-text("✕"), button:has-text("×")')
+          .or(dialog.getByRole("button", { name: /^close$/i }))
+          .first();
+
+        if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          console.log("[AutoHandler] Clicking cross (✕) button on Welcome to Realey modal...");
+          await closeBtn.click().catch(() => {});
+        } else {
+          const skipBtn = dialog
+            .getByRole("button", { name: /^skip$/i })
+            .or(dialog.locator('button:has-text("Skip")'))
+            .first();
+          if (await skipBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            console.log("[AutoHandler] Cross button not found, clicking 'Skip' button on Welcome to Realey modal...");
+            await skipBtn.click().catch(() => {});
+          } else {
+            const laterBtn = dialog
+              .getByRole("button", { name: /later|not now/i })
+              .or(dialog.locator('button:has-text("Later"), button:has-text("Maybe later"), button:has-text("Not now")'))
+              .first();
+            if (await laterBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+              console.log("[AutoHandler] Cross button not found, clicking 'Later' / 'Not now' button on Welcome to Realey modal...");
+              await laterBtn.click().catch(() => {});
+            }
+          }
+        }
+        await dialog.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
       }
     );
   }

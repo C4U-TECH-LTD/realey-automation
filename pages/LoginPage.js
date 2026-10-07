@@ -1,4 +1,5 @@
 const { expect } = require("@playwright/test");
+const { dismissWelcomeAndNotificationModals } = require("../utils/modalHelper");
 
 class LoginPage {
   /**
@@ -804,7 +805,14 @@ class LoginPage {
   );
 
   await this.page.waitForTimeout(1500);
+
+  // Dismiss "Welcome to Realey" or notification popup modals if present upon login
+  await this.dismissWelcomeModal().catch(() => {});
 }
+
+  async dismissWelcomeModal() {
+    await dismissWelcomeAndNotificationModals(this.page, { timeout: 3000 });
+  }
 
   async completeOtpVerification(otp) {
     await this.enterOtp(otp);
