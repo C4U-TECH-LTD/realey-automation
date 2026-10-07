@@ -671,8 +671,29 @@ When(
     await this.propertyLocationPage
       .waitForAutoFilledLocationFields();
 
+    // Dynamically retrieve the actual populated address details
+    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
+    if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
+      populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
+    }
+    const fullName = populatedSuburb ? `${populatedStreet}, ${populatedSuburb}` : populatedStreet;
+
+    if (isFlow6) {
+      console.log(`[Flow 6] Selected address: "${fullName}" (street: "${populatedStreet}")`);
+      settlementExchangeFlowData.agent.listing.addressSearchText = populatedStreet;
+      settlementExchangeFlowData.agent.listing.expectedPropertyName = fullName;
+      settlementExchangeFlowData.generalUser.searchText = populatedStreet;
+      this.createdListingStreet = populatedStreet;
+      this.createdListingTitle = fullName;
+    }
+
+    const solicitorSearch = isFlow6
+      ? settlementExchangeFlowData.agent.listing.sellerSolicitorSearch
+      : undefined;
+
     await this.propertyLocationPage
-      .clickNext();
+      .clickNext(solicitorSearch);
 
     await this.propertyDetailsPage
       .waitForPage();
@@ -848,8 +869,13 @@ When(
 When(
   "the Agent accepts the submitted offer",
   async function () {
+    const propertyName = this.createdListingTitle ||
+      (isFlow6Scenario(this) ? settlementExchangeFlowData.agent.listing.expectedPropertyName :
+       isFlow7Scenario(this) ? salesInstructionsFlowData.agent.listing.expectedPropertyName :
+       listingData.location.expectedPropertyName);
+
     await this.agentOffersPage
-      .acceptSubmittedOffer();
+      .acceptSubmittedOffer(propertyName);
   }
 );
 

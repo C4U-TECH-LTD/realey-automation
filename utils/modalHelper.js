@@ -11,7 +11,7 @@ async function dismissWelcomeAndNotificationModals(page, options = {}) {
     const modal = page
       .locator(modalSelector)
       .filter({
-        hasText: /Welcome to Realey|enable.*notification|never miss a message|turn on notification/i,
+        hasText: /Welcome to Realey|enable.*notification|never miss a message|turn on notification|please configure the progress to continue/i,
       })
       .first();
 

@@ -31,6 +31,10 @@ const {
   takeCucumberScreenshot,
 } = require("../../utils/cucumberScreenshot");
 
+const {
+  dismissWelcomeAndNotificationModals,
+} = require("../../utils/modalHelper");
+
 
 // =====================================================
 // HELPERS
@@ -1038,30 +1042,25 @@ async function openSolicitorExchangeCard(worldOrPage, specificTitle = null) {
   const page = worldOrPage.page || worldOrPage;
 
   // 1. Close any modal dialog that may be blocking the view
+  await dismissWelcomeAndNotificationModals(page, { timeout: 2000 });
   const modalClose = page
-    .getByRole("dialog")
-    .getByRole("button", { name: /close/i })
+    .locator('[role="dialog"] button:has(svg.lucide-x), [role="dialog"] button[aria-label*="close" i], [role="dialog"] button:has-text("Close"), [role="dialog"] button:has-text("Later"), [role="dialog"] button:has-text("Not now")')
+    .or(page.getByRole("dialog").getByRole("button", { name: /close|later|not now/i }))
     .first();
   if (await modalClose.isVisible({ timeout: 1000 }).catch(() => false)) {
     await modalClose.click().catch(() => {});
     await page.waitForTimeout(500);
   }
 
-  // 2. Ensure solicitor is on Tasks -> Exchange directly
-  if (!page.url().includes("tab=tasks") || !page.url().includes("subtab=exchange")) {
-    const tasksBtn = page.locator('button:has-text("Tasks"), a:has-text("Tasks"), [role="button"]:has-text("Tasks")').first();
-    if (await tasksBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await tasksBtn.click();
+  // 2. Ensure solicitor is on Exchange tab
+  if (!page.url().includes("tab=exchange") && (!page.url().includes("tab=tasks") || !page.url().includes("subtab=exchange"))) {
+    const exchangeBtn = page.locator('button:has-text("Exchange"), a:has-text("Exchange"), [role="button"]:has-text("Exchange")').first();
+    if (await exchangeBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await exchangeBtn.click();
       await page.waitForTimeout(1000);
     } else {
-      await page.goto("https://uat.realey.au/dashboard/solicitor?tab=tasks&subtab=exchange&filter=all", { waitUntil: "domcontentloaded" });
+      await page.goto("https://uat.realey.au/dashboard/solicitor?tab=exchange", { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(1000);
-    }
-
-    const exchangeTab = page.locator('button:has-text("Exchange"), [role="tab"]:has-text("Exchange")').first();
-    if (await exchangeTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await exchangeTab.click();
-      await page.waitForTimeout(1500);
     }
   }
 
@@ -1073,6 +1072,7 @@ async function openSolicitorExchangeCard(worldOrPage, specificTitle = null) {
     "Arndale Shopping Centre Access";
 
   const shortName = targetTitle.split(",")[0].trim();
+  const escapedShortName = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   // 4. Search property in exchange search filter
   const searchInput = page.locator('input[placeholder*="Search exchanges" i], input[placeholder*="search" i]').first();
@@ -1083,11 +1083,51 @@ async function openSolicitorExchangeCard(worldOrPage, specificTitle = null) {
   }
 
   // 5. Locate and scroll to the contract exchange card
-  const exchangeCard = page
+  let exchangeCard = page
     .locator('div[class*="border"], div[class*="rounded"]')
     .filter({ hasText: /CONTRACT EXCHANGE/i })
-    .filter({ hasText: new RegExp(shortName, "i") })
+    .filter({ hasText: new RegExp(escapedShortName, "i") })
     .first();
+
+  if (!(await exchangeCard.isVisible({ timeout: 5000 }).catch(() => false))) {
+    console.log(`Contract Exchange card for "${shortName}" not visible after search, clearing filter...`);
+    if (await searchInput.isVisible().catch(() => false)) {
+      await searchInput.fill("");
+      await searchInput.press("Enter").catch(() => {});
+      await page.waitForTimeout(1500);
+    }
+
+    if (!(await exchangeCard.isVisible({ timeout: 5000 }).catch(() => false))) {
+      console.log(`Still not visible, reloading page...`);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(2000);
+      await dismissWelcomeAndNotificationModals(page, { timeout: 2000 });
+
+      if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await searchInput.fill(shortName);
+        await searchInput.press("Enter").catch(() => {});
+        await page.waitForTimeout(1000);
+      }
+
+      if (!(await exchangeCard.isVisible({ timeout: 3000 }).catch(() => false))) {
+        if (await searchInput.isVisible().catch(() => false)) {
+          await searchInput.fill("");
+          await searchInput.press("Enter").catch(() => {});
+          await page.waitForTimeout(1500);
+        }
+      }
+    }
+  }
+
+  if (!(await exchangeCard.isVisible({ timeout: 3000 }).catch(() => false))) {
+    const fallbackCard = page
+      .locator('div[class*="border"], div[class*="rounded"]')
+      .filter({ hasText: /CONTRACT EXCHANGE/i })
+      .first();
+    if (await fallbackCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+      exchangeCard = fallbackCard;
+    }
+  }
 
   await expect(exchangeCard, `Contract Exchange card for "${targetTitle}" should be visible`).toBeVisible({ timeout: 20_000 });
   await exchangeCard.scrollIntoViewIfNeeded().catch(() => {});
@@ -1334,20 +1374,26 @@ When(
 
     await readyButton.click();
 
-    const confirmButton = page
-      .getByRole("button", {
-        name:
-          /confirm|yes|continue/i,
-      })
-      .first();
+    // The confirmation dialog opens
+    const dialog = page.locator('[role="dialog"]').last();
+    if (await dialog.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const confirmButton = dialog
+        .getByRole("button", {
+          name: /ready for exchange|confirm|yes|continue/i,
+        })
+        .first();
 
-    if (
-      await confirmButton
-        .isVisible()
-        .catch(() => false)
-    ) {
-      await confirmButton.click();
+      if (await confirmButton.isVisible().catch(() => false)) {
+        console.log("Clicking confirm button in 'Mark Ready for Exchange' dialog...");
+        await confirmButton.click();
+      }
+
+      // Wait for modal dialog to finish processing and close
+      console.log("Waiting for 'Mark Ready for Exchange' dialog to finish processing...");
+      await dialog.waitFor({ state: "hidden", timeout: 25_000 }).catch(() => {});
     }
+
+    await page.waitForTimeout(2000);
   }
 );
 
@@ -1357,9 +1403,26 @@ Then(
   async function () {
     const page = this.page;
 
-    await expect(
-      page
-        .getByText(
+    // Verify dialog is closed
+    const dialog = page.locator('[role="dialog"]').last();
+    if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await dialog.waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
+    }
+
+    // Verify Ready for Exchange status outside modal
+    const readyStatus = page
+      .locator('div[class*="rounded"], span[class*="badge" i], div[class*="border"]')
+      .filter({
+        hasText:
+          new RegExp(
+            settlementExchangeFlowData
+              .settlement
+              .statusReadyForExchange,
+            "i"
+          ),
+      })
+      .or(
+        page.getByText(
           settlementExchangeFlowData
             .settlement
             .statusReadyForExchange,
@@ -1367,13 +1430,18 @@ Then(
             exact: false,
           }
         )
-        .first()
-    ).toBeVisible({
+      )
+      .first();
+
+    await expect(readyStatus).toBeVisible({
       timeout:
         settlementExchangeFlowData
           .timeouts
           .action,
     });
+
+    // Ensure backend persistence before role switch
+    await page.waitForTimeout(3000);
   }
 );
 

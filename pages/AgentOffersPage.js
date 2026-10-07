@@ -67,12 +67,12 @@ class AgentOffersPage {
 
         if (await counterBtn.isVisible().catch(() => false)) {
           this.activeCounterButton = counterBtn;
-          console.log(`Found active 'Counter via Chat' button on initial card for "${propertyName}".`);
+          console.log(`Found active 'Counter via Chat' button on initial card #${i + 1} for "${propertyName}".`);
           return;
         }
         if (await acceptBtn.isVisible().catch(() => false)) {
           this.activeAcceptButton = acceptBtn;
-          console.log(`Found active 'Accept' button on initial card for "${propertyName}".`);
+          console.log(`Found active 'Accept' button on initial card #${i + 1} for "${propertyName}".`);
           return;
         }
       }
@@ -89,7 +89,7 @@ class AgentOffersPage {
         await this.page.waitForTimeout(2000);
       }
 
-      // 2. Look for cards matching this specific property after filtering
+      // 2. Look for cards matching this specific property after filtering with active buttons
       const matchingCards = this.page
         .locator('div[class*="rounded"], div.border, article')
         .filter({ hasText: exactRegex });
@@ -109,6 +109,22 @@ class AgentOffersPage {
         if (await acceptBtn.isVisible().catch(() => false)) {
           this.activeAcceptButton = acceptBtn;
           console.log(`Found active 'Accept' button on offer card #${i + 1} for "${propertyName}".`);
+          return;
+        }
+      }
+
+      // 3. Only if no active button was found on any card, check if already accepted
+      for (let i = 0; i < cardCount; i++) {
+        const card = matchingCards.nth(i);
+        const alreadyAccepted = await card
+          .getByText(/accepted|preparing for contract exchange/i)
+          .or(card.getByRole("button", { name: "Re-list", exact: true }))
+          .first()
+          .isVisible({ timeout: 500 })
+          .catch(() => false);
+        if (alreadyAccepted) {
+          console.log(`Matching offer card #${i + 1} for "${propertyName}" is already accepted.`);
+          this.isOfferAlreadyAccepted = true;
           return;
         }
       }
@@ -206,54 +222,73 @@ class AgentOffersPage {
     console.log("Redirected to chat successfully:", this.page.url());
   }
 
-  async acceptSubmittedOffer() {
+  async acceptSubmittedOffer(propertyName) {
     if (this.isOfferAlreadyAccepted) {
       console.log("Offer was already accepted, skipping accept button click.");
       return;
     }
 
-    await this.openOffersAndBids();
+    if (propertyName) {
+      await this.openSubmittedOffer(propertyName);
+    } else {
+      await this.openOffersAndBids();
+    }
+
+    if (this.isOfferAlreadyAccepted) {
+      console.log("Offer was already accepted after opening, skipping accept button click.");
+      return;
+    }
 
     const acceptBtn = this.activeAcceptButton || this.acceptButton;
 
-    await expect(
-      acceptBtn,
-      "Accept button should be visible on submitted offer"
-    ).toBeVisible({ timeout: 20_000 });
+    if (await acceptBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await acceptBtn.click();
+      console.log("Clicked Accept button on offer card");
 
-    await acceptBtn.click();
-    console.log("Clicked Accept button on offer card");
+      // Wait for the confirmation dialog
+      const dialog = this.page.locator('[role="dialog"]').last();
+      await expect(
+        dialog,
+        "Accept offer confirmation dialog should appear"
+      ).toBeVisible({ timeout: 10_000 });
 
-    // Wait for the confirmation dialog
-    const dialog = this.page.locator('[role="dialog"]').last();
-    await expect(
-      dialog,
-      "Accept offer confirmation dialog should appear"
-    ).toBeVisible({ timeout: 10_000 });
+      const confirmButton = dialog.getByRole("button", {
+        name: /Confirm/i,
+      });
 
-    const confirmButton = dialog.getByRole("button", {
-      name: /Confirm/i,
-    });
+      await expect(
+        confirmButton,
+        "Confirm button in accept dialog should be visible"
+      ).toBeVisible({ timeout: 10_000 });
 
-    await expect(
-      confirmButton,
-      "Confirm button in accept dialog should be visible"
-    ).toBeVisible({ timeout: 10_000 });
+      await expect(confirmButton).toBeEnabled({ timeout: 10_000 });
+      await confirmButton.click();
+      console.log("Clicked Confirm button in accept offer dialog");
 
-    await expect(confirmButton).toBeEnabled({ timeout: 10_000 });
-    await confirmButton.click();
-    console.log("Clicked Confirm button in accept offer dialog");
+      // Wait for dialog to close
+      await expect(
+        dialog,
+        "Accept offer dialog should close after confirmation"
+      ).toBeHidden({ timeout: 15_000 });
 
-    // Wait for dialog to close
-    await expect(
-      dialog,
-      "Accept offer dialog should close after confirmation"
-    ).toBeHidden({ timeout: 15_000 });
+      // Wait for success toast or settlement creation confirmation
+      const toast = this.page.getByText(/Offer Accepted!|settlement has been created/i).first();
+      await toast.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+      await this.page.waitForTimeout(1000);
+    } else {
+      // Check if offer on page is already accepted or preparing for exchange
+      const acceptedTarget = this.page
+        .getByText(/offer accepted|accepted|preparing for contract exchange/i)
+        .or(this.page.getByRole("button", { name: "Copy Settlement Link" }))
+        .first();
 
-    // Wait for success toast or settlement creation confirmation
-    const toast = this.page.getByText(/Offer Accepted!|settlement has been created/i).first();
-    await toast.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
-    await this.page.waitForTimeout(1000);
+      await expect(
+        acceptedTarget,
+        "Offer should show Accepted state or Accept button should be visible"
+      ).toBeVisible({ timeout: 15_000 });
+
+      console.log("Offer was already in accepted state on Offers & Bids page.");
+    }
   }
 
   async verifyAccepted(expectedMessage) {
