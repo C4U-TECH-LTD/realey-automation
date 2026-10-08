@@ -2,8 +2,8 @@ name: Daily 8AM - All Flows (1 to 9) E2E Suite
 
 on:
   schedule:
-    # 8:00 AM Bangladesh local time (BST, UTC+6) daily (02:00 UTC)
-    - cron: '0 2 * * *'
+    # 8:00 AM Australian Eastern Time (AEDT UTC+11: 21:00 UTC / AEST UTC+10: 22:00 UTC)
+    - cron: '0 21 * * *'
   workflow_dispatch:
 
 permissions:
