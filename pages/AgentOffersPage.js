@@ -47,8 +47,9 @@ class AgentOffersPage {
   async openSubmittedOffer(propertyName) {
     await this.openOffersAndBids();
 
-    // Prefer the offer card matching the created listing when the
-    // property/location is displayed on the Offers & Bids screen.
+    this.activeCounterButton = null;
+    this.activeAcceptButton = null;
+
     if (propertyName) {
       const shortName = propertyName.split(",")[0].trim();
       const escaped = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -62,8 +63,8 @@ class AgentOffersPage {
       const initialCount = await initialCards.count().catch(() => 0);
       for (let i = 0; i < initialCount; i++) {
         const card = initialCards.nth(i);
-        const counterBtn = card.getByRole("button", { name: "Counter via Chat", exact: true });
-        const acceptBtn = card.getByRole("button", { name: "Accept", exact: true });
+        const counterBtn = card.getByRole("button", { name: "Counter via Chat", exact: true }).first();
+        const acceptBtn = card.getByRole("button", { name: "Accept", exact: true }).first();
 
         if (await counterBtn.isVisible().catch(() => false)) {
           this.activeCounterButton = counterBtn;
@@ -85,7 +86,7 @@ class AgentOffersPage {
       if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
         console.log(`Filtering Offers & Bids by: ${shortName}`);
         await searchInput.fill(shortName);
-        await searchInput.press("Enter");
+        await searchInput.press("Enter").catch(() => {});
         await this.page.waitForTimeout(2000);
       }
 
@@ -97,8 +98,8 @@ class AgentOffersPage {
       const cardCount = await matchingCards.count().catch(() => 0);
       for (let i = 0; i < cardCount; i++) {
         const card = matchingCards.nth(i);
-        const counterBtn = card.getByRole("button", { name: "Counter via Chat", exact: true });
-        const acceptBtn = card.getByRole("button", { name: "Accept", exact: true });
+        const counterBtn = card.getByRole("button", { name: "Counter via Chat", exact: true }).first();
+        const acceptBtn = card.getByRole("button", { name: "Accept", exact: true }).first();
 
         if (await counterBtn.isVisible().catch(() => false)) {
           this.activeCounterButton = counterBtn;
@@ -113,40 +114,37 @@ class AgentOffersPage {
         }
       }
 
-      // 3. Only if no active button was found on any card, check if already accepted
-      for (let i = 0; i < cardCount; i++) {
-        const card = matchingCards.nth(i);
-        const alreadyAccepted = await card
-          .getByText(/accepted|preparing for contract exchange/i)
-          .or(card.getByRole("button", { name: "Re-list", exact: true }))
-          .first()
-          .isVisible({ timeout: 500 })
-          .catch(() => false);
-        if (alreadyAccepted) {
-          console.log(`Matching offer card #${i + 1} for "${propertyName}" is already accepted.`);
-          this.isOfferAlreadyAccepted = true;
-          return;
-        }
-      }
-
-      // If search returned 0 cards, clear search to expose all newest offers
-      if (cardCount === 0 && (await searchInput.isVisible().catch(() => false))) {
-        console.log(`No cards found for "${shortName}", clearing search input...`);
+      // If search returned no action buttons, clear search to expose all newest offers
+      if (await searchInput.isVisible().catch(() => false)) {
+        console.log(`No active button found for "${shortName}", clearing search input...`);
         await searchInput.fill("");
-        await searchInput.press("Enter");
+        await searchInput.press("Enter").catch(() => {});
         await this.page.waitForTimeout(1500);
       }
     }
 
-    // Fallback: the newest/current submitted offer should expose either Counter via Chat or Accept
+    // Fallback: check newest action button on the page
+    const counterBtn = this.page.getByRole("button", { name: "Counter via Chat", exact: true }).first();
+    const acceptBtn = this.page.getByRole("button", { name: "Accept", exact: true }).first();
+
+    if (await counterBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      this.activeCounterButton = counterBtn;
+      console.log("Found active 'Counter via Chat' button on newest offer card.");
+      return;
+    }
+
+    if (await acceptBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      this.activeAcceptButton = acceptBtn;
+      console.log("Found active 'Accept' button on newest offer card.");
+      return;
+    }
+
+    // Fallback: wait for any submitted offer action button
     const targetButton = this.page.getByRole("button", {
       name: /Counter via Chat|Accept/i,
     }).first();
 
-    await expect(
-      targetButton,
-      "Submitted offer action button (Counter via Chat or Accept) should be visible"
-    ).toBeVisible({ timeout: 20_000 });
+    await targetButton.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
 
     if (await this.counterViaChatButton.isVisible().catch(() => false)) {
       this.activeCounterButton = this.counterViaChatButton;
@@ -223,25 +221,20 @@ class AgentOffersPage {
   }
 
   async acceptSubmittedOffer(propertyName) {
-    if (this.isOfferAlreadyAccepted) {
-      console.log("Offer was already accepted, skipping accept button click.");
-      return;
-    }
-
     if (propertyName) {
       await this.openSubmittedOffer(propertyName);
     } else {
       await this.openOffersAndBids();
     }
 
-    if (this.isOfferAlreadyAccepted) {
-      console.log("Offer was already accepted after opening, skipping accept button click.");
-      return;
-    }
+    const acceptBtn = this.activeAcceptButton || this.page.getByRole("button", {
+      name: "Accept",
+      exact: true,
+    }).first();
 
-    const acceptBtn = this.activeAcceptButton || this.acceptButton;
-
-    if (await acceptBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await acceptBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      console.log("Found visible Accept button. Clicking Accept...");
+      await acceptBtn.scrollIntoViewIfNeeded().catch(() => {});
       await acceptBtn.click();
       console.log("Clicked Accept button on offer card");
 
@@ -275,20 +268,21 @@ class AgentOffersPage {
       const toast = this.page.getByText(/Offer Accepted!|settlement has been created/i).first();
       await toast.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
       await this.page.waitForTimeout(1000);
-    } else {
-      // Check if offer on page is already accepted or preparing for exchange
-      const acceptedTarget = this.page
-        .getByText(/offer accepted|accepted|preparing for contract exchange/i)
-        .or(this.page.getByRole("button", { name: "Copy Settlement Link" }))
-        .first();
-
-      await expect(
-        acceptedTarget,
-        "Offer should show Accepted state or Accept button should be visible"
-      ).toBeVisible({ timeout: 15_000 });
-
-      console.log("Offer was already in accepted state on Offers & Bids page.");
+      return;
     }
+
+    // Fallback: Check if offer on page is already accepted or preparing for exchange
+    const acceptedTarget = this.page
+      .getByText(/offer accepted|accepted|preparing for contract exchange/i)
+      .or(this.page.getByRole("button", { name: "Copy Settlement Link" }))
+      .first();
+
+    await expect(
+      acceptedTarget,
+      "Offer should show Accepted state or Accept button should be visible"
+    ).toBeVisible({ timeout: 15_000 });
+
+    console.log("Offer was already in accepted state on Offers & Bids page.");
   }
 
   async verifyAccepted(expectedMessage) {

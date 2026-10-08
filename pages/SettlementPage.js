@@ -72,25 +72,54 @@ class SettlementPage {
   // =====================================================
 
   async start() {
-    // 1. If property details or listing page is loading, wait for it
+    // 1. Dismiss any notification popup or welcome dialog if blocking screen
+    const dialogDismissBtn = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /Never miss a message|enable.*notification|turn on notification|Welcome to Realey/i })
+      .locator('button:has-text("Not now"), button:has-text("Later"), button:has-text("Maybe later"), button:has-text("Skip"), button:has(svg.lucide-x), [aria-label*="close" i]')
+      .first();
+
+    if (await dialogDismissBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log("[SettlementPage] Dismissing blocking popup modal...");
+      await dialogDismissBtn.click().catch(() => {});
+      await this.page.waitForTimeout(500);
+    }
+
+    // 2. If property details or listing page is loading, wait for it
     await this.page
       .getByText(/loading property details/i)
       .waitFor({ state: "hidden", timeout: 30_000 })
       .catch(() => {});
 
-    // 2. If an interactive Start/Continue/Resume Settlement button is visible on page, click it
+    // 3. If an interactive Start/Continue/Resume Settlement button is visible on page, click it
     const startBtn = this.page.getByRole("button", {
       name: /start settlement|continue settlement|resume settlement/i,
     }).first();
 
     if (
       await startBtn
-        .waitFor({ state: "visible", timeout: 5000 })
+        .waitFor({ state: "visible", timeout: 15_000 })
         .then(() => true)
         .catch(() => false)
     ) {
       await startBtn.click();
       console.log("Start Settlement button clicked");
+    } else {
+      // If modal heading is not already open, reload page once to ensure latest status is fetched
+      if (!(await this.settlementHeading.isVisible().catch(() => false))) {
+        console.log("Start settlement button not immediately visible, reloading listing page...");
+        await this.page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+        await this.page.waitForTimeout(2000);
+        if (
+          await startBtn
+            .waitFor({ state: "visible", timeout: 15_000 })
+            .then(() => true)
+            .catch(() => false)
+        ) {
+          await startBtn.click();
+          console.log("Start Settlement button clicked after reload");
+        }
+      }
     }
 
     // 3. Wait for the Property Settlement Process modal heading
