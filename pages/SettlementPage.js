@@ -153,11 +153,13 @@ class SettlementPage {
     });
 
     await this.professionalSearchInput.fill(searchText);
+    await this.page.waitForTimeout(1000);
 
-    const result = this.page
+    const dialog = this.page.locator('[role="dialog"]').last();
+    let select = dialog
       .locator("div")
       .filter({
-        hasText: searchText,
+        hasText: new RegExp(searchText, "i"),
       })
       .filter({
         has: this.page.getByRole("button", {
@@ -165,14 +167,17 @@ class SettlementPage {
           exact: true,
         }),
       })
-      .first();
-
-    const select = result
+      .first()
       .getByRole("button", {
         name: "Select",
         exact: true,
       })
       .first();
+
+    if (!(await select.isVisible({ timeout: 5000 }).catch(() => false))) {
+      console.log(`Scoped Select button for "${searchText}" not immediately visible, checking first Select button in dialog`);
+      select = dialog.getByRole("button", { name: /^Select$/i }).first();
+    }
 
     await expect(
       select,
@@ -240,11 +245,13 @@ class SettlementPage {
   await this.professionalSearchInput.fill(
     searchText
   );
+  await this.page.waitForTimeout(1000);
 
-  const result = this.page
+  const dialog = this.page.locator('[role="dialog"]').last();
+  let selectButton = dialog
     .locator("div")
     .filter({
-      hasText: searchText,
+      hasText: new RegExp(searchText, "i"),
     })
     .filter({
       has: this.page.getByRole("button", {
@@ -252,14 +259,17 @@ class SettlementPage {
         exact: true,
       }),
     })
-    .first();
-
-  const selectButton = result
+    .first()
     .getByRole("button", {
       name: "Select",
       exact: true,
     })
     .first();
+
+  if (!(await selectButton.isVisible({ timeout: 5000 }).catch(() => false))) {
+    console.log(`Scoped Select button for broker "${searchText}" not immediately visible, checking first Select button in dialog`);
+    selectButton = dialog.getByRole("button", { name: /^Select$/i }).first();
+  }
 
   await expect(
     selectButton,

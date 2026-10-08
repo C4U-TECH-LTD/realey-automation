@@ -225,10 +225,17 @@ const listingData = {
 
     settlement: {
       solicitorSearch:
-        "Maxel",
+        process.env.BUYER_SOLICITOR_SEARCH ||
+        ((process.env.BASE_URL || "").includes("staging")
+          ? "subrato"
+          : "Maxel"),
 
       brokerSearch:
-        "Alen",
+        process.env.FLOW1_BROKER_SEARCH ||
+        process.env.BROKER_SEARCH ||
+        ((process.env.BASE_URL || "").includes("staging")
+          ? "subrato"
+          : "Alen"),
     },
 
     payment: {

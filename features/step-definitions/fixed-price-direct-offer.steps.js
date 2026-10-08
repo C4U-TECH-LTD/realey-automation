@@ -917,12 +917,16 @@ When(
 When(
   "the General User selects the configured solicitor",
   async function () {
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const defaultSolicitor = isStaging
+      ? (process.env.BUYER_SOLICITOR_SEARCH || "subrato")
+      : (process.env.BUYER_SOLICITOR_SEARCH || listingData.fixedPriceFlow.settlement.solicitorSearch);
+
     const solicitorSearch = isFlow7Scenario(this)
       ? salesInstructionsFlowData.settlement.solicitorSearch
       : isFlow6Scenario(this)
       ? settlementExchangeFlowData.settlement.solicitorSearch
-      : listingData.fixedPriceFlow
-          .settlement.solicitorSearch;
+      : defaultSolicitor;
 
     await this.settlementPage
       .selectSolicitor(
@@ -934,12 +938,16 @@ When(
 When(
   "the General User selects the configured mortgage broker",
   async function () {
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const defaultBroker = isStaging
+      ? (process.env.FLOW1_BROKER_SEARCH || process.env.BROKER_SEARCH || "subrato")
+      : (process.env.FLOW1_BROKER_SEARCH || process.env.BROKER_SEARCH || listingData.fixedPriceFlow.settlement.brokerSearch);
+
     const brokerSearch = isFlow7Scenario(this)
       ? salesInstructionsFlowData.settlement.brokerSearch
       : isFlow6Scenario(this)
       ? settlementExchangeFlowData.settlement.brokerSearch
-      : listingData.fixedPriceFlow
-          .settlement.brokerSearch;
+      : defaultBroker;
 
     await this.settlementPage
       .selectBroker(
