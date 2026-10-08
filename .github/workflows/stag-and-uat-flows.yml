@@ -1,0 +1,344 @@
+name: Stag+UAT Flows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: realey-stag-and-uat-flows
+  cancel-in-progress: false
+
+jobs:
+  run-stag-and-uat:
+    name: Run Staging (Flow 1) + UAT (Flows 1 to 9)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    outputs:
+      staging_outcome: ${{ steps.staging-tests.outcome }}
+      uat_outcome: ${{ steps.uat-tests.outcome }}
+      formatted_duration: ${{ steps.duration.outputs.formatted_duration }}
+      start_time: ${{ steps.timing.outputs.start_time }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Install Playwright Browser
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+
+      - name: Verify environment
+        run: |
+          node --version
+          npm --version
+          npx playwright --version
+          npx cucumber-js --version
+          npx allure --version
+          google-chrome --version
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+          rm -rf allure-report
+          rm -rf allure-results-staging
+          rm -rf reports/cucumber
+          rm -rf screenshots/cucumber
+          rm -rf videos
+
+      - name: Record Start Time
+        id: timing
+        run: |
+          echo "start_time=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
+          echo "start_seconds=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      # -------------------------------------------------------------
+      # 1. RUN STAGING FLOW 1
+      # -------------------------------------------------------------
+      - name: Run Staging Cucumber Tests (Flow 1)
+        id: staging-tests
+        continue-on-error: true
+        env:
+          CI: "true"
+          HEADLESS: "true"
+          SLOW_MO: "0"
+
+          BASE_URL: ${{ secrets.STAG_BASE_URL != '' && secrets.STAG_BASE_URL || 'https://staging.realey.au/' }}
+
+          AGENT_EMAIL: ${{ secrets.STAG_AGENT_EMAIL != '' && secrets.STAG_AGENT_EMAIL || 'stag.agent.c4utest@yopmail.com' }}
+          AGENT_PASSWORD: ${{ secrets.STAG_AGENT_PASSWORD != '' && secrets.STAG_AGENT_PASSWORD || 'Test12345@' }}
+          AGENT_OTP: ${{ secrets.STAG_AGENT_OTP != '' && secrets.STAG_AGENT_OTP || '123456' }}
+          FLOW1_AGENT_EMAIL: ${{ secrets.STAG_AGENT_EMAIL != '' && secrets.STAG_AGENT_EMAIL || 'stag.agent.c4utest@yopmail.com' }}
+          FLOW1_AGENT_PASSWORD: ${{ secrets.STAG_AGENT_PASSWORD != '' && secrets.STAG_AGENT_PASSWORD || 'Test12345@' }}
+          FLOW1_AGENT_OTP: ${{ secrets.STAG_AGENT_OTP != '' && secrets.STAG_AGENT_OTP || '123456' }}
+
+          GENERAL_USER_EMAIL: ${{ secrets.STAG_GENERAL_USER_EMAIL != '' && secrets.STAG_GENERAL_USER_EMAIL || 'subratotest99.3@gmail.com' }}
+          GENERAL_USER_PASSWORD: ${{ secrets.STAG_GENERAL_USER_PASSWORD != '' && secrets.STAG_GENERAL_USER_PASSWORD || 'Test12345@' }}
+          GENERAL_USER_OTP: ${{ secrets.STAG_GENERAL_USER_OTP != '' && secrets.STAG_GENERAL_USER_OTP || '123456' }}
+          FLOW1_BUYER_EMAIL: ${{ secrets.STAG_GENERAL_USER_EMAIL != '' && secrets.STAG_GENERAL_USER_EMAIL || 'subratotest99.3@gmail.com' }}
+          FLOW1_BUYER_PASSWORD: ${{ secrets.STAG_GENERAL_USER_PASSWORD != '' && secrets.STAG_GENERAL_USER_PASSWORD || 'Test12345@' }}
+          FLOW1_BUYER_OTP: ${{ secrets.STAG_GENERAL_USER_OTP != '' && secrets.STAG_GENERAL_USER_OTP || '123456' }}
+
+          SELLER_SOLICITOR_EMAIL: ${{ secrets.STAG_SELLER_SOLICITOR_EMAIL != '' && secrets.STAG_SELLER_SOLICITOR_EMAIL || 'subratotest99.2@gmail.com' }}
+          SELLER_SOLICITOR_PASSWORD: ${{ secrets.STAG_SELLER_SOLICITOR_PASSWORD != '' && secrets.STAG_SELLER_SOLICITOR_PASSWORD || 'Test12345@' }}
+          SELLER_SOLICITOR_OTP: ${{ secrets.STAG_SELLER_SOLICITOR_OTP != '' && secrets.STAG_SELLER_SOLICITOR_OTP || '123456' }}
+          SELLER_SOLICITOR_SEARCH: ${{ secrets.STAG_SELLER_SOLICITOR_SEARCH != '' && secrets.STAG_SELLER_SOLICITOR_SEARCH || 'subratotest99.2@gmail.com' }}
+          FLOW1_SELLER_SOLICITOR_SEARCH: ${{ secrets.STAG_SELLER_SOLICITOR_SEARCH != '' && secrets.STAG_SELLER_SOLICITOR_SEARCH || 'subratotest99.2@gmail.com' }}
+
+          BROKER_EMAIL: ${{ secrets.STAG_BROKER_EMAIL != '' && secrets.STAG_BROKER_EMAIL || 'subratotest99+2@gmail.com' }}
+          BROKER_SEARCH: ${{ secrets.STAG_BROKER_SEARCH != '' && secrets.STAG_BROKER_SEARCH || 'subrato' }}
+          FLOW1_BROKER_SEARCH: ${{ secrets.STAG_BROKER_SEARCH != '' && secrets.STAG_BROKER_SEARCH || 'subrato' }}
+          BUYER_SOLICITOR_SEARCH: ${{ secrets.STAG_BUYER_SOLICITOR_SEARCH != '' && secrets.STAG_BUYER_SOLICITOR_SEARCH || 'subrato' }}
+
+          TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER != '' && secrets.TEST_CARD_NUMBER || '4242 4242 4242 4242' }}
+          TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '07/28' }}
+          TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}
+
+          FLOW1_ADDRESS: "199 William Street, Melbourne VIC, Australia"
+          DEFAULT_LISTING_ADDRESS: "199 William Street, Melbourne VIC, Australia"
+        run: |
+          npx cucumber-js --tags "@flow-1" --retry 1
+
+      # -------------------------------------------------------------
+      # 2. TAG STAGING RESULTS & STASH
+      # -------------------------------------------------------------
+      - name: Tag Staging Results
+        if: always()
+        run: |
+          node scripts/tag-allure-environment.js allure-results "Staging"
+          mkdir -p allure-results-staging
+          cp -r allure-results/* allure-results-staging/ 2>/dev/null || true
+          rm -rf allure-results/*
+          mkdir -p reports/cucumber/staging
+          cp reports/cucumber/*.html reports/cucumber/staging/ 2>/dev/null || true
+          cp reports/cucumber/*.json reports/cucumber/staging/ 2>/dev/null || true
+
+      # -------------------------------------------------------------
+      # 3. RUN UAT ALL FLOWS (1 TO 9)
+      # -------------------------------------------------------------
+      - name: Run UAT Cucumber Tests (All Flows 1 to 9)
+        id: uat-tests
+        continue-on-error: true
+        env:
+          CI: "true"
+          HEADLESS: "true"
+          SLOW_MO: "0"
+
+          BASE_URL: ${{ secrets.BASE_URL != '' && secrets.BASE_URL || 'https://uat.realey.au/' }}
+
+          AGENT_EMAIL: ${{ secrets.AGENT_EMAIL != '' && secrets.AGENT_EMAIL || 'agent.c4utest@yopmail.com' }}
+          AGENT_PASSWORD: ${{ secrets.AGENT_PASSWORD != '' && secrets.AGENT_PASSWORD || 'Test12345@' }}
+          AGENT_OTP: ${{ secrets.AGENT_OTP != '' && secrets.AGENT_OTP || '123456' }}
+
+          GENERAL_USER_EMAIL: ${{ secrets.GENERAL_USER_EMAIL != '' && secrets.GENERAL_USER_EMAIL || 'buyer.c4utest@yopmail.com' }}
+          GENERAL_USER_PASSWORD: ${{ secrets.GENERAL_USER_PASSWORD != '' && secrets.GENERAL_USER_PASSWORD || 'Test12345@' }}
+          GENERAL_USER_OTP: ${{ secrets.GENERAL_USER_OTP != '' && secrets.GENERAL_USER_OTP || '123456' }}
+
+          AUCTION_BUYER_2_EMAIL: ${{ secrets.AUCTION_BUYER_2_EMAIL != '' && secrets.AUCTION_BUYER_2_EMAIL || 'secondbuyer.c4utest@yopmail.com' }}
+          AUCTION_BUYER_2_PASSWORD: ${{ secrets.AUCTION_BUYER_2_PASSWORD != '' && secrets.AUCTION_BUYER_2_PASSWORD || 'Test12345@' }}
+          AUCTION_BUYER_2_OTP: ${{ secrets.AUCTION_BUYER_2_OTP != '' && secrets.AUCTION_BUYER_2_OTP || '123456' }}
+
+          BUYER_SOLICITOR_EMAIL: ${{ secrets.BUYER_SOLICITOR_EMAIL != '' && secrets.BUYER_SOLICITOR_EMAIL || 'buyersolicitor.c4utest@yopmail.com' }}
+          BUYER_SOLICITOR_PASSWORD: ${{ secrets.BUYER_SOLICITOR_PASSWORD != '' && secrets.BUYER_SOLICITOR_PASSWORD || 'Test12345@' }}
+          BUYER_SOLICITOR_OTP: ${{ secrets.BUYER_SOLICITOR_OTP != '' && secrets.BUYER_SOLICITOR_OTP || '123456' }}
+
+          SELLER_SOLICITOR_EMAIL: ${{ secrets.SELLER_SOLICITOR_EMAIL != '' && secrets.SELLER_SOLICITOR_EMAIL || 'solicitor.c4utest@yopmail.com' }}
+          SELLER_SOLICITOR_PASSWORD: ${{ secrets.SELLER_SOLICITOR_PASSWORD != '' && secrets.SELLER_SOLICITOR_PASSWORD || 'Test12345@' }}
+          SELLER_SOLICITOR_OTP: ${{ secrets.SELLER_SOLICITOR_OTP != '' && secrets.SELLER_SOLICITOR_OTP || '123456' }}
+
+          VENDOR_EMAIL: ${{ secrets.VENDOR_EMAIL != '' && secrets.VENDOR_EMAIL || 'secondbuyer.c4utest@yopmail.com' }}
+          VENDOR_PASSWORD: ${{ secrets.VENDOR_PASSWORD != '' && secrets.VENDOR_PASSWORD || 'Test12345@' }}
+          VENDOR_OTP: ${{ secrets.VENDOR_OTP != '' && secrets.VENDOR_OTP || '123456' }}
+
+          TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER != '' && secrets.TEST_CARD_NUMBER || '4242 4242 4242 4242' }}
+          TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '12/30' }}
+          TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}
+        run: |
+          npx cucumber-js --tags "@all-flows" --retry 1
+
+      # -------------------------------------------------------------
+      # 4. TAG UAT RESULTS & MERGE STAGING
+      # -------------------------------------------------------------
+      - name: Tag UAT Results & Merge with Staging
+        if: always()
+        run: |
+          node scripts/tag-allure-environment.js allure-results "UAT"
+          mkdir -p reports/cucumber/uat
+          cp reports/cucumber/*.html reports/cucumber/uat/ 2>/dev/null || true
+          cp reports/cucumber/*.json reports/cucumber/uat/ 2>/dev/null || true
+          cp -r allure-results-staging/* allure-results/ 2>/dev/null || true
+          cat << 'EOF' > allure-results/environment.properties
+          Environment.1=Staging (Flow 1)
+          Staging.URL=https://staging.realey.au/
+          Environment.2=UAT (Flows 1 to 9)
+          UAT.URL=https://uat.realey.au/
+          Browser=Chromium (Headless)
+          Node.Version=24
+          Runner=Ubuntu Latest
+          EOF
+
+      - name: Record End Time & Calculate Duration
+        if: always()
+        id: duration
+        run: |
+          end_seconds=$(date +%s)
+          duration_seconds=$((end_seconds - ${{ steps.timing.outputs.start_seconds }}))
+          minutes=$((duration_seconds / 60))
+          seconds=$((duration_seconds % 60))
+          echo "formatted_duration=${minutes}m ${seconds}s" >> "$GITHUB_OUTPUT"
+          echo "end_time=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
+
+      # -------------------------------------------------------------
+      # 5. GENERATE UNIFIED ALLURE REPORT
+      # -------------------------------------------------------------
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "Generating unified Allure report..."
+            npx allure generate allure-results --clean -o allure-report
+          else
+            echo "No Allure results generated."
+            mkdir -p allure-report
+            echo "<h1>No Allure results generated</h1>" > allure-report/index.html
+          fi
+
+      - name: Upload Cucumber Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stag-uat-cucumber-report
+          path: reports/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure Raw Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stag-uat-allure-results
+          path: allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stag-uat-allure-html-report
+          path: allure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stag-uat-cucumber-screenshots
+          path: screenshots/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Test Videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stag-uat-cucumber-videos
+          path: videos/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Configure GitHub Pages
+        if: always()
+        uses: actions/configure-pages@v5
+
+      - name: Upload Allure Report To GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: allure-report/
+
+      - name: Display Suite Outcome
+        if: always()
+        run: |
+          echo ""
+          echo "============================================"
+          echo "STAGING + UAT SUITE RUN RESULTS"
+          echo "============================================"
+          echo "Staging (Flow 1): ${{ steps.staging-tests.outcome }}"
+          echo "UAT (Flows 1-9):  ${{ steps.uat-tests.outcome }}"
+          echo "Duration:         ${{ steps.duration.outputs.formatted_duration }}"
+          echo "============================================"
+
+  deploy-allure:
+    name: Publish Allure Report
+    if: always()
+    needs:
+      - run-stag-and-uat
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Allure Report
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Show Allure Report URL
+        run: |
+          echo ""
+          echo "============================================"
+          echo "ALLURE REPORT"
+          echo "============================================"
+          echo "${{ steps.deployment.outputs.page_url }}"
+          echo "============================================"
+
+      - name: Add Allure Link To Job Summary
+        run: |
+          echo "## 📊 Realey Stag+UAT Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Combined execution covering Staging (Flow 1) and UAT (Flows 1 through 9)." >> "$GITHUB_STEP_SUMMARY"
+
+  final-status:
+    name: Final Test Status
+    if: always()
+    needs:
+      - run-stag-and-uat
+      - deploy-allure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow Summary
+        run: |
+          echo "Stag+UAT workflow execution complete."
+
+      - name: Check Suite Outcome
+        if: always() && (needs.run-stag-and-uat.outputs.staging_outcome == 'failure' || needs.run-stag-and-uat.outputs.uat_outcome == 'failure' || needs.run-stag-and-uat.result != 'success')
+        run: |
+          echo "One or more test suites failed. Check Allure Report / Job artifacts."
+          exit 1
