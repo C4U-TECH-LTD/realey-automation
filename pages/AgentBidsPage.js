@@ -431,7 +431,7 @@ class AgentBidsPage {
   // START NEGOTIATION
   // =====================================================
 
-  async startNegotiation(propertyName) {
+  async startNegotiation(propertyName, targetBidderName = null) {
     if (!propertyName) {
       throw new Error(
         "Property name is required to start negotiation."
@@ -442,7 +442,7 @@ class AgentBidsPage {
       this.getShortPropertyName(propertyName);
 
     console.log(
-      `Starting negotiation for: ${shortPropertyName}`
+      `Starting negotiation for: ${shortPropertyName}${targetBidderName ? ` (target bidder: ${targetBidderName})` : ""}`
     );
 
     await this.filterByAddress(propertyName);
@@ -577,12 +577,42 @@ class AgentBidsPage {
         continue;
       }
 
-      const startButton =
-        card
+      // Prioritize button for targetBidderName or Highest Bidder row
+      let startButton = null;
+
+      if (targetBidderName) {
+        const bidderRow = card
+          .locator("div, tr, li, section")
+          .filter({ hasText: new RegExp(targetBidderName, "i") });
+        const bidderBtn = bidderRow
+          .getByRole("button", { name: /^Start negotiation$/i })
+          .first();
+        if (await bidderBtn.isVisible().catch(() => false)) {
+          console.log(`Found Start negotiation button for target bidder: ${targetBidderName}`);
+          startButton = bidderBtn;
+        }
+      }
+
+      if (!startButton) {
+        const highestBidderRow = card
+          .locator("div, tr, li, section")
+          .filter({ hasText: /highest bidder/i });
+        const highestBidderBtn = highestBidderRow
+          .getByRole("button", { name: /^Start negotiation$/i })
+          .first();
+        if (await highestBidderBtn.isVisible().catch(() => false)) {
+          console.log(`Found Start negotiation button for Highest Bidder row`);
+          startButton = highestBidderBtn;
+        }
+      }
+
+      if (!startButton) {
+        startButton = card
           .getByRole("button", {
             name: /^Start negotiation$/i,
           })
           .first();
+      }
 
       const buttonVisible =
         await startButton
