@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const {
   BeforeAll,
@@ -194,12 +195,8 @@ async function saveAndAttachScreenshot(world, stepName, suffix = "after-step") {
 }
 
 async function saveAndAttachVideo(world) {
-  if (!world.video) {
-    console.warn("Video skipped because the scenario page has no Playwright video object.");
-    return null;
-  }
-
   ensureDirectory(CUCUMBER_VIDEO_DIRECTORY);
+  ensureDirectory(PLAYWRIGHT_VIDEO_TEMP_DIRECTORY);
 
   const scenarioName = world.pickle?.name || "unknown-scenario";
   const timestamp = world.scenarioArtifactTimestamp || artifactTimestamp();
@@ -208,18 +205,101 @@ async function saveAndAttachVideo(world) {
     `${sanitize(scenarioName)}__${timestamp}.webm`
   );
 
+  const pagesWithVideo = (world.allPages || []).filter((p) => {
+    try {
+      return p && typeof p.video === "function" && p.video() !== null;
+    } catch (_) {
+      return false;
+    }
+  });
+
+  if (pagesWithVideo.length === 0 && !world.video) {
+    console.warn("Video skipped because no Playwright video object was found.");
+    return null;
+  }
+
   try {
-    // Playwright finalizes a video only when its page or browser context closes.
-    // The After hook closes the context before calling this function.
-    await world.video.saveAs(videoPath);
+    const videoObjects = pagesWithVideo.length > 0
+      ? pagesWithVideo.map((p) => p.video()).filter(Boolean)
+      : [world.video].filter(Boolean);
+
+    const savedParts = [];
+    for (let i = 0; i < videoObjects.length; i++) {
+      const v = videoObjects[i];
+      const partPath = path.join(
+        PLAYWRIGHT_VIDEO_TEMP_DIRECTORY,
+        `${sanitize(scenarioName)}__part_${i}_${timestamp}.webm`
+      );
+      try {
+        await v.saveAs(partPath);
+        if (fs.existsSync(partPath) && fs.statSync(partPath).size > 0) {
+          savedParts.push(partPath);
+        }
+      } catch (err) {
+        console.warn(`[Video] Failed saving video part ${i}:`, err.message);
+      }
+    }
+
+    if (savedParts.length === 0) {
+      console.warn("Video skipped: No non-empty video files were produced.");
+      return null;
+    }
+
+    if (savedParts.length === 1) {
+      fs.copyFileSync(savedParts[0], videoPath);
+      try { fs.unlinkSync(savedParts[0]); } catch (_) {}
+    } else {
+      console.log(`[Video] Combining ${savedParts.length} screen/tab recordings into single video via ffmpeg...`);
+      const concatListFile = path.join(
+        PLAYWRIGHT_VIDEO_TEMP_DIRECTORY,
+        `concat_${sanitize(scenarioName)}_${timestamp}.txt`
+      );
+      const fileListContent = savedParts
+        .map((filePath) => `file '${filePath.replace(/\\/g, "/")}'`)
+        .join("\n");
+      fs.writeFileSync(concatListFile, fileListContent, "utf-8");
+
+      let concatSuccess = false;
+      try {
+        execSync(
+          `ffmpeg -y -f concat -safe 0 -i "${concatListFile}" -c copy "${videoPath}"`,
+          { stdio: "ignore" }
+        );
+        concatSuccess = fs.existsSync(videoPath) && fs.statSync(videoPath).size > 0;
+      } catch (_) {
+        concatSuccess = false;
+      }
+
+      if (!concatSuccess) {
+        try {
+          execSync(
+            `ffmpeg -y -f concat -safe 0 -i "${concatListFile}" -c:v libvpx-vp9 -b:v 1M "${videoPath}"`,
+            { stdio: "ignore" }
+          );
+          concatSuccess = fs.existsSync(videoPath) && fs.statSync(videoPath).size > 0;
+        } catch (_) {
+          concatSuccess = false;
+        }
+      }
+
+      try { fs.unlinkSync(concatListFile); } catch (_) {}
+      for (const part of savedParts) {
+        try { fs.unlinkSync(part); } catch (_) {}
+      }
+
+      if (!concatSuccess) {
+        console.warn("[Video] ffmpeg concat failed, falling back to primary tab recording.");
+        fs.copyFileSync(savedParts[0], videoPath);
+      }
+    }
 
     if (!fs.existsSync(videoPath)) {
-      throw new Error(`Playwright did not create the expected video: ${videoPath}`);
+      throw new Error(`Expected final video not found: ${videoPath}`);
     }
 
     const videoBuffer = fs.readFileSync(videoPath);
     await world.attach(videoBuffer, "video/webm");
-    console.log(`Video saved: ${videoPath}`);
+    console.log(`Unified scenario video attached to Allure: ${videoPath}`);
     return videoPath;
   } catch (error) {
     console.error(`Unable to save/attach scenario video: ${error.message}`);
@@ -281,17 +361,22 @@ Before(async function ({ pickle }) {
     },
   });
 
-  // Role changes reuse this context. New tabs are configured, but no hook or
-  // role-switching step creates a replacement context.
-  this.context.on("page", configurePage);
+  // Track all pages and tabs created under this context
+  this.allPages = [];
+
+  this.context.on("page", (newPage) => {
+    configurePage(newPage);
+    if (!this.allPages.includes(newPage)) {
+      this.allPages.push(newPage);
+    }
+  });
 
   this.page = await this.context.newPage();
+  this.allPages.push(this.page);
   configurePage(this.page);
   await this.page.bringToFront().catch(() => {});
 
   // Keep the original scenario page and video reference for the whole scenario.
-  // Auction registration is normalized back onto this page so one video contains
-  // the complete Agent -> Buyer -> Agent -> Buyer journey.
   this.scenarioPage = this.page;
   this.video = this.scenarioPage.video();
 
