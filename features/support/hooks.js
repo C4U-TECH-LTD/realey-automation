@@ -63,7 +63,7 @@ function configurePage(page) {
   if (typeof page.addLocatorHandler === "function") {
     // 1. Notification popup handler ("Never miss a message" / "Enable notification" / "Turn on notifications")
     page.addLocatorHandler(
-      page.locator('[role="dialog"]').filter({
+      page.locator('[role="dialog"]:not([aria-hidden="true"])').filter({
         hasText: /Never miss a message|enable.*notification|turn on notification/i,
       }),
       async (dialog) => {
@@ -75,7 +75,7 @@ function configurePage(page) {
 
         if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
           console.log("[AutoHandler] Clicking cross (✕) button on notification popup...");
-          await closeBtn.click().catch(() => {});
+          await closeBtn.click({ force: true }).catch(() => {});
         } else {
           const skipBtn = dialog
             .getByRole("button", { name: /^skip/i })
@@ -83,7 +83,7 @@ function configurePage(page) {
             .first();
           if (await skipBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
             console.log("[AutoHandler] Clicking 'Skip' button on notification popup...");
-            await skipBtn.click().catch(() => {});
+            await skipBtn.click({ force: true }).catch(() => {});
           } else {
             const laterBtn = dialog
               .getByRole("button", { name: /later|not now/i })
@@ -91,17 +91,31 @@ function configurePage(page) {
               .first();
             if (await laterBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
               console.log("[AutoHandler] Clicking 'Later' / 'Not now' button on notification popup...");
-              await laterBtn.click().catch(() => {});
+              await laterBtn.click({ force: true }).catch(() => {});
             }
           }
         }
-        await dialog.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+
+        // Force-hide/remove dialog in DOM so Playwright addLocatorHandler doesn't hang waiting for it
+        await dialog.evaluate((el) => {
+          try {
+            const btn = Array.from(el.querySelectorAll('button')).find((b) =>
+              /not now|later|skip|close/i.test(b.textContent || b.getAttribute('aria-label') || '')
+            );
+            if (btn) btn.click();
+            el.remove();
+          } catch (_) {
+            el.style.display = 'none';
+          }
+        }).catch(() => {});
+
+        await dialog.waitFor({ state: "hidden", timeout: 3000 }).catch(() => {});
       }
     );
 
     // 2. Welcome to Realey popup modal handler
     page.addLocatorHandler(
-      page.locator('[role="dialog"]').filter({ hasText: /Welcome to Realey/i }),
+      page.locator('[role="dialog"]:not([aria-hidden="true"])').filter({ hasText: /Welcome to Realey/i }),
       async (dialog) => {
         console.log("[AutoHandler] Dismissing 'Welcome to Realey' popup modal...");
         const closeBtn = dialog
@@ -111,7 +125,7 @@ function configurePage(page) {
 
         if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
           console.log("[AutoHandler] Clicking cross (✕) button on Welcome to Realey modal...");
-          await closeBtn.click().catch(() => {});
+          await closeBtn.click({ force: true }).catch(() => {});
         } else {
           const skipBtn = dialog
             .getByRole("button", { name: /^skip$/i })
@@ -119,7 +133,7 @@ function configurePage(page) {
             .first();
           if (await skipBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
             console.log("[AutoHandler] Cross button not found, clicking 'Skip' button on Welcome to Realey modal...");
-            await skipBtn.click().catch(() => {});
+            await skipBtn.click({ force: true }).catch(() => {});
           } else {
             const laterBtn = dialog
               .getByRole("button", { name: /later|not now/i })
@@ -127,11 +141,25 @@ function configurePage(page) {
               .first();
             if (await laterBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
               console.log("[AutoHandler] Cross button not found, clicking 'Later' / 'Not now' button on Welcome to Realey modal...");
-              await laterBtn.click().catch(() => {});
+              await laterBtn.click({ force: true }).catch(() => {});
             }
           }
         }
-        await dialog.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+
+        // Force-hide/remove dialog in DOM so Playwright addLocatorHandler doesn't hang waiting for it
+        await dialog.evaluate((el) => {
+          try {
+            const btn = Array.from(el.querySelectorAll('button')).find((b) =>
+              /skip|close/i.test(b.textContent || b.getAttribute('aria-label') || '')
+            );
+            if (btn) btn.click();
+            el.remove();
+          } catch (_) {
+            el.style.display = 'none';
+          }
+        }).catch(() => {});
+
+        await dialog.waitFor({ state: "hidden", timeout: 3000 }).catch(() => {});
       }
     );
   }
@@ -354,6 +382,7 @@ Before(async function ({ pickle }) {
   this.context = await this.browser.newContext({
     baseURL: this.baseURL || process.env.BASE_URL || "https://uat.realey.au/",
     viewport: { width: 1920, height: 1080 },
+    permissions: ["notifications"],
     ignoreHTTPSErrors: false,
     recordVideo: {
       dir: PLAYWRIGHT_VIDEO_TEMP_DIRECTORY,

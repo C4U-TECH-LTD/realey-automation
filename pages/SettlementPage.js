@@ -72,17 +72,29 @@ class SettlementPage {
   // =====================================================
 
   async start() {
-    // 1. Dismiss any notification popup or welcome dialog if blocking screen
+    // 1. Dismiss and clean up any notification popup or welcome dialog if present
+    await this.page.evaluate(() => {
+      document.querySelectorAll('[role="dialog"]').forEach((d) => {
+        if (/Never miss a message|enable.*notification|turn on notification|Welcome to Realey/i.test(d.textContent || '')) {
+          const btn = Array.from(d.querySelectorAll('button')).find((b) =>
+            /not now|later|skip|close/i.test(b.textContent || b.getAttribute('aria-label') || '')
+          );
+          if (btn) btn.click();
+          d.remove();
+        }
+      });
+    }).catch(() => {});
+
     const dialogDismissBtn = this.page
-      .locator('[role="dialog"]')
+      .locator('[role="dialog"]:not([aria-hidden="true"])')
       .filter({ hasText: /Never miss a message|enable.*notification|turn on notification|Welcome to Realey/i })
       .locator('button:has-text("Not now"), button:has-text("Later"), button:has-text("Maybe later"), button:has-text("Skip"), button:has(svg.lucide-x), [aria-label*="close" i]')
       .first();
 
-    if (await dialogDismissBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await dialogDismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       console.log("[SettlementPage] Dismissing blocking popup modal...");
-      await dialogDismissBtn.click().catch(() => {});
-      await this.page.waitForTimeout(500);
+      await dialogDismissBtn.click({ force: true }).catch(() => {});
+      await this.page.waitForTimeout(300);
     }
 
     // 2. If property details or listing page is loading, wait for it
