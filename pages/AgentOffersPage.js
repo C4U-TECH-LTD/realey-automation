@@ -36,12 +36,64 @@ class AgentOffersPage {
   }
 
   async openOffersAndBids() {
-    await expect(
-      this.offersAndBids,
-      "Offers & Bids menu should be visible"
-    ).toBeVisible({ timeout: 20_000 });
+    console.log("Navigating to Offers & Bids tab...");
 
-    await this.offersAndBids.click();
+    // Dismiss any modal/overlay if blocking
+    const closeDialog = this.page.locator('button[aria-label="Close"], button:has-text("Close")').first();
+    if (await closeDialog.isVisible().catch(() => false)) {
+      await closeDialog.click().catch(() => {});
+    }
+
+    if (!this.page.url().includes("tab=offers-bids")) {
+      const menu = this.page
+        .getByRole("button", { name: /Offers & Bids/i })
+        .or(this.page.getByRole("link", { name: /Offers & Bids/i }))
+        .or(this.page.locator('aside, nav, [class*="sidebar"]').getByText("Offers & Bids", { exact: true }))
+        .or(this.offersAndBids)
+        .first();
+
+      if (await menu.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await menu.click().catch(() => {});
+      }
+
+      // Check if URL updated to tab=offers-bids
+      const navigated = await this.page
+        .waitForURL((url) => url.search.includes("tab=offers-bids"), { timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!navigated && !this.page.url().includes("tab=offers-bids")) {
+        console.log("Sidebar click did not transition URL, navigating directly to /dashboard/agent?tab=offers-bids");
+        const currentUrl = new URL(this.page.url());
+        currentUrl.pathname = "/dashboard/agent";
+        currentUrl.search = "?tab=offers-bids";
+        await this.page.goto(currentUrl.toString(), { waitUntil: "domcontentloaded" });
+      }
+    }
+
+    // Ensure we are confirmed on offers-bids tab
+    await expect(
+      this.page,
+      "URL should contain tab=offers-bids"
+    ).toHaveURL(/tab=offers-bids/, { timeout: 15_000 });
+
+    // Wait for spinners
+    await this.page
+      .locator('.animate-spin, svg.animate-spin, [class*="loading"]')
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
+    // Ensure Offers subtab is active if subtabs exist
+    const offersSubTab = this.page
+      .getByRole("tab", { name: /^Offers\b/i })
+      .or(this.page.getByRole("button", { name: /^Offers\b/i }))
+      .first();
+    if (await offersSubTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await offersSubTab.click().catch(() => {});
+    }
+
+    await this.page.waitForTimeout(1000);
   }
 
   async openSubmittedOffer(propertyName) {

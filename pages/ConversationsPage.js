@@ -56,10 +56,10 @@ class ConversationsPage {
       await this.page.waitForTimeout(500);
     }
 
-    // 3. Strictly check URL: only already on conversations if URL contains tab=conversations
-    if (this.page.url().includes("tab=conversations")) {
-      console.log("Already on conversations page:", this.page.url());
-      await this.page.waitForTimeout(2000);
+    // 3. Strictly check URL: already in conversations if URL contains tab=conversations or /chat/
+    if (this.page.url().includes("tab=conversations") || this.page.url().includes("/chat/")) {
+      console.log("Already on conversations/chat page:", this.page.url());
+      await this.page.waitForTimeout(1000);
       return;
     }
 
@@ -71,15 +71,15 @@ class ConversationsPage {
 
     if (await convBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await convBtn.click();
-      await this.page.waitForURL(/tab=conversations/, { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 10_000 }).catch(() => {});
       await this.page.waitForLoadState("domcontentloaded");
-      await this.page.waitForTimeout(2500);
-      if (this.page.url().includes("tab=conversations")) {
+      await this.page.waitForTimeout(1500);
+      if (this.page.url().includes("tab=conversations") || this.page.url().includes("/chat/")) {
         return;
       }
     }
 
-    // 5. Direct navigation fallback if sidebar not visible (e.g. from listing detail page)
+    // 5. Direct navigation fallback if sidebar not visible or click did not navigate
     const currentUrl = this.page.url();
     let fallbackUrl = "/dashboard/general-user?tab=conversations";
     if (currentUrl.includes("/dashboard/agent") || currentUrl.includes("/agent")) {
@@ -93,9 +93,9 @@ class ConversationsPage {
     try {
       console.log(`Navigating to fallback conversations URL: ${fallbackUrl}`);
       await this.page.goto(fallbackUrl, { waitUntil: "domcontentloaded" });
-      await this.page.waitForURL(/tab=conversations/, { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
       await this.page.waitForTimeout(1000);
-      if (this.page.url().includes("tab=conversations")) {
+      if (this.page.url().includes("tab=conversations") || this.page.url().includes("/chat/")) {
         return;
       }
     } catch {}
@@ -301,46 +301,48 @@ class ConversationsPage {
     const { propertyName, propertyRow } =
       await this.getPropertyRow(expectedPropertyName);
 
-    // If already expanded in THIS property card (has > 1 button or chevron up), return
-    const buttonCount = await propertyRow.locator("button").count().catch(() => 0);
-    const isAlreadyExpanded = buttonCount > 1 || (await propertyRow
-      .locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']")
-      .isVisible()
-      .catch(() => false));
+    // Check if already expanded:
+    // 1. Has an upward chevron
+    // 2. Or child chat items (e.g. Agent / Buyer / Solicitor / Broker / etc) are already visible inside propertyRow
+    const chevronUp = propertyRow.locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']").first();
+    const childChat = propertyRow
+      .locator('button, div')
+      .filter({ hasText: /\b(Agent|Buyer|Solicitor|Mortgage Broker)\b/i })
+      .filter({ hasNotText: /completed|declined/i })
+      .first();
+
+    const isAlreadyExpanded = (await chevronUp.isVisible().catch(() => false)) ||
+                              (await childChat.isVisible().catch(() => false));
 
     if (isAlreadyExpanded) {
       console.log(`Property conversation is already expanded: ${expectedPropertyName}`);
       return propertyRow;
     }
 
-    const dropdownButton = propertyRow.locator("button").first();
+    // Locate chevron-down button or toggle button
+    const chevronDownBtn = propertyRow
+      .locator('button:has(svg.lucide-chevron-down), button:has([class*="chevron-down"]), [class*="chevron-down"], svg.lucide-chevron-down')
+      .first();
 
-    if (
-      await dropdownButton
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log(
-        `Expanding property conversation: ${expectedPropertyName}`
-      );
-
-      await dropdownButton.click();
-      await this.page.waitForTimeout(1000);
-
-      return propertyRow;
+    if (await chevronDownBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`Clicking chevron button to expand property conversation: ${expectedPropertyName}`);
+      await chevronDownBtn.click();
+    } else {
+      console.log(`Chevron button not directly found. Clicking property card row: ${expectedPropertyName}`);
+      const triggerBtn = propertyRow.locator("button, [role='button']").last();
+      if (await triggerBtn.isVisible().catch(() => false)) {
+        await triggerBtn.click();
+      } else {
+        await propertyRow.click();
+      }
     }
 
-    /*
-     * Fallback in case the complete row itself is clickable.
-     */
-    console.log(
-      `Dropdown not found. Clicking property row: ${expectedPropertyName}`
-    );
-
-    await propertyRow.locator("button.cursor-pointer, button.w-full, div.cursor-pointer").first().click().catch(async () => {
-      await propertyName.click();
-    });
+    // Wait for card to expand (upward chevron or child conversation row)
     await this.page.waitForTimeout(1000);
+    const expandedCheck = propertyRow
+      .locator("svg.lucide-chevron-up, [class*='lucide-chevron-up'], button:has-text('Agent'), button:has-text('Buyer')")
+      .first();
+    await expandedCheck.waitFor({ state: "visible", timeout: 4000 }).catch(() => {});
 
     return propertyRow;
   }
@@ -395,10 +397,11 @@ class ConversationsPage {
       .first();
 
     if (!(await agentChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
-      agentChatButton = propertyRow
+      agentChatButton = this.page
         .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
         .filter({ hasText: /\bAgent\b|Subrato/i })
         .filter({ hasNotText: /\bBroker\b/i })
+        .filter({ hasNotText: /declined|completed/i })
         .first();
     }
 
@@ -435,6 +438,11 @@ class ConversationsPage {
     // Fallback: click propertyRow button itself if agent button was not found
     await propertyRow.locator("button.cursor-pointer, div.cursor-pointer").first().click().catch(() => propertyRow.click());
     await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+
+    await expect(
+      this.page,
+      `Should navigate to chatroom for ${expectedPropertyName}`
+    ).toHaveURL(/\/chat\//, { timeout: 15_000 });
   }
 
   async openAgentConversation(
@@ -1031,22 +1039,26 @@ class ConversationsPage {
   }
 
   getChatroomTab(tabName) {
+    const tabRegex = new RegExp(`^\\s*${tabName}\\s*$`, "i");
+
+    // Scope exclusively outside sidebar (aside/nav), within main chat area or tablist
     return this.page
+      .locator('main, [class*="chat-container"], [class*="chatroom"], div.flex-1')
+      .locator('[role="tablist"], div[class*="border-b"], div[class*="overflow-x-auto"]')
       .locator('button, [role="tab"]')
-      .filter({ hasText: new RegExp(`^\\s*${tabName}\\s*$`, "i") })
+      .filter({ hasText: tabRegex })
       .or(
         this.page
-          .locator('div[class*="border-[#E5E5E5]"], div[class*="overflow-x-auto"], [role="tablist"]')
-          .locator("button")
-          .filter({ hasText: new RegExp(tabName, "i") })
+          .locator(':not(aside):not(nav) > [role="tablist"], div:not(aside):not(nav) [role="tablist"]')
+          .locator('button, [role="tab"]')
+          .filter({ hasText: tabRegex })
       )
       .or(
-        this.page.getByRole("tab", { name: new RegExp(tabName, "i") })
+        this.page
+          .locator('main button, main [role="tab"]')
+          .filter({ hasText: tabRegex })
       )
-      .or(
-        this.page.getByRole("button", { name: new RegExp(tabName, "i") })
-      )
-      .last();
+      .first();
   }
 
   async clickProgressTab(expectedPropertyName = null) {
@@ -1071,6 +1083,12 @@ class ConversationsPage {
         await this.openAgentConversation(expectedPropertyName);
       }
     }
+
+    // Must be in chatroom before clicking Progress tab inside chatroom
+    await expect(
+      this.page,
+      "Must be in chatroom before clicking Progress tab"
+    ).toHaveURL(/\/chat\//, { timeout: 15_000 });
 
     // 2. If inside chatroom but under General tab rather than Property tab
     const isGeneralActive = await this.page
