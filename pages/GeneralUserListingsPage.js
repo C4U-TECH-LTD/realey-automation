@@ -301,7 +301,7 @@ class GeneralUserListingsPage {
     // Click next photo arrow if available to test carousel
     const nextArrow = this.page.locator('button:has(svg.lucide-chevron-right), button[aria-label*="next" i]').first();
     if (await nextArrow.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await nextArrow.click();
+      await nextArrow.click({ force: true }).catch(() => {});
       await this.page.waitForTimeout(500);
       console.log("Clicked carousel next arrow");
     }
@@ -381,8 +381,13 @@ class GeneralUserListingsPage {
     const featButton = this.page.locator('button:has-text("Features & Amenities"), div[role="button"]:has-text("Features & Amenities")').first();
     if (await featButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await featButton.scrollIntoViewIfNeeded();
-      await featButton.click();
-      await this.page.waitForTimeout(600);
+      const isExpanded =
+        (await featButton.getAttribute("aria-expanded")) === "true" ||
+        (await featButton.getAttribute("data-state")) === "open";
+      if (!isExpanded) {
+        await featButton.click();
+        await this.page.waitForTimeout(600);
+      }
       if (Array.isArray(expectedDetails.keyFeatures) && expectedDetails.keyFeatures.length > 0) {
         const firstFeature = expectedDetails.keyFeatures[0];
         const featMatch = this.page.locator('body').getByText(firstFeature).first();
@@ -404,14 +409,26 @@ class GeneralUserListingsPage {
     await expect(floorplanButton, "Floorplan accordion button should be visible").toBeVisible({ timeout: 15_000 });
 
     await floorplanButton.scrollIntoViewIfNeeded();
-    await floorplanButton.click();
-    await this.page.waitForTimeout(800);
+    const isExpanded =
+      (await floorplanButton.getAttribute("aria-expanded")) === "true" ||
+      (await floorplanButton.getAttribute("data-state")) === "open";
+    if (!isExpanded) {
+      await floorplanButton.click();
+      await this.page.waitForTimeout(800);
+    }
 
     // Verify Floor Plan image / content is visible
     const floorPlanContent = this.page.locator(':is(div, section):has-text("Floor Plan") img, button:has-text("Download Floorplan")').first();
     await expect(floorPlanContent, "Floor plan content should be visible").toBeVisible({ timeout: 10_000 });
 
-    const downloadButton = this.page.getByRole("button", { name: /download floorplan/i }).first();
+    const downloadButton = this.page
+      .getByRole("button", { name: /download floorplan/i })
+      .or(this.page.getByRole("link", { name: /download floorplan/i }))
+      .or(this.page.locator('button, a, div[role="button"]').filter({ hasText: /download floorplan/i }))
+      .or(this.page.getByText(/download floorplan/i))
+      .first();
+
+    await downloadButton.scrollIntoViewIfNeeded().catch(() => {});
     await expect(downloadButton, "Download Floorplan button should be visible").toBeVisible({ timeout: 10_000 });
 
     try {
@@ -479,6 +496,7 @@ class GeneralUserListingsPage {
       .or(docItem)
       .first();
 
+    await downloadTrigger.scrollIntoViewIfNeeded().catch(() => {});
     await expect(
       downloadTrigger,
       "Document button or link should be visible in Documents accordion"

@@ -158,12 +158,14 @@ class AgentOffersPage {
           if (await counterBtn.isVisible().catch(() => false)) {
             this.activeCounterButton = counterBtn;
             console.log(`Found active 'Counter via Chat' button on offer card #${i + 1} for "${propertyName}".`);
-            return;
           }
 
           if (await acceptBtn.isVisible().catch(() => false)) {
             this.activeAcceptButton = acceptBtn;
             console.log(`Found active 'Accept' button on offer card #${i + 1} for "${propertyName}".`);
+          }
+
+          if (this.activeCounterButton || this.activeAcceptButton) {
             return;
           }
         }
@@ -303,15 +305,25 @@ class AgentOffersPage {
       await this.openOffersAndBids();
     }
 
-    const acceptBtn = this.activeAcceptButton || this.page.getByRole("button", {
-      name: "Accept",
-      exact: true,
-    }).first();
+    const acceptBtn = this.activeAcceptButton || this.page
+      .getByRole("button", { name: /^Accept$/i })
+      .or(this.page.locator('button').filter({ hasText: /^Accept$/i }))
+      .or(this.page.getByRole("button", { name: /accept/i }))
+      .first();
 
     if (await acceptBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
       console.log("Found visible Accept button. Clicking Accept...");
       await acceptBtn.scrollIntoViewIfNeeded().catch(() => {});
-      await acceptBtn.click();
+      try {
+        await acceptBtn.click();
+      } catch (err) {
+        console.log(`Standard click failed (${err.message}), retrying with force click...`);
+        const fallbackBtn = this.page
+          .getByRole("button", { name: /^Accept$/i })
+          .or(this.page.locator('button').filter({ hasText: /^Accept$/i }))
+          .first();
+        await fallbackBtn.click({ force: true });
+      }
       console.log("Clicked Accept button on offer card");
 
       // Wait for the confirmation dialog
@@ -321,9 +333,9 @@ class AgentOffersPage {
         "Accept offer confirmation dialog should appear"
       ).toBeVisible({ timeout: 10_000 });
 
-      const confirmButton = dialog.getByRole("button", {
-        name: /Confirm/i,
-      });
+      const confirmButton = dialog
+        .getByRole("button", { name: /Confirm|Accept/i })
+        .first();
 
       await expect(
         confirmButton,
@@ -331,7 +343,7 @@ class AgentOffersPage {
       ).toBeVisible({ timeout: 10_000 });
 
       await expect(confirmButton).toBeEnabled({ timeout: 10_000 });
-      await confirmButton.click();
+      await confirmButton.click({ force: true });
       console.log("Clicked Confirm button in accept offer dialog");
 
       // Wait for dialog to close

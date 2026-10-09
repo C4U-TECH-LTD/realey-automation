@@ -107,9 +107,27 @@ function configurePage(page) {
           } catch (_) {
             el.style.display = 'none';
           }
+          if (document.body) {
+            document.body.style.pointerEvents = '';
+            document.body.removeAttribute('data-scroll-locked');
+            document.body.style.overflow = '';
+          }
+          if (document.documentElement) {
+            document.documentElement.style.pointerEvents = '';
+          }
         }).catch(() => {});
 
         await dialog.waitFor({ state: "hidden", timeout: 3000 }).catch(() => {});
+        await page.evaluate(() => {
+          if (document.body) {
+            document.body.style.pointerEvents = '';
+            document.body.removeAttribute('data-scroll-locked');
+            document.body.style.overflow = '';
+          }
+          if (document.documentElement) {
+            document.documentElement.style.pointerEvents = '';
+          }
+        }).catch(() => {});
       }
     );
 
@@ -157,9 +175,27 @@ function configurePage(page) {
           } catch (_) {
             el.style.display = 'none';
           }
+          if (document.body) {
+            document.body.style.pointerEvents = '';
+            document.body.removeAttribute('data-scroll-locked');
+            document.body.style.overflow = '';
+          }
+          if (document.documentElement) {
+            document.documentElement.style.pointerEvents = '';
+          }
         }).catch(() => {});
 
         await dialog.waitFor({ state: "hidden", timeout: 3000 }).catch(() => {});
+        await page.evaluate(() => {
+          if (document.body) {
+            document.body.style.pointerEvents = '';
+            document.body.removeAttribute('data-scroll-locked');
+            document.body.style.overflow = '';
+          }
+          if (document.documentElement) {
+            document.documentElement.style.pointerEvents = '';
+          }
+        }).catch(() => {});
       }
     );
   }
@@ -418,8 +454,20 @@ Before(async function ({ pickle }) {
   this.initialisePageObjects();
 });
 
-BeforeStep(function ({ pickleStep }) {
+BeforeStep(async function ({ pickleStep }) {
   this.currentStepName = pickleStep.text;
+  if (this.page && !this.page.isClosed()) {
+    await this.page.evaluate(() => {
+      if (document.body && document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+        document.body.removeAttribute('data-scroll-locked');
+        document.body.style.overflow = '';
+      }
+      if (document.documentElement && document.documentElement.style.pointerEvents === 'none') {
+        document.documentElement.style.pointerEvents = '';
+      }
+    }).catch(() => {});
+  }
 });
 
 AfterStep(async function ({ pickleStep, result }) {

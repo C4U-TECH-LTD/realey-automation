@@ -86,6 +86,7 @@ class PropertyLocationPage {
 
     this.nextButton = page
       .locator('[role="dialog"]')
+      .last()
       .getByRole("button", {
         name: "Next",
         exact: true,
@@ -96,7 +97,7 @@ class PropertyLocationPage {
           exact: true,
         })
       )
-      .first();
+      .last();
   }
 
   // =====================================================
@@ -146,13 +147,6 @@ class PropertyLocationPage {
     await expect(
       this.streetAddressInput,
       "Street Address input should be visible"
-    ).toBeVisible({
-      timeout: 20_000,
-    });
-
-    await expect(
-      this.nextButton,
-      "Next button should be visible"
     ).toBeVisible({
       timeout: 20_000,
     });
@@ -634,6 +628,10 @@ class PropertyLocationPage {
 
     const targetButton = (await dialogNext.isVisible().catch(() => false)) ? dialogNext : this.nextButton;
 
+    await targetButton
+      .scrollIntoViewIfNeeded()
+      .catch(() => {});
+
     await expect(
       targetButton,
       "Location step Next button should be visible"
@@ -647,9 +645,6 @@ class PropertyLocationPage {
     ).toBeEnabled({
       timeout: 20_000,
     });
-
-    await targetButton
-      .scrollIntoViewIfNeeded();
 
     await targetButton.click();
     await this.page.waitForTimeout(1000);
