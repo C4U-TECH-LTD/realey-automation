@@ -756,7 +756,13 @@ class AgentBidsPage {
             console.log(`Open chat button found on page ${pageNum} for "${shortPropertyName}".`);
             await openChatButton.scrollIntoViewIfNeeded();
             await openChatButton.click();
-            await this.page.waitForTimeout(700);
+            await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
+            await this.page.waitForLoadState("domcontentloaded");
+            await this.page
+              .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"], [class*="loading"]')
+              .waitFor({ state: "hidden", timeout: 15_000 })
+              .catch(() => {});
+            await this.page.waitForTimeout(1000);
             return;
           }
         }
@@ -779,7 +785,13 @@ class AgentBidsPage {
       console.log(`Fallback: Clicked first visible Open chat button on page`);
       await fallbackOpenChat.scrollIntoViewIfNeeded();
       await fallbackOpenChat.click();
-      await this.page.waitForTimeout(700);
+      await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForLoadState("domcontentloaded");
+      await this.page
+        .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"], [class*="loading"]')
+        .waitFor({ state: "hidden", timeout: 15_000 })
+        .catch(() => {});
+      await this.page.waitForTimeout(1000);
       return;
     }
 

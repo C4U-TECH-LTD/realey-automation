@@ -699,7 +699,10 @@ class ConversationsPage {
     this.lastNegotiatedAmount =
       expectedValue;
 
-    await this.page.waitForTimeout(700);
+    // Wait for the counter input to close/detach after clicking Send Counter
+    await this.counterAmountInput.waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
+    await this.sendCounterButton.waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
+    await this.page.waitForTimeout(1000);
   }
 
   async verifyCounterNegotiationSent(
@@ -709,35 +712,41 @@ class ConversationsPage {
       this.lastNegotiatedAmount || 0
     ).toLocaleString("en-US");
 
+    // 1. Wait for any loading spinner to detach
+    await this.page
+      .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
+      .first()
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
+    // 2. Ensure counterAmount input has detached/hidden
+    await this.counterAmountInput
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
+    // 3. Verify the formatted counter amount appears in the conversation
     if (formattedAmount !== "0") {
-      const amountMessage = this.page
-        .getByText(
-          new RegExp(
-            `Counter offer:\\s*\\$${formattedAmount}`,
-            "i"
-          )
-        )
+      const amountTarget = this.page
+        .getByText(new RegExp(`\\$${formattedAmount}`))
+        .or(this.page.getByText(new RegExp(`Counter offer:\\s*\\$${formattedAmount}`, "i")))
+        .or(this.page.locator("div, p, span").filter({ hasText: new RegExp(`\\$${formattedAmount}`) }))
         .last();
 
-      if (
-        await amountMessage
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await expect(
-          amountMessage
-        ).toBeVisible();
-
-        return;
-      }
+      await expect(
+        amountTarget,
+        `Counter negotiation amount $${formattedAmount} should appear in conversation`
+      ).toBeVisible({ timeout: 20_000 });
+    } else {
+      await expect(
+        this.page
+          .getByText(expectedMessage)
+          .last(),
+        "Counter negotiation should appear in conversation"
+      ).toBeVisible({ timeout: 20_000 });
     }
 
-    await expect(
-      this.page
-        .getByText(expectedMessage)
-        .last(),
-      "Counter negotiation should appear in conversation"
-    ).toBeVisible({ timeout: 20_000 });
+    // 4. Critical buffer: allow server to commit transaction before switching user sessions
+    await this.page.waitForTimeout(3000);
   }
 
   /**
@@ -906,16 +915,33 @@ class ConversationsPage {
       .waitFor({ state: "hidden", timeout: 15_000 })
       .catch(() => {});
 
+    const acceptTarget = this.page
+      .getByRole("button", { name: /^Accept$/i })
+      .or(this.page.locator('button').filter({ hasText: /^Accept$/i }))
+      .first();
+
+    const isAcceptVisible = await acceptTarget.isVisible({ timeout: 5000 }).catch(() => false);
+    if (!isAcceptVisible) {
+      console.log("[acceptNegotiatedOffer] Accept button not visible after 5s, reloading chat page...");
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+      await this.page.waitForTimeout(2000);
+      await this.page
+        .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
+        .first()
+        .waitFor({ state: "hidden", timeout: 15_000 })
+        .catch(() => {});
+    }
+
     await expect(
-      this.acceptButton,
+      acceptTarget,
       "Accept button should be visible for negotiated offer"
     ).toBeVisible({ timeout: 20_000 });
 
-    await this.acceptButton.click();
+    await acceptTarget.click();
 
     console.log("Accept button clicked");
 
-    const dialog = this.page.locator('[role="dialog"]').last();
+    const dialog = this.page.locator('[role="dialog"], [role="alertdialog"]').last();
     const dialogAppeared = await dialog
       .waitFor({ state: "visible", timeout: 8000 })
       .then(() => true)

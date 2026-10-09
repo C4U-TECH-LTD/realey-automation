@@ -269,7 +269,8 @@ async function saveAndAttachVideo(world) {
     `${sanitize(scenarioName)}__${timestamp}.webm`
   );
 
-  const pagesWithVideo = (world.allPages || []).filter((p) => {
+  const uniquePages = Array.from(new Set(world.allPages || []));
+  const pagesWithVideo = uniquePages.filter((p) => {
     try {
       return p && typeof p.video === "function" && p.video() !== null;
     } catch (_) {
@@ -283,9 +284,20 @@ async function saveAndAttachVideo(world) {
   }
 
   try {
-    const videoObjects = pagesWithVideo.length > 0
-      ? pagesWithVideo.map((p) => p.video()).filter(Boolean)
-      : [world.video].filter(Boolean);
+    const videoObjects = [];
+    const seenVideos = new Set();
+    for (const p of pagesWithVideo) {
+      try {
+        const v = typeof p.video === "function" ? p.video() : null;
+        if (v && !seenVideos.has(v)) {
+          seenVideos.add(v);
+          videoObjects.push(v);
+        }
+      } catch (_) {}
+    }
+    if (videoObjects.length === 0 && world.video) {
+      videoObjects.push(world.video);
+    }
 
     const savedParts = [];
     for (let i = 0; i < videoObjects.length; i++) {
@@ -327,7 +339,7 @@ async function saveAndAttachVideo(world) {
       try {
         execSync(
           `ffmpeg -y -f concat -safe 0 -i "${concatListFile}" -c copy "${videoPath}"`,
-          { stdio: "ignore" }
+          { stdio: "ignore", timeout: 30000 }
         );
         concatSuccess = fs.existsSync(videoPath) && fs.statSync(videoPath).size > 0;
       } catch (_) {
@@ -338,7 +350,7 @@ async function saveAndAttachVideo(world) {
         try {
           execSync(
             `ffmpeg -y -f concat -safe 0 -i "${concatListFile}" -c:v libvpx-vp9 -b:v 1M "${videoPath}"`,
-            { stdio: "ignore" }
+            { stdio: "ignore", timeout: 60000 }
           );
           concatSuccess = fs.existsSync(videoPath) && fs.statSync(videoPath).size > 0;
         } catch (_) {
@@ -347,18 +359,25 @@ async function saveAndAttachVideo(world) {
       }
 
       try { fs.unlinkSync(concatListFile); } catch (_) {}
+
+      if (!concatSuccess) {
+        console.warn("[Video] ffmpeg concat failed, falling back to primary/longest recording.");
+        const sortedBySize = [...savedParts].sort(
+          (a, b) => fs.statSync(b).size - fs.statSync(a).size
+        );
+        const primaryPart = sortedBySize[0];
+        if (primaryPart && fs.existsSync(primaryPart)) {
+          fs.copyFileSync(primaryPart, videoPath);
+        }
+      }
+
       for (const part of savedParts) {
         try { fs.unlinkSync(part); } catch (_) {}
       }
-
-      if (!concatSuccess) {
-        console.warn("[Video] ffmpeg concat failed, falling back to primary tab recording.");
-        fs.copyFileSync(savedParts[0], videoPath);
-      }
     }
 
-    if (!fs.existsSync(videoPath)) {
-      throw new Error(`Expected final video not found: ${videoPath}`);
+    if (!fs.existsSync(videoPath) || fs.statSync(videoPath).size === 0) {
+      throw new Error(`Expected final video not found or empty: ${videoPath}`);
     }
 
     const videoBuffer = fs.readFileSync(videoPath);
@@ -437,7 +456,9 @@ Before(async function ({ pickle }) {
   });
 
   this.page = await this.context.newPage();
-  this.allPages.push(this.page);
+  if (!this.allPages.includes(this.page)) {
+    this.allPages.push(this.page);
+  }
   configurePage(this.page);
   await this.page.bringToFront().catch(() => {});
 
@@ -477,15 +498,13 @@ AfterStep(async function ({ pickleStep, result }) {
 
 After(async function ({ result }) {
   try {
-    // AfterStep normally captures failed steps. This fallback also covers failures
-    // in hooks or teardown paths where a step-level image could not be produced.
-    if (result?.status === Status.FAILED) {
-      await saveAndAttachScreenshot(
-        this,
-        this.currentStepName || "scenario",
-        "scenario-failed"
-      );
-    }
+    const isFailed = result?.status === Status.FAILED;
+    const finalSuffix = isFailed ? "scenario-failed" : "scenario-completed";
+    await saveAndAttachScreenshot(
+      this,
+      this.currentStepName || "scenario",
+      finalSuffix
+    );
 
     if (this.context) {
       await this.context.close().catch((error) => {
