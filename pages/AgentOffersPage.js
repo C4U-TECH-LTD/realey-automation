@@ -327,7 +327,12 @@ class AgentOffersPage {
       console.log("Clicked Accept button on offer card");
 
       // Wait for the confirmation dialog
-      const dialog = this.page.locator('[role="dialog"]').last();
+      const dialog = this.page
+        .locator('[role="alertdialog"], [role="dialog"], div.fixed')
+        .filter({ hasText: /Accept offer/i })
+        .or(this.page.locator('[role="alertdialog"], [role="dialog"]'))
+        .last();
+
       await expect(
         dialog,
         "Accept offer confirmation dialog should appear"
@@ -335,6 +340,9 @@ class AgentOffersPage {
 
       const confirmButton = dialog
         .getByRole("button", { name: /Confirm|Accept/i })
+        .or(dialog.locator('button').filter({ hasText: /Confirm/i }))
+        .or(this.page.getByRole("button", { name: /^Confirm$/i }))
+        .or(this.page.locator('button').filter({ hasText: /^Confirm$/i }))
         .first();
 
       await expect(
