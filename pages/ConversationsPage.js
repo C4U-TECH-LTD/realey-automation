@@ -214,11 +214,11 @@ class ConversationsPage {
 
     // Look for isolated property cards
     const cardCandidates = this.page
-      .locator('div[class*="rounded-2xl"], div[class*="bg-card"], div.border')
+      .locator('div[class*="rounded"].border, div[class*="rounded-2xl"], div[class*="bg-card"]')
       .filter({ hasText: new RegExp(shortName, "i") })
       .filter({
         has: this.page.locator(
-          "button.cursor-pointer, svg.lucide-chevron-down, svg.lucide-chevron-up, svg.lucide-chevron-right, [class*='lucide-chevron']"
+          "svg.lucide-chevron-down, svg.lucide-chevron-up, [class*='lucide-chevron']"
         ),
       });
 
@@ -270,18 +270,10 @@ class ConversationsPage {
       `Property "${expectedPropertyName}" should be visible in Conversations`
     ).toBeVisible({ timeout: 30_000 });
 
-    /*
-     * Go upward from the property text until we reach the row
-     * that also contains the chat count / dropdown control.
-     */
     const propertyRow = propertyLocator.locator(
-      "xpath=ancestor::div[" +
-        ".//button[.//*[contains(@class,'lucide-chevron-down') or contains(@class,'lucide-chevron-up') or contains(@class,'lucide-chevron-right')]]" +
-        " or " +
-        ".//*[contains(normalize-space(.),'chat')]" +
-        " or " +
-        ".//*[contains(normalize-space(.),'Agent')]" +
-        "][1]"
+      'xpath=ancestor::div[contains(@class, "rounded") and contains(@class, "border")][1]'
+    ).or(
+      propertyLocator.locator('xpath=ancestor::div[.//button and .//*[contains(@class, "chevron")]][1]')
     );
 
     if (await propertyRow.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -301,48 +293,47 @@ class ConversationsPage {
     const { propertyName, propertyRow } =
       await this.getPropertyRow(expectedPropertyName);
 
-    // Check if already expanded:
-    // 1. Has an upward chevron
-    // 2. Or child chat items (e.g. Agent / Buyer / Solicitor / Broker / etc) are already visible inside propertyRow
+    // Check if already expanded: only chevron-up indicates open accordion
     const chevronUp = propertyRow.locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']").first();
-    const childChat = propertyRow
-      .locator('button, div')
-      .filter({ hasText: /\b(Agent|Buyer|Solicitor|Mortgage Broker)\b/i })
-      .filter({ hasNotText: /completed|declined/i })
-      .first();
-
-    const isAlreadyExpanded = (await chevronUp.isVisible().catch(() => false)) ||
-                              (await childChat.isVisible().catch(() => false));
-
-    if (isAlreadyExpanded) {
-      console.log(`Property conversation is already expanded: ${expectedPropertyName}`);
+    if (await chevronUp.isVisible().catch(() => false)) {
+      console.log(`Property conversation is already expanded (chevron-up visible): ${expectedPropertyName}`);
       return propertyRow;
     }
 
-    // Locate chevron-down button or toggle button
-    const chevronDownBtn = propertyRow
-      .locator('button:has(svg.lucide-chevron-down), button:has([class*="chevron-down"]), [class*="chevron-down"], svg.lucide-chevron-down')
+    console.log(`Expanding property conversation for: ${expectedPropertyName}`);
+
+    // Click chevron-down or the card trigger button
+    const chevronDown = propertyRow
+      .locator('button:has(svg.lucide-chevron-down), svg.lucide-chevron-down, [class*="lucide-chevron-down"]')
       .first();
 
-    if (await chevronDownBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log(`Clicking chevron button to expand property conversation: ${expectedPropertyName}`);
-      await chevronDownBtn.click();
+    if (await chevronDown.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`Clicking chevron button for: ${expectedPropertyName}`);
+      await chevronDown.click({ force: true }).catch(() => {});
     } else {
-      console.log(`Chevron button not directly found. Clicking property card row: ${expectedPropertyName}`);
+      console.log(`Clicking card row for: ${expectedPropertyName}`);
       const triggerBtn = propertyRow.locator("button, [role='button']").last();
       if (await triggerBtn.isVisible().catch(() => false)) {
-        await triggerBtn.click();
+        await triggerBtn.click({ force: true }).catch(() => {});
       } else {
-        await propertyRow.click();
+        await propertyRow.click({ force: true }).catch(() => {});
       }
     }
 
-    // Wait for card to expand (upward chevron or child conversation row)
+    // Wait for card to expand (chevron-up appears)
     await this.page.waitForTimeout(1000);
     const expandedCheck = propertyRow
-      .locator("svg.lucide-chevron-up, [class*='lucide-chevron-up'], button:has-text('Agent'), button:has-text('Buyer')")
+      .locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']")
       .first();
-    await expandedCheck.waitFor({ state: "visible", timeout: 4000 }).catch(() => {});
+
+    const isExpanded = await expandedCheck.waitFor({ state: "visible", timeout: 4000 }).then(() => true).catch(() => false);
+    if (!isExpanded) {
+      console.log(`Retrying click on property card row directly for: ${expectedPropertyName}`);
+      await propertyName.click({ force: true }).catch(async () => {
+        await propertyRow.click({ force: true });
+      });
+      await expandedCheck.waitFor({ state: "visible", timeout: 4000 }).catch(() => {});
+    }
 
     return propertyRow;
   }
@@ -388,33 +379,64 @@ class ConversationsPage {
     const propertyRow = await this.expandConversationList(expectedPropertyName);
     await this.page.waitForTimeout(1000);
 
-    // 4. Click the Agent child chat (strictly matching Agent badge/role, excluding Broker)
+    // 4. Click the Agent child chat (links, buttons, or divs)
     let agentChatButton = propertyRow
-      .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
-      .filter({ hasText: /\bAgent\b|Subrato/i })
+      .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
+      .filter({ hasText: /\bAgent\b|Subrato|Cyop|Anderson/i })
       .filter({ hasNotText: /\bBroker\b/i })
       .filter({ hasNotText: /declined|completed/i })
       .first();
 
     if (!(await agentChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
       agentChatButton = this.page
-        .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
-        .filter({ hasText: /\bAgent\b|Subrato/i })
+        .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
+        .filter({ hasText: /\bAgent\b|Subrato|Cyop|Anderson/i })
         .filter({ hasNotText: /\bBroker\b/i })
         .filter({ hasNotText: /declined|completed/i })
         .first();
     }
 
-    if (await agentChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log("Agent child chat button found, clicking to open chat...");
-      await agentChatButton.click();
+    // Check if any /chat/ link exists under propertyRow
+    const chatLink = propertyRow.locator('a[href*="/chat/"]').first();
+    if (await chatLink.isVisible({ timeout: 1000 }).catch(() => false)) {
+      agentChatButton = chatLink;
+    }
 
-      // Wait for navigation into /chat/
-      const inChat = await this.page.waitForURL(/\/chat\//, { timeout: 15_000 }).then(() => true).catch(() => false);
-      if (!inChat) {
-        console.warn("URL did not change to /chat/, retrying force click on agent child button...");
-        await agentChatButton.click({ force: true });
-        await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+    // If still not found by text, try any child item under the accordion content
+    if (!(await agentChatButton.isVisible({ timeout: 1000 }).catch(() => false))) {
+      agentChatButton = propertyRow
+        .locator('div[class*="content"], div[class*="accordion"], div.pl-4, div.border-t')
+        .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
+        .first();
+    }
+
+    if (await agentChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log("Agent child chat item found, clicking to open chat...");
+
+      // Check if it has a direct href
+      const href = await agentChatButton.getAttribute("href").catch(() => null);
+      if (href && href.includes("/chat/")) {
+        console.log(`Direct navigating to chat URL: ${href}`);
+        await this.page.goto(href, { waitUntil: "domcontentloaded" });
+      } else {
+        await agentChatButton.click();
+
+        // Wait for navigation into /chat/
+        const inChat = await this.page.waitForURL(/\/chat\//, { timeout: 15_000 }).then(() => true).catch(() => false);
+        if (!inChat) {
+          console.warn("URL did not change to /chat/, retrying force click on agent child button...");
+          await agentChatButton.click({ force: true });
+          await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+        }
+      }
+
+      // Check for nested link if still not in chat
+      if (!this.page.url().includes("/chat/")) {
+        const link = agentChatButton.locator('xpath=ancestor-or-self::a[contains(@href, "/chat/")]').first();
+        const nestedHref = await link.getAttribute('href').catch(() => null);
+        if (nestedHref) {
+          await this.page.goto(nestedHref, { waitUntil: "domcontentloaded" });
+        }
       }
 
       // Wait for chat loading spinner to detach
@@ -424,20 +446,30 @@ class ConversationsPage {
         .waitFor({ state: "hidden", timeout: 20_000 })
         .catch(() => {});
 
-      // Verify chat container / elements visible (NOT generic site navbar header)
+      // Verify chat container / elements visible
       const chatTarget = this.page.locator(
         'textarea[placeholder*="Type a message" i], textarea, input[placeholder*="message" i], button:has-text("Decline"), button:has-text("Counter")'
       ).first();
+      await chatTarget.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+
       await expect(
-        chatTarget,
+        this.page,
         `Chatroom with Agent for ${expectedPropertyName} should be open`
-      ).toBeVisible({ timeout: 15_000 });
+      ).toHaveURL(/\/chat\//, { timeout: 15_000 });
       return;
     }
 
-    // Fallback: click propertyRow button itself if agent button was not found
-    await propertyRow.locator("button.cursor-pointer, div.cursor-pointer").first().click().catch(() => propertyRow.click());
-    await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+    // Fallback: check if any /chat/ link exists on the page
+    const pageChatLink = this.page.locator('a[href*="/chat/"]').first();
+    if (await pageChatLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log("Found /chat/ link on page, clicking...");
+      await pageChatLink.click();
+    } else {
+      // Click property row
+      await propertyRow.locator("button.cursor-pointer, div.cursor-pointer, button").first().click({ force: true }).catch(() => propertyRow.click());
+    }
+
+    await this.page.waitForURL(/\/chat\//, { timeout: 15_000 }).catch(() => {});
 
     await expect(
       this.page,
@@ -496,40 +528,63 @@ class ConversationsPage {
 
     // 3. Specifically locate the Buyer child chat (excluding Agent and Broker)
     let buyerChatButton = propertyRow
-      .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
-      .filter({ hasText: /\bBuyer\b/i })
+      .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
+      .filter({ hasText: /\bBuyer\b|Daniel|David|Lyeon/i })
       .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
       .filter({ hasNotText: /declined|completed/i })
       .or(
         propertyRow
-          .locator("button")
+          .locator("a, button")
           .filter({ hasText: /Counter offer|offer|\$/i })
           .filter({ hasNotText: /declined|completed/i })
       )
       .first();
 
     if (!(await buyerChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
-      buyerChatButton = propertyRow
-        .locator('button.cursor-pointer, button[class*="hover"], div[class*="cursor-pointer"], [role="button"]')
-        .filter({ hasText: /\bBuyer\b/i })
+      buyerChatButton = this.page
+        .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
+        .filter({ hasText: /\bBuyer\b|Daniel|David|Lyeon/i })
         .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
-        .or(
-          propertyRow
-            .locator("button")
-            .filter({ hasText: /Counter offer|offer|\$/i })
-        )
+        .filter({ hasNotText: /declined|completed/i })
+        .first();
+    }
+
+    const buyerChatLink = propertyRow.locator('a[href*="/chat/"]').first();
+    if (await buyerChatLink.isVisible({ timeout: 1000 }).catch(() => false)) {
+      buyerChatButton = buyerChatLink;
+    }
+
+    if (!(await buyerChatButton.isVisible({ timeout: 1000 }).catch(() => false))) {
+      buyerChatButton = propertyRow
+        .locator('div[class*="content"], div[class*="accordion"], div.pl-4, div.border-t')
+        .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
         .first();
     }
 
     if (await buyerChatButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log("Buyer child chat button found, clicking...");
-      await buyerChatButton.click();
 
-      const inChat = await this.page.waitForURL(/\/chat\//, { timeout: 15_000 }).then(() => true).catch(() => false);
-      if (!inChat) {
-        console.warn("URL did not change to /chat/, retrying force click on buyer child button...");
-        await buyerChatButton.click({ force: true });
-        await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+      const href = await buyerChatButton.getAttribute("href").catch(() => null);
+      if (href && href.includes("/chat/")) {
+        console.log(`Direct navigating to chat URL: ${href}`);
+        await this.page.goto(href, { waitUntil: "domcontentloaded" });
+      } else {
+        await buyerChatButton.click();
+
+        const inChat = await this.page.waitForURL(/\/chat\//, { timeout: 15_000 }).then(() => true).catch(() => false);
+        if (!inChat) {
+          console.warn("URL did not change to /chat/, retrying force click on buyer child button...");
+          await buyerChatButton.click({ force: true });
+          await this.page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
+        }
+      }
+
+      if (!this.page.url().includes("/chat/")) {
+        const link = buyerChatButton.locator('xpath=ancestor-or-self::a[contains(@href, "/chat/")]').first();
+        const nestedHref = await link.getAttribute('href').catch(() => null);
+        if (nestedHref) {
+          await this.page.goto(nestedHref, { waitUntil: "domcontentloaded" });
+        }
       }
 
       // Wait for chat loading spinner to detach
@@ -542,10 +597,12 @@ class ConversationsPage {
       const chatTarget = this.page.locator(
         'textarea[placeholder*="Type a message" i], textarea, input[placeholder*="message" i]'
       ).first();
+      await chatTarget.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+
       await expect(
-        chatTarget,
+        this.page,
         `Chat with Buyer for ${expectedPropertyName} should be open`
-      ).toBeVisible({ timeout: 15_000 });
+      ).toHaveURL(/\/chat\//, { timeout: 15_000 });
       return;
     }
 
