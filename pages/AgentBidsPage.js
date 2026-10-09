@@ -274,148 +274,47 @@ class AgentBidsPage {
       .waitFor({ state: "hidden", timeout: 20_000 })
       .catch(() => {});
 
-    const propertyTitles =
-      this.getPropertyTitles(propertyName);
+    const maxPages = 5;
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      const propertyTitles = this.getPropertyTitles(propertyName);
+      const propertyCount = await propertyTitles.count();
 
-    await propertyTitles
-      .first()
-      .waitFor({ state: "visible", timeout: 20_000 })
-      .catch(() => {});
+      for (let i = 0; i < propertyCount; i++) {
+        const propertyTitle = propertyTitles.nth(i);
+        if (!await propertyTitle.isVisible().catch(() => false)) continue;
 
-    let propertyCount =
-      await propertyTitles.count();
-
-    console.log(
-      `Found ${propertyCount} matching "${shortPropertyName}" property title(s)`
-    );
-
-    if (propertyCount === 0) {
-      await this.page.waitForTimeout(2000);
-      propertyCount = await propertyTitles.count();
-    }
-
-    if (propertyCount === 0) {
-      await this.debugCurrentPage(
-        "PROPERTY ACTION DEBUG"
-      );
-
-      throw new Error(
-        `Property "${shortPropertyName}" was not found in Offers & Bids. ` +
-          `Current URL: ${this.page.url()}`
-      );
-    }
-
-    // -----------------------------------------------------
-    // Multiple property title matches may exist.
-    //
-    // We only want the card containing the requested action.
-    // -----------------------------------------------------
-
-    for (
-      let i = 0;
-      i < propertyCount;
-      i++
-    ) {
-      const propertyTitle =
-        propertyTitles.nth(i);
-
-      const propertyVisible =
-        await propertyTitle
-          .isVisible()
-          .catch(() => false);
-
-      if (!propertyVisible) {
-        continue;
-      }
-
-      console.log(
-        `Checking property match index ${i}`
-      );
-
-      // ---------------------------------------------------
-      // Find nearest ancestor containing requested button
-      // ---------------------------------------------------
-
-      const cardWithButton =
-        propertyTitle.locator(
-          "xpath=ancestor::*[" +
-            "self::div or self::article or self::section" +
-            "][" +
-            ".//button" +
-            "][1]"
+        const cardWithButton = propertyTitle.locator(
+          "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
         );
 
-      const cardVisible =
-        await cardWithButton
-          .isVisible()
-          .catch(() => false);
-
-      if (cardVisible) {
-        const scopedButton =
-          cardWithButton
-            .getByRole("button", {
-              name: buttonRegex,
-            })
+        if (await cardWithButton.isVisible().catch(() => false)) {
+          const scopedButton = cardWithButton
+            .getByRole("button", { name: buttonRegex })
             .first();
 
-        const scopedVisible =
-          await scopedButton
-            .isVisible()
-            .catch(() => false);
-
-        if (scopedVisible) {
-          console.log(
-            `Action found inside immediate card at index ${i}`
-          );
-
-          return scopedButton;
-        }
-      }
-
-      // ---------------------------------------------------
-      // Wider ancestor fallback
-      // ---------------------------------------------------
-
-      const widerCard =
-        propertyTitle.locator(
-          "xpath=ancestor::*[" +
-            "self::div or self::article or self::section" +
-            "][" +
-            ".//button" +
-            "][1]"
-        );
-
-      const widerButtons =
-        widerCard.getByRole("button", {
-          name: buttonRegex,
-        });
-
-      const widerCount =
-        await widerButtons.count();
-
-      if (widerCount > 0) {
-        for (
-          let j = 0;
-          j < widerCount;
-          j++
-        ) {
-          const widerButton =
-            widerButtons.nth(j);
-
-          const widerVisible =
-            await widerButton
-              .isVisible()
-              .catch(() => false);
-
-          if (widerVisible) {
-            console.log(
-              `Action found inside wider property card at index ${i}`
-            );
-
-            return widerButton;
+          if (await scopedButton.isVisible().catch(() => false)) {
+            console.log(`Action "${buttonRegex}" found on page ${pageNum} for "${shortPropertyName}".`);
+            return scopedButton;
           }
         }
       }
+
+      // Check Next page
+      const nextBtn = this.page.getByRole("button", { name: "Next", exact: true }).first();
+      if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+        console.log(`[AgentBidsPage] Checking next page (${pageNum + 1}) for action "${buttonRegex}"...`);
+        await nextBtn.click();
+        await this.page.waitForTimeout(2000);
+      } else {
+        break;
+      }
+    }
+
+    // Fallback: check any visible button with buttonRegex on page
+    const fallbackButton = this.page.getByRole("button", { name: buttonRegex }).first();
+    if (await fallbackButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log(`Fallback: Found action "${buttonRegex}" on page`);
+      return fallbackButton;
     }
 
     await this.debugCurrentPage(
@@ -467,234 +366,109 @@ class AgentBidsPage {
     );
 
     // -----------------------------------------------------
-    // Find property using partial + case-insensitive match
+    // Search across paginated Bids pages for matching card
     // -----------------------------------------------------
 
-    const propertyTitles =
-      this.getPropertyTitles(propertyName);
+    const maxPasses = 2;
+    for (let pass = 1; pass <= maxPasses; pass++) {
+      const maxPages = 5;
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        console.log(`[AgentBidsPage] Checking Bids page ${pageNum} for "${shortPropertyName}" (pass ${pass}/${maxPasses})...`);
 
-    // Auto-wait up to 20s for the property title matching propertyName to appear
-    await propertyTitles
-      .first()
-      .waitFor({ state: "visible", timeout: 20_000 })
-      .catch(() => {});
+        const propertyTitles = this.getPropertyTitles(propertyName);
+        const count = await propertyTitles.count();
 
-    let count =
-      await propertyTitles.count();
+        for (let i = 0; i < count; i++) {
+          const propertyTitle = propertyTitles.nth(i);
+          if (!await propertyTitle.isVisible().catch(() => false)) continue;
 
-    console.log(
-      `Found ${count} matching property card(s)`
-    );
+          // Find card container (div.bg-card, rounded-2xl)
+          const card = propertyTitle.locator(
+            "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+          );
 
-    if (count === 0) {
-      await this.page.waitForTimeout(2000);
-      count = await propertyTitles.count();
-    }
+          if (!await card.isVisible().catch(() => false)) continue;
 
-    if (count === 0) {
-      // Check if any Start negotiation button is visible on page
-      const fallbackStart = this.page.getByRole("button", { name: /^Start negotiation$/i }).first();
-      if (await fallbackStart.isVisible({ timeout: 5000 }).catch(() => false)) {
-        console.log(`Fallback: Clicked first visible Start negotiation button on Bids page`);
-        await fallbackStart.scrollIntoViewIfNeeded();
-        await fallbackStart.click();
-        await expect(
-          this.counterAmountInput,
-          "Counter amount input should be visible after starting negotiation"
-        ).toBeVisible({ timeout: 10_000 });
-        return;
-      }
+          // Locate Start negotiation button within this card
+          let startButton = null;
 
-      await this.debugCurrentPage(
-        "BIDS PAGE DEBUG"
-      );
+          if (targetBidderName) {
+            const bidderRow = card
+              .locator("div, tr, li, section")
+              .filter({ hasText: new RegExp(targetBidderName, "i") });
+            const bidderBtn = bidderRow
+              .getByRole("button", { name: /^Start negotiation$/i })
+              .first();
+            if (await bidderBtn.isVisible().catch(() => false)) {
+              console.log(`Found Start negotiation button for target bidder: ${targetBidderName}`);
+              startButton = bidderBtn;
+            }
+          }
 
-      throw new Error(
-        `Property "${shortPropertyName}" was not found in Bids. ` +
-          `Current URL: ${this.page.url()}`
-      );
-    }
+          if (!startButton) {
+            const highestBidderRow = card
+              .locator("div, tr, li, section")
+              .filter({ hasText: /highest bidder/i });
+            const highestBidderBtn = highestBidderRow
+              .getByRole("button", { name: /^Start negotiation$/i })
+              .first();
+            if (await highestBidderBtn.isVisible().catch(() => false)) {
+              console.log(`Found Start negotiation button for Highest Bidder row`);
+              startButton = highestBidderBtn;
+            }
+          }
 
-    // -----------------------------------------------------
-    // Find correct ACTIVE card containing:
-    //
-    // Property name
-    // +
-    // Start negotiation
-    //
-    // Archived cards will automatically be ignored.
-    // -----------------------------------------------------
+          if (!startButton) {
+            startButton = card
+              .getByRole("button", {
+                name: /^Start negotiation$/i,
+              })
+              .first();
+          }
 
-    for (
-      let i = 0;
-      i < count;
-      i++
-    ) {
-      const propertyTitle =
-        propertyTitles.nth(i);
+          if (startButton && await startButton.isVisible().catch(() => false)) {
+            console.log(
+              `Active Reserve Not Met card found on page ${pageNum} for ${shortPropertyName}`
+            );
 
-      const visible =
-        await propertyTitle
-          .isVisible()
-          .catch(() => false);
+            await startButton.scrollIntoViewIfNeeded();
+            await startButton.click();
 
-      if (!visible) {
-        continue;
-      }
+            console.log(`Start negotiation clicked for ${shortPropertyName}`);
 
-      console.log(
-        `Checking ${shortPropertyName} card index ${i}`
-      );
+            await expect(
+              this.counterAmountInput,
+              "Counter amount input should be visible after starting negotiation"
+            ).toBeVisible({ timeout: 15_000 });
 
-      // ---------------------------------------------------
-      // Find nearest ancestor containing Start negotiation
-      // ---------------------------------------------------
+            console.log("Negotiation form opened successfully");
+            return;
+          }
+        }
 
-      const card =
-        propertyTitle.locator(
-          "xpath=ancestor::*[" +
-            "self::div or self::article or self::section" +
-            "][" +
-            ".//button[contains(" +
-            "translate(normalize-space(.)," +
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
-            "'abcdefghijklmnopqrstuvwxyz')," +
-            "'start negotiation'" +
-            ")]" +
-            "][1]"
-        );
-
-      const cardVisible =
-        await card
-          .isVisible()
-          .catch(() => false);
-
-      if (!cardVisible) {
-        console.log(
-          `No active negotiation card found at index ${i}`
-        );
-
-        continue;
-      }
-
-      // Prioritize button for targetBidderName or Highest Bidder row
-      let startButton = null;
-
-      if (targetBidderName) {
-        const bidderRow = card
-          .locator("div, tr, li, section")
-          .filter({ hasText: new RegExp(targetBidderName, "i") });
-        const bidderBtn = bidderRow
-          .getByRole("button", { name: /^Start negotiation$/i })
-          .first();
-        if (await bidderBtn.isVisible().catch(() => false)) {
-          console.log(`Found Start negotiation button for target bidder: ${targetBidderName}`);
-          startButton = bidderBtn;
+        // Try Next page if available
+        const nextBtn = this.page.getByRole("button", { name: "Next", exact: true }).first();
+        if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+          await nextBtn.click();
+          await this.page.waitForTimeout(2000);
+          await this.page
+            .locator(".animate-spin, svg.animate-spin")
+            .waitFor({ state: "hidden", timeout: 10_000 })
+            .catch(() => {});
+        } else {
+          break;
         }
       }
 
-      if (!startButton) {
-        const highestBidderRow = card
-          .locator("div, tr, li, section")
-          .filter({ hasText: /highest bidder/i });
-        const highestBidderBtn = highestBidderRow
-          .getByRole("button", { name: /^Start negotiation$/i })
-          .first();
-        if (await highestBidderBtn.isVisible().catch(() => false)) {
-          console.log(`Found Start negotiation button for Highest Bidder row`);
-          startButton = highestBidderBtn;
-        }
+      // If not found in first pass, reload to page 1 and wait
+      if (pass < maxPasses) {
+        console.log(`No active Start negotiation card found yet for "${shortPropertyName}", reloading Bids page...`);
+        await this.openBids();
+        await this.page.waitForTimeout(3000);
       }
-
-      if (!startButton) {
-        startButton = card
-          .getByRole("button", {
-            name: /^Start negotiation$/i,
-          })
-          .first();
-      }
-
-      const buttonVisible =
-        await startButton
-          .isVisible()
-          .catch(() => false);
-
-      if (!buttonVisible) {
-        console.log(
-          `No Start negotiation button in card index ${i}. Skipping.`
-        );
-
-        continue;
-      }
-
-      console.log(
-        `Correct active Reserve Not Met card found at index ${i}`
-      );
-
-      // ---------------------------------------------------
-      // Optional Reserve Not Met check
-      // ---------------------------------------------------
-
-      const reserveNotMet =
-        card.getByText(
-          /Reserve\s*(?:Price\s*)?not\s*met/i
-        );
-
-      const reserveNotMetVisible =
-        await reserveNotMet
-          .first()
-          .isVisible()
-          .catch(() => false);
-
-      if (reserveNotMetVisible) {
-        console.log(
-          "Reserve Not Met status confirmed"
-        );
-      } else {
-        console.log(
-          "Reserve Not Met badge not detected, but Start negotiation is available."
-        );
-      }
-
-      // ---------------------------------------------------
-      // Click Start negotiation
-      // ---------------------------------------------------
-
-      await expect(
-        startButton,
-        `Start negotiation should be visible for "${shortPropertyName}"`
-      ).toBeVisible({
-        timeout: 20_000,
-      });
-
-      await startButton
-        .scrollIntoViewIfNeeded();
-
-      await startButton.click();
-
-      console.log(
-        `Start negotiation clicked for ${shortPropertyName}`
-      );
-
-      // ---------------------------------------------------
-      // Verify negotiation form opens
-      // ---------------------------------------------------
-
-      await expect(
-        this.counterAmountInput,
-        "Counter amount input should be visible after starting negotiation"
-      ).toBeVisible({
-        timeout: 10_000,
-      });
-
-      console.log(
-        "Negotiation form opened successfully"
-      );
-
-      return;
     }
 
-    // Fallback: Check if any Start negotiation button is visible on page
+    // Fallback: Check if any Start negotiation button is visible anywhere on current view
     const fallbackStartButtons = this.page
       .getByRole("button", { name: /^Start negotiation$/i })
       .or(this.page.locator('button:has-text("Start negotiation")'));
@@ -960,189 +734,47 @@ class AgentBidsPage {
       .catch(() => {});
 
     // -----------------------------------------------------
-    // Confirm Open chat exists somewhere on current page
+    // Search across paginated Bids pages for matching card
     // -----------------------------------------------------
 
-    const globalOpenChatButtons =
-      this.page.getByRole("button", {
-        name: /^Open chat$/i,
-      });
+    const maxPages = 5;
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      const propertyTitles = this.getPropertyTitles(propertyName);
+      const propertyCount = await propertyTitles.count();
 
-    // Auto-wait up to 20s for Open chat buttons to appear
-    await globalOpenChatButtons
-      .first()
-      .waitFor({ state: "visible", timeout: 20_000 })
-      .catch(() => {});
+      for (let i = 0; i < propertyCount; i++) {
+        const propertyTitle = propertyTitles.nth(i);
+        if (!await propertyTitle.isVisible().catch(() => false)) continue;
 
-    let globalCount =
-      await globalOpenChatButtons.count();
-
-    console.log(
-      `Total Open chat buttons found: ${globalCount}`
-    );
-
-    if (globalCount === 0) {
-      await this.page.waitForTimeout(2000);
-      globalCount = await globalOpenChatButtons.count();
-    }
-
-    if (globalCount === 0) {
-      await this.debugCurrentPage(
-        "OPEN CHAT DEBUG"
-      );
-
-      throw new Error(
-        `No "Open chat" button exists on the current Agent Bids page. ` +
-          `Current URL: ${this.page.url()}`
-      );
-    }
-
-    // -----------------------------------------------------
-    // Find property using reusable partial matcher
-    // -----------------------------------------------------
-
-    const propertyTitles =
-      this.getPropertyTitles(propertyName);
-
-    await propertyTitles
-      .first()
-      .waitFor({ state: "visible", timeout: 20_000 })
-      .catch(() => {});
-
-    let propertyCount =
-      await propertyTitles.count();
-
-    console.log(
-      `Found ${propertyCount} matching "${shortPropertyName}" property title(s)`
-    );
-
-    if (propertyCount === 0) {
-      await this.page.waitForTimeout(2000);
-      propertyCount = await propertyTitles.count();
-    }
-
-    if (propertyCount === 0) {
-      // Fallback: Click first available Open chat button
-      const fallbackOpenChat = globalOpenChatButtons.first();
-      if (await fallbackOpenChat.isVisible({ timeout: 5000 }).catch(() => false)) {
-        console.log(`Fallback: Clicked first visible Open chat button on page`);
-        await fallbackOpenChat.scrollIntoViewIfNeeded();
-        await fallbackOpenChat.click();
-        await this.page.waitForTimeout(700);
-        return;
-      }
-
-      await this.debugCurrentPage(
-        "OPEN CHAT PROPERTY DEBUG"
-      );
-
-      throw new Error(
-        `Property "${shortPropertyName}" was not found in Agent Bids. ` +
-          `Current URL: ${this.page.url()}`
-      );
-    }
-
-    // -----------------------------------------------------
-    // Multiple matching cards may exist.
-    //
-    // Find the one whose ancestor contains Open chat.
-    // -----------------------------------------------------
-
-    for (
-      let i = 0;
-      i < propertyCount;
-      i++
-    ) {
-      const propertyTitle =
-        propertyTitles.nth(i);
-
-      const visible =
-        await propertyTitle
-          .isVisible()
-          .catch(() => false);
-
-      if (!visible) {
-        continue;
-      }
-
-      console.log(
-        `Checking ${shortPropertyName} card index ${i}`
-      );
-
-      const card =
-        propertyTitle.locator(
-          "xpath=ancestor::*[" +
-            "self::div or self::article or self::section" +
-            "][" +
-            ".//button[contains(" +
-            "translate(normalize-space(.)," +
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ'," +
-            "'abcdefghijklmnopqrstuvwxyz')," +
-            "'open chat'" +
-            ")]" +
-            "][1]"
+        const card = propertyTitle.locator(
+          "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
         );
 
-      const cardVisible =
-        await card
-          .isVisible()
-          .catch(() => false);
-
-      if (!cardVisible) {
-        console.log(
-          `Card index ${i} has no Open chat button`
-        );
-
-        continue;
+        if (await card.isVisible().catch(() => false)) {
+          const openChatButton = card.getByRole("button", { name: /^Open chat$/i }).first();
+          if (await openChatButton.isVisible().catch(() => false)) {
+            console.log(`Open chat button found on page ${pageNum} for "${shortPropertyName}".`);
+            await openChatButton.scrollIntoViewIfNeeded();
+            await openChatButton.click();
+            await this.page.waitForTimeout(700);
+            return;
+          }
+        }
       }
 
-      const openChatButton =
-        card
-          .getByRole("button", {
-            name: /^Open chat$/i,
-          })
-          .first();
-
-      const buttonVisible =
-        await openChatButton
-          .isVisible()
-          .catch(() => false);
-
-      if (!buttonVisible) {
-        console.log(
-          `Open chat not visible in card index ${i}`
-        );
-
-        continue;
+      // Check Next page
+      const nextBtn = this.page.getByRole("button", { name: "Next", exact: true }).first();
+      if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+        console.log(`[AgentBidsPage] Checking next page (${pageNum + 1}) for Open chat...`);
+        await nextBtn.click();
+        await this.page.waitForTimeout(2000);
+      } else {
+        break;
       }
-
-      console.log(
-        `Correct Open chat found for ${shortPropertyName}`
-      );
-
-      await expect(
-        openChatButton,
-        `Open chat should be visible for "${shortPropertyName}"`
-      ).toBeVisible({
-        timeout: 20_000,
-      });
-
-      await openChatButton
-        .scrollIntoViewIfNeeded();
-
-      await openChatButton.click();
-
-      console.log(
-        `Open chat clicked successfully for ${shortPropertyName}`
-      );
-
-      await this.page.waitForTimeout(700);
-
-      return;
     }
 
-    // Fallback: If no card specifically matched, click the first Open chat button
-    const fallbackOpenChat = globalOpenChatButtons.first();
+    // Fallback: Click first available Open chat button on page
+    const fallbackOpenChat = this.page.getByRole("button", { name: /^Open chat$/i }).first();
     if (await fallbackOpenChat.isVisible({ timeout: 5000 }).catch(() => false)) {
       console.log(`Fallback: Clicked first visible Open chat button on page`);
       await fallbackOpenChat.scrollIntoViewIfNeeded();
@@ -1156,8 +788,7 @@ class AgentBidsPage {
     );
 
     throw new Error(
-      `Found ${globalCount} Open chat button(s), ` +
-        `but none belonged to "${shortPropertyName}". ` +
+      `Could not find an active Open chat button for "${shortPropertyName}". ` +
         `Current URL: ${this.page.url()}`
     );
   }

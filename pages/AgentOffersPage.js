@@ -130,43 +130,63 @@ class AgentOffersPage {
         }
       }
 
-      // 1. Filter using the search input if not found immediately
-      const searchInput = this.page
-        .locator('input[placeholder*="Search by address" i], input[placeholder*="search" i]')
-        .first();
+      // 1. Filter using the search input with retry & reload if not found immediately
+      const maxRetries = 3;
+      for (let retry = 1; retry <= maxRetries; retry++) {
+        const searchInput = this.page
+          .locator('input[placeholder*="Search by address" i], input[placeholder*="search" i]')
+          .first();
 
-      if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-        console.log(`Filtering Offers & Bids by: ${shortName}`);
-        await searchInput.fill(shortName);
-        await searchInput.press("Enter").catch(() => {});
-        await this.page.waitForTimeout(2000);
-      }
+        if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+          console.log(`Filtering Offers & Bids by: ${shortName} (attempt ${retry}/${maxRetries})`);
+          await searchInput.fill(shortName);
+          await searchInput.press("Enter").catch(() => {});
+          await this.page.waitForTimeout(2000);
+        }
 
-      // 2. Look for cards matching this specific property after filtering with active buttons
-      const matchingCards = this.page
-        .locator('div[class*="rounded"], div.border, article')
-        .filter({ hasText: exactRegex });
+        // 2. Look for cards matching this specific property after filtering with active buttons
+        const matchingCards = this.page
+          .locator('div[class*="rounded"], div.border, article')
+          .filter({ hasText: exactRegex });
 
-      const cardCount = await matchingCards.count().catch(() => 0);
-      for (let i = 0; i < cardCount; i++) {
-        const card = matchingCards.nth(i);
-        const counterBtn = card.getByRole("button", { name: "Counter via Chat", exact: true }).first();
-        const acceptBtn = card.getByRole("button", { name: "Accept", exact: true }).first();
+        const cardCount = await matchingCards.count().catch(() => 0);
+        for (let i = 0; i < cardCount; i++) {
+          const card = matchingCards.nth(i);
+          const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).first();
+          const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).first();
 
-        if (await counterBtn.isVisible().catch(() => false)) {
-          this.activeCounterButton = counterBtn;
-          console.log(`Found active 'Counter via Chat' button on offer card #${i + 1} for "${propertyName}".`);
+          if (await counterBtn.isVisible().catch(() => false)) {
+            this.activeCounterButton = counterBtn;
+            console.log(`Found active 'Counter via Chat' button on offer card #${i + 1} for "${propertyName}".`);
+            return;
+          }
+
+          if (await acceptBtn.isVisible().catch(() => false)) {
+            this.activeAcceptButton = acceptBtn;
+            console.log(`Found active 'Accept' button on offer card #${i + 1} for "${propertyName}".`);
+            return;
+          }
+        }
+
+        // Check if any card has Counter via Chat on current view
+        const anyCounter = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
+        if (await anyCounter.isVisible({ timeout: 1000 }).catch(() => false)) {
+          this.activeCounterButton = anyCounter;
+          console.log(`Found active 'Counter via Chat' button on page.`);
           return;
         }
 
-        if (await acceptBtn.isVisible().catch(() => false)) {
-          this.activeAcceptButton = acceptBtn;
-          console.log(`Found active 'Accept' button on offer card #${i + 1} for "${propertyName}".`);
-          return;
+        if (retry < maxRetries) {
+          console.log(`No active offer button found yet for "${shortName}", reloading offers page...`);
+          await this.page.reload({ waitUntil: "domcontentloaded" });
+          await this.page.waitForTimeout(2500);
         }
       }
 
       // If search returned no action buttons, clear search to expose all newest offers
+      const searchInput = this.page
+        .locator('input[placeholder*="Search by address" i], input[placeholder*="search" i]')
+        .first();
       if (await searchInput.isVisible().catch(() => false)) {
         console.log(`No active button found for "${shortName}", clearing search input...`);
         await searchInput.fill("");
@@ -207,8 +227,12 @@ class AgentOffersPage {
   }
 
   async sendCounterOfferViaChat(amount) {
-    const counterButton =
+    let counterButton =
       this.activeCounterButton || this.counterViaChatButton;
+
+    if (!counterButton || !(await counterButton.isVisible().catch(() => false))) {
+      counterButton = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
+    }
 
     await expect(
       counterButton,

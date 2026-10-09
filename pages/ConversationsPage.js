@@ -293,10 +293,15 @@ class ConversationsPage {
     const { propertyName, propertyRow } =
       await this.getPropertyRow(expectedPropertyName);
 
-    // Check if already expanded: only chevron-up indicates open accordion
-    const chevronUp = propertyRow.locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']").first();
-    if (await chevronUp.isVisible().catch(() => false)) {
-      console.log(`Property conversation is already expanded (chevron-up visible): ${expectedPropertyName}`);
+    // Check if card is ALREADY expanded
+    const isAlreadyExpanded = await propertyRow
+      .locator("svg.lucide-chevron-down.rotate-180, svg[class*='rotate-180'], [class*='rotate-180'], .divide-y")
+      .first()
+      .isVisible({ timeout: 1500 })
+      .catch(() => false);
+
+    if (isAlreadyExpanded) {
+      console.log(`Property conversation already expanded for: ${expectedPropertyName}`);
       return propertyRow;
     }
 
@@ -312,7 +317,7 @@ class ConversationsPage {
       await chevronDown.click({ force: true }).catch(() => {});
     } else {
       console.log(`Clicking card row for: ${expectedPropertyName}`);
-      const triggerBtn = propertyRow.locator("button, [role='button']").last();
+      const triggerBtn = propertyRow.locator("button, [role='button']").first();
       if (await triggerBtn.isVisible().catch(() => false)) {
         await triggerBtn.click({ force: true }).catch(() => {});
       } else {
@@ -320,18 +325,18 @@ class ConversationsPage {
       }
     }
 
-    // Wait for card to expand (chevron-up appears)
+    // Wait for card to expand (chevron rotates 180deg or child list appears)
     await this.page.waitForTimeout(1000);
     const expandedCheck = propertyRow
-      .locator("svg.lucide-chevron-up, [class*='lucide-chevron-up']")
+      .locator("svg.rotate-180, [class*='rotate-180'], .divide-y, button:has-text('Agent'), button:has-text('Buyer')")
       .first();
 
     const isExpanded = await expandedCheck.waitFor({ state: "visible", timeout: 4000 }).then(() => true).catch(() => false);
     if (!isExpanded) {
-      console.log(`Retrying click on property card row directly for: ${expectedPropertyName}`);
-      await propertyName.click({ force: true }).catch(async () => {
-        await propertyRow.click({ force: true });
-      });
+      console.log(`Retrying click on chevron for: ${expectedPropertyName}`);
+      if (await chevronDown.isVisible().catch(() => false)) {
+        await chevronDown.click({ force: true }).catch(() => {});
+      }
       await expandedCheck.waitFor({ state: "visible", timeout: 4000 }).catch(() => {});
     }
 
@@ -381,11 +386,15 @@ class ConversationsPage {
 
     // 4. Click the Agent child chat (links, buttons, or divs)
     let agentChatButton = propertyRow
-      .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
+      .locator('.divide-y button[type="button"], button[type="button"]')
       .filter({ hasText: /\bAgent\b|Subrato|Cyop|Anderson/i })
       .filter({ hasNotText: /\bBroker\b/i })
       .filter({ hasNotText: /declined|completed/i })
       .first();
+
+    if (!(await agentChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
+      agentChatButton = propertyRow.locator('.divide-y button[type="button"]').first();
+    }
 
     if (!(await agentChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
       agentChatButton = this.page
@@ -526,25 +535,23 @@ class ConversationsPage {
     const propertyRow = await this.expandConversationList(expectedPropertyName);
     await this.page.waitForTimeout(1000);
 
-    // 3. Specifically locate the Buyer child chat (excluding Agent and Broker)
+    // 3. Specifically locate the Buyer child chat (under .divide-y or containing Buyer)
     let buyerChatButton = propertyRow
-      .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
+      .locator('.divide-y button[type="button"], button[type="button"]')
       .filter({ hasText: /\bBuyer\b|Daniel|David|Lyeon/i })
-      .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
+      .filter({ hasNotText: /\bBroker\b/i })
       .filter({ hasNotText: /declined|completed/i })
-      .or(
-        propertyRow
-          .locator("a, button")
-          .filter({ hasText: /Counter offer|offer|\$/i })
-          .filter({ hasNotText: /declined|completed/i })
-      )
       .first();
+
+    if (!(await buyerChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
+      buyerChatButton = propertyRow.locator('.divide-y button[type="button"]').first();
+    }
 
     if (!(await buyerChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
       buyerChatButton = this.page
         .locator('a, button, div[role="button"], [class*="cursor-pointer"]')
         .filter({ hasText: /\bBuyer\b|Daniel|David|Lyeon/i })
-        .filter({ hasNotText: /\bAgent\b|\bBroker\b/i })
+        .filter({ hasNotText: /\bBroker\b/i })
         .filter({ hasNotText: /declined|completed/i })
         .first();
     }
