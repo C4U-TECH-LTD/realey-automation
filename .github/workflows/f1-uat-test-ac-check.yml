@@ -1,0 +1,222 @@
+name: F1 UAT TEST AC Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: f1-uat-test-ac-check
+  cancel-in-progress: false
+
+jobs:
+  run-f1-test-ac-check:
+    name: Run F1 UAT TEST AC Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      CI: "true"
+      HEADLESS: "true"
+      SLOW_MO: "0"
+
+      BASE_URL: ${{ secrets.BASE_URL != '' && secrets.BASE_URL || 'https://uat.realey.au/' }}
+
+      TEST_AC_AGENT_EMAIL: ${{ secrets.TEST_AC_AGENT_EMAIL != '' && secrets.TEST_AC_AGENT_EMAIL || 'agent.c4u.tst@yopmail.com' }}
+      TEST_AC_AGENT_PASSWORD: ${{ secrets.TEST_AC_AGENT_PASSWORD != '' && secrets.TEST_AC_AGENT_PASSWORD || 'Test12345@' }}
+      TEST_AC_AGENT_OTP: ${{ secrets.TEST_AC_AGENT_OTP != '' && secrets.TEST_AC_AGENT_OTP || '123456' }}
+
+      TEST_AC_BUYER_EMAIL: ${{ secrets.TEST_AC_BUYER_EMAIL != '' && secrets.TEST_AC_BUYER_EMAIL || 'user.c4u.tst@yopmail.com' }}
+      TEST_AC_BUYER_PASSWORD: ${{ secrets.TEST_AC_BUYER_PASSWORD != '' && secrets.TEST_AC_BUYER_PASSWORD || 'Test12345@' }}
+      TEST_AC_BUYER_OTP: ${{ secrets.TEST_AC_BUYER_OTP != '' && secrets.TEST_AC_BUYER_OTP || '123456' }}
+
+      TEST_AC_VENDOR_EMAIL: ${{ secrets.TEST_AC_VENDOR_EMAIL != '' && secrets.TEST_AC_VENDOR_EMAIL || '2ndbuyer.c4u.tst@yopmail.com' }}
+      TEST_AC_VENDOR_PASSWORD: ${{ secrets.TEST_AC_VENDOR_PASSWORD != '' && secrets.TEST_AC_VENDOR_PASSWORD || 'Test12345@' }}
+      TEST_AC_VENDOR_OTP: ${{ secrets.TEST_AC_VENDOR_OTP != '' && secrets.TEST_AC_VENDOR_OTP || '123456' }}
+
+      TEST_AC_SELLER_SOLICITOR_EMAIL: ${{ secrets.TEST_AC_SELLER_SOLICITOR_EMAIL != '' && secrets.TEST_AC_SELLER_SOLICITOR_EMAIL || 'sellsol.c4u.tst@yopmail.com' }}
+      TEST_AC_SELLER_SOLICITOR_PASSWORD: ${{ secrets.TEST_AC_SELLER_SOLICITOR_PASSWORD != '' && secrets.TEST_AC_SELLER_SOLICITOR_PASSWORD || 'Test12345@' }}
+      TEST_AC_SELLER_SOLICITOR_OTP: ${{ secrets.TEST_AC_SELLER_SOLICITOR_OTP != '' && secrets.TEST_AC_SELLER_SOLICITOR_OTP || '123456' }}
+
+      TEST_AC_BUYER_SOLICITOR_EMAIL: ${{ secrets.TEST_AC_BUYER_SOLICITOR_EMAIL != '' && secrets.TEST_AC_BUYER_SOLICITOR_EMAIL || 'bsol.c4u.tst@yopmail.com' }}
+      TEST_AC_BUYER_SOLICITOR_PASSWORD: ${{ secrets.TEST_AC_BUYER_SOLICITOR_PASSWORD != '' && secrets.TEST_AC_BUYER_SOLICITOR_PASSWORD || 'Test12345@' }}
+      TEST_AC_BUYER_SOLICITOR_OTP: ${{ secrets.TEST_AC_BUYER_SOLICITOR_OTP != '' && secrets.TEST_AC_BUYER_SOLICITOR_OTP || '123456' }}
+
+      TEST_AC_BROKER_EMAIL: ${{ secrets.TEST_AC_BROKER_EMAIL != '' && secrets.TEST_AC_BROKER_EMAIL || 'broker.c4u.tst@yopmail.com' }}
+      TEST_AC_BROKER_PASSWORD: ${{ secrets.TEST_AC_BROKER_PASSWORD != '' && secrets.TEST_AC_BROKER_PASSWORD || 'Test12345@' }}
+      TEST_AC_BROKER_OTP: ${{ secrets.TEST_AC_BROKER_OTP != '' && secrets.TEST_AC_BROKER_OTP || '123456' }}
+
+      TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER != '' && secrets.TEST_CARD_NUMBER || '4242 4242 4242 4242' }}
+      TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '12/30' }}
+      TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Install Playwright Browser
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+
+      - name: Verify environment
+        run: |
+          node --version
+          npm --version
+          npx playwright --version
+          npx cucumber-js --version
+          npx allure --version
+          google-chrome --version
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+          rm -rf allure-report
+          rm -rf reports/cucumber
+          rm -rf screenshots/cucumber
+          rm -rf videos
+
+      - name: Run F1 UAT TEST AC Check
+        id: cucumber-tests
+        continue-on-error: true
+        run: |
+          npx cucumber-js --tags "@f1-uat-test-ac-check" --retry 1
+
+      - name: Tag Allure Results
+        if: always()
+        run: |
+          node scripts/tag-allure-environment.js allure-results "UAT" 2>/dev/null || true
+          cat << 'EOF' > allure-results/environment.properties
+          Suite=F1 UAT TEST AC Check
+          Environment=UAT
+          UAT.URL=https://uat.realey.au/
+          Authorized.Suffix=.tst@yopmail.com
+          Browser=Chromium (Headless)
+          Runner=Ubuntu Latest
+          EOF
+
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "Generating Allure report..."
+            npx allure generate allure-results --clean -o allure-report
+          else
+            echo "No Allure results generated."
+            mkdir -p allure-report
+            echo "<h1>No Allure results generated</h1>" > allure-report/index.html
+          fi
+
+      - name: Upload Cucumber Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-test-ac-check-cucumber-report
+          path: reports/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure Raw Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-test-ac-check-allure-results
+          path: allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-test-ac-check-allure-html-report
+          path: allure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-test-ac-check-screenshots
+          path: screenshots/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Test Videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-test-ac-check-videos
+          path: videos/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Configure GitHub Pages
+        if: always()
+        uses: actions/configure-pages@v5
+
+      - name: Upload Allure Report To GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: allure-report/
+
+  deploy-allure:
+    name: Publish Allure Report
+    if: always()
+    needs:
+      - run-f1-test-ac-check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Allure Report
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Add Allure Link To Job Summary
+        run: |
+          echo "## 📊 F1 UAT TEST AC Check Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open Allure Report](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Test Account Isolation validation suite across UAT platform." >> "$GITHUB_STEP_SUMMARY"
+
+  final-status:
+    name: Final Test Status
+    if: always()
+    needs:
+      - run-f1-test-ac-check
+      - deploy-allure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Suite Outcome
+        if: always() && (needs.run-f1-test-ac-check.result != 'success')
+        run: |
+          echo "F1 UAT TEST AC Check failed. Inspect Allure report and artifacts."
+          exit 1

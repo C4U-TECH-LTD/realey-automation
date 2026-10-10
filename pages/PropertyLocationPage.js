@@ -617,6 +617,76 @@ class PropertyLocationPage {
   }
 
   // =====================================================
+  // VERIFY & ASSIGN SELLER SOLICITOR WITH ISOLATION
+  // =====================================================
+
+  async verifyAndAssignSellerSolicitorWithIsolation(
+    authorizedEmail = "sellsol.c4u.tst@yopmail.com",
+    forbiddenAccounts = []
+  ) {
+    console.log(`[Account Isolation Check] Verifying Seller Solicitor assignment isolation...`);
+
+    const addBtn = this.page
+      .locator("button")
+      .filter({ hasText: /Add a solicitor to this listing/i })
+      .first();
+
+    await expect(addBtn, "Add a solicitor button should be visible").toBeVisible({ timeout: 10_000 });
+    await addBtn.click();
+    await this.page.waitForTimeout(1000);
+
+    const dialog = this.page.locator('[role="dialog"]').last();
+    await expect(dialog, "Assign solicitor dialog should open").toBeVisible({ timeout: 10_000 });
+
+    const searchInput = dialog
+      .locator('input[type="text"], input[type="search"], input[placeholder*="search" i]')
+      .first();
+
+    // 1. Verify initially visible accounts do not contain forbidden accounts
+    const initialText = await dialog.innerText();
+    for (const legacy of forbiddenAccounts) {
+      if (initialText.includes(legacy.email) || (legacy.name && initialText.includes(legacy.name))) {
+        throw new Error(
+          `[Account Isolation Violation] Forbidden legacy account "${legacy.email}" appeared in Seller Solicitor dialog!`
+        );
+      }
+    }
+
+    // 2. Search for each legacy account specifically to verify server-side filtering
+    for (const legacy of forbiddenAccounts) {
+      if (legacy.role && !/solicitor/i.test(legacy.role)) continue;
+      console.log(`[Account Isolation Check] Searching for forbidden legacy solicitor: ${legacy.email}...`);
+      await searchInput.fill(legacy.email);
+      await this.page.waitForTimeout(1000);
+
+      const searchResultText = await dialog.innerText();
+      const hasLegacy = searchResultText.includes(legacy.email) || (legacy.name && searchResultText.includes(legacy.name));
+      if (hasLegacy) {
+        throw new Error(
+          `[Account Isolation Violation] Forbidden legacy solicitor "${legacy.email}" was returned by search!`
+        );
+      }
+      console.log(`[PASS] Legacy solicitor "${legacy.email}" correctly excluded.`);
+    }
+
+    // 3. Search and select authorized .tst solicitor
+    console.log(`[Account Isolation Check] Searching for authorized solicitor: ${authorizedEmail}...`);
+    await searchInput.fill(authorizedEmail.split("@")[0]);
+    await this.page.waitForTimeout(1000);
+
+    const authorizedCard = dialog
+      .locator("*")
+      .filter({ hasText: new RegExp(authorizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") })
+      .filter({ visible: true })
+      .last();
+
+    await expect(authorizedCard, `Authorized solicitor card "${authorizedEmail}" should be visible`).toBeVisible({ timeout: 10_000 });
+    await authorizedCard.click();
+    await this.page.waitForTimeout(1000);
+    console.log(`[PASS] Authorized solicitor "${authorizedEmail}" selected successfully.`);
+  }
+
+  // =====================================================
   // NEXT
   // =====================================================
 

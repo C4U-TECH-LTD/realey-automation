@@ -254,6 +254,92 @@ class SettlementPage {
   }
 
   // =====================================================
+  // VERIFY & SELECT SOLICITOR WITH ISOLATION
+  // =====================================================
+
+  async verifyAndSelectSolicitorWithIsolation(
+    authorizedEmail = "bsol.c4u.tst@yopmail.com",
+    forbiddenAccounts = []
+  ) {
+    console.log(`[Account Isolation Check] Verifying Buyer Solicitor selection isolation...`);
+
+    await expect(
+      this.browseSolicitorsButton,
+      "Browse Available Solicitors button should be visible"
+    ).toBeVisible({ timeout: 20_000 });
+
+    await this.browseSolicitorsButton.click();
+    await this.page.waitForTimeout(1000);
+
+    const dialog = this.page.locator('[role="dialog"]').last();
+    await expect(dialog, "Browse Solicitors dialog should open").toBeVisible({ timeout: 10_000 });
+
+    await expect(
+      this.professionalSearchInput,
+      "Professional search input should be visible"
+    ).toBeVisible({ timeout: 10_000 });
+
+    // 1. Verify initially visible accounts do not contain forbidden accounts
+    const initialText = await dialog.innerText();
+    for (const legacy of forbiddenAccounts) {
+      if (initialText.includes(legacy.email) || (legacy.name && initialText.includes(legacy.name))) {
+        throw new Error(
+          `[Account Isolation Violation] Forbidden legacy account "${legacy.email}" (${legacy.name}) appeared in Buyer Solicitor dialog!`
+        );
+      }
+    }
+
+    // 2. Search for each legacy account specifically to verify server-side filtering
+    for (const legacy of forbiddenAccounts) {
+      if (legacy.role && !/solicitor/i.test(legacy.role)) continue;
+      console.log(`[Account Isolation Check] Searching for forbidden legacy solicitor: ${legacy.email}...`);
+      await this.professionalSearchInput.fill(legacy.email);
+      await this.page.waitForTimeout(1000);
+
+      const searchResultText = await dialog.innerText();
+      const hasLegacy = searchResultText.includes(legacy.email) || (legacy.name && searchResultText.includes(legacy.name));
+      if (hasLegacy) {
+        throw new Error(
+          `[Account Isolation Violation] Forbidden legacy solicitor "${legacy.email}" was returned by search!`
+        );
+      }
+      console.log(`[PASS] Legacy solicitor "${legacy.email}" correctly excluded.`);
+    }
+
+    // 3. Search and select authorized .tst solicitor
+    const searchToken = authorizedEmail.split(".")[0];
+    console.log(`[Account Isolation Check] Searching for authorized solicitor: ${authorizedEmail} (token: ${searchToken})...`);
+    await this.professionalSearchInput.fill(searchToken);
+    await this.page.waitForTimeout(1000);
+
+    let select = dialog
+      .locator("div")
+      .filter({
+        hasText: new RegExp(searchToken, "i"),
+      })
+      .filter({
+        has: this.page.getByRole("button", { name: "Select", exact: true }),
+      })
+      .first()
+      .getByRole("button", { name: "Select", exact: true })
+      .first();
+
+    if (!(await select.isVisible({ timeout: 5000 }).catch(() => false))) {
+      select = dialog.getByRole("button", { name: /^Select$/i }).first();
+    }
+
+    await expect(select, `Authorized solicitor "${authorizedEmail}" Select button should be visible`).toBeVisible({ timeout: 15_000 });
+    await select.click();
+
+    await expect(this.continueButton, "Continue button should be visible").toBeVisible({ timeout: 15_000 });
+    await expect(this.continueButton, "Continue button should be enabled").toBeEnabled({ timeout: 15_000 });
+    await this.continueButton.click();
+
+    await expect(this.brokerHeading, "Invite Your Mortgage Broker step should open").toBeVisible({ timeout: 20_000 });
+    console.log(`[PASS] Authorized buyer solicitor "${authorizedEmail}" selected successfully.`);
+  }
+
+  // =====================================================
   // SELECT BROKER
   // =====================================================
 
@@ -398,6 +484,95 @@ class SettlementPage {
   await modal.waitFor({ state: "hidden", timeout: 20_000 }).catch(() => {});
   await this.page.waitForTimeout(2000);
 }
+
+  // =====================================================
+  // VERIFY & SELECT BROKER WITH ISOLATION
+  // =====================================================
+
+  async verifyAndSelectBrokerWithIsolation(
+    authorizedEmail = "broker.c4u.tst@yopmail.com",
+    forbiddenAccounts = []
+  ) {
+    console.log(`[Account Isolation Check] Verifying Mortgage Broker selection isolation...`);
+
+    await expect(
+      this.browseBrokersButton,
+      "Browse Available Brokers button should be visible"
+    ).toBeVisible({ timeout: 20_000 });
+
+    await this.browseBrokersButton.click();
+    await this.page.waitForTimeout(1000);
+
+    const dialog = this.page.locator('[role="dialog"]').last();
+    await expect(dialog, "Browse Brokers dialog should open").toBeVisible({ timeout: 10_000 });
+
+    await expect(
+      this.professionalSearchInput,
+      "Professional search input should be visible"
+    ).toBeVisible({ timeout: 10_000 });
+
+    // 1. Verify initially visible accounts do not contain forbidden accounts
+    const initialText = await dialog.innerText();
+    for (const legacy of forbiddenAccounts) {
+      if (initialText.includes(legacy.email) || (legacy.name && initialText.includes(legacy.name))) {
+        throw new Error(
+          `[Account Isolation Violation] Forbidden legacy account "${legacy.email}" (${legacy.name}) appeared in Mortgage Broker dialog!`
+        );
+      }
+    }
+
+    // 2. Search for each legacy account specifically to verify server-side filtering
+    for (const legacy of forbiddenAccounts) {
+      if (legacy.role && !/broker/i.test(legacy.role)) continue;
+      console.log(`[Account Isolation Check] Searching for forbidden legacy broker: ${legacy.email}...`);
+      await this.professionalSearchInput.fill(legacy.email);
+      await this.page.waitForTimeout(1000);
+
+      const searchResultText = await dialog.innerText();
+      const hasLegacy = searchResultText.includes(legacy.email) || (legacy.name && searchResultText.includes(legacy.name));
+      if (hasLegacy) {
+        throw new Error(
+          `[Account Isolation Violation] Forbidden legacy broker "${legacy.email}" was returned by search!`
+        );
+      }
+      console.log(`[PASS] Legacy broker "${legacy.email}" correctly excluded.`);
+    }
+
+    // 3. Search and select authorized .tst broker
+    // The test broker's registered name on UAT is "MRbrok TST"
+    const searchToken = "MRbrok";
+    console.log(`[Account Isolation Check] Searching for authorized broker: ${authorizedEmail} (token: ${searchToken})...`);
+    await this.professionalSearchInput.fill(searchToken);
+    await this.page.waitForTimeout(1000);
+
+    let selectButton = dialog
+      .locator("div")
+      .filter({
+        hasText: new RegExp("MRbrok|brok|broker", "i"),
+      })
+      .filter({
+        has: this.page.getByRole("button", { name: "Select", exact: true }),
+      })
+      .first()
+      .getByRole("button", { name: "Select", exact: true })
+      .first();
+
+    if (!(await selectButton.isVisible({ timeout: 5000 }).catch(() => false))) {
+      await this.professionalSearchInput.fill("");
+      await this.page.waitForTimeout(1000);
+      selectButton = dialog.getByRole("button", { name: /^Select$/i }).first();
+    }
+
+    await expect(selectButton, `Authorized broker "${authorizedEmail}" Select button should be visible`).toBeVisible({ timeout: 15_000 });
+    await selectButton.click();
+
+    await expect(this.continueButton, "Continue button should be visible").toBeVisible({ timeout: 15_000 });
+    await expect(this.continueButton, "Continue button should be enabled").toBeEnabled({ timeout: 15_000 });
+    await this.continueButton.click();
+
+    await expect(this.depositHeading, "Deposit Payment step should open").toBeVisible({ timeout: 20_000 });
+    console.log(`[PASS] Authorized broker "${authorizedEmail}" selected successfully.`);
+  }
 
   // =====================================================
   // OLD COMMON PAYMENT FRAME

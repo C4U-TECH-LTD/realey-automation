@@ -89,12 +89,22 @@ class GeneralUserListingsPage {
   }
 
   async openFirstMatchingListing(searchText) {
+    const streetOnly = searchText && searchText.includes(",") ? searchText.split(",")[0].trim() : searchText;
+
     // Check if matching card or title is already visible on the current page
-    const directCard = this.page
+    let directCard = this.page
       .locator("div, article")
       .filter({ hasText: searchText })
       .filter({ has: this.page.getByRole("button", { name: "Learn More", exact: true }) })
       .first();
+
+    if (!(await directCard.isVisible({ timeout: 1500 }).catch(() => false)) && streetOnly !== searchText) {
+      directCard = this.page
+        .locator("div, article")
+        .filter({ hasText: streetOnly })
+        .filter({ has: this.page.getByRole("button", { name: "Learn More", exact: true }) })
+        .first();
+    }
 
     const directBtn = directCard.getByRole("button", { name: "Learn More", exact: true });
     if (await directBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -106,9 +116,15 @@ class GeneralUserListingsPage {
       return;
     }
 
-    const directTitle = this.page
+    let directTitle = this.page
       .getByText(searchText, { exact: false })
       .first();
+
+    if (!(await directTitle.isVisible({ timeout: 1500 }).catch(() => false)) && streetOnly !== searchText) {
+      directTitle = this.page
+        .getByText(streetOnly, { exact: false })
+        .first();
+    }
 
     if (await directTitle.isVisible({ timeout: 2000 }).catch(() => false)) {
       await directTitle.scrollIntoViewIfNeeded().catch(() => {});

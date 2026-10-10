@@ -48,6 +48,7 @@
     "test:flow-9": "cucumber-js --tags \"@flow-9\"",
 
     "test:all-flows": "cucumber-js --tags \"@all-flows\"",
+    "test:f1-test-ac-check": "cucumber-js --tags \"@f1-uat-test-ac-check\"",
 
     "report:generate": "allure generate allure-results --clean -o allure-report",
 
