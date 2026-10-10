@@ -170,11 +170,18 @@ class AgentOffersPage {
           }
         }
 
-        // Check if any card has Counter via Chat on current view
-        const anyCounter = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
-        if (await anyCounter.isVisible({ timeout: 1000 }).catch(() => false)) {
-          this.activeCounterButton = anyCounter;
-          console.log(`Found active 'Counter via Chat' button on page.`);
+        // Also check if any card in the filtered search view has the button
+        const filteredCounter = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
+        if (await filteredCounter.isVisible({ timeout: 1500 }).catch(() => false)) {
+          this.activeCounterButton = filteredCounter;
+          console.log(`Found active 'Counter via Chat' button in filtered view.`);
+          return;
+        }
+
+        const filteredAccept = this.page.getByRole("button", { name: /^Accept$/i }).first();
+        if (await filteredAccept.isVisible({ timeout: 1500 }).catch(() => false)) {
+          this.activeAcceptButton = filteredAccept;
+          console.log(`Found active 'Accept' button in filtered view.`);
           return;
         }
 
@@ -185,12 +192,18 @@ class AgentOffersPage {
         }
       }
 
-      // If search returned no action buttons, clear search to expose all newest offers
+      // If search returned literally zero cards, clear search to expose all newest offers
       const searchInput = this.page
         .locator('input[placeholder*="Search by address" i], input[placeholder*="search" i]')
         .first();
-      if (await searchInput.isVisible().catch(() => false)) {
-        console.log(`No active button found for "${shortName}", clearing search input...`);
+      const anyMatching = await this.page
+        .locator('div[class*="rounded"], div.border, article')
+        .filter({ hasText: exactRegex })
+        .count()
+        .catch(() => 0);
+
+      if (anyMatching === 0 && (await searchInput.isVisible().catch(() => false))) {
+        console.log(`No cards returned at all for "${shortName}", clearing search input...`);
         await searchInput.fill("");
         await searchInput.press("Enter").catch(() => {});
         await this.page.waitForTimeout(1500);

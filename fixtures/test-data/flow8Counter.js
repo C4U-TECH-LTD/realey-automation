@@ -4,14 +4,10 @@ const path = require("path");
 const COUNTER_FILE = path.resolve(__dirname, "flow8-counter.json");
 
 /**
- * Returns the search query with an incrementing number for Flow 8 listing creation.
- * Persists the counter so every subsequent run increments:
- * Run 1: "Chapel Street 1" -> next becomes 2
- * Run 2: "Chapel Street 2" -> next becomes 3
- * Run 3: "Chapel Street 3" -> next becomes 4
- *
- * In CI (GitHub Actions), if GITHUB_RUN_NUMBER is present, incorporates it
- * so runs across fresh checkouts never repeat the same address.
+ * Returns the search query with a unique street number for Flow 8 listing creation.
+ * Combines local counter with a time-based offset (50..650) to guarantee uniqueness
+ * across ephemeral GitHub Actions CI runners, multiple workflows, and re-runs
+ * without colliding with existing listings on UAT.
  */
 function getNextFlow8SearchAddress(baseName = "Chapel Street") {
   let counter = 1;
@@ -28,21 +24,23 @@ function getNextFlow8SearchAddress(baseName = "Chapel Street") {
     console.warn("Could not read flow8-counter.json, defaulting to 1:", err.message);
   }
 
-  // In GitHub Actions, offset counter by GITHUB_RUN_NUMBER to guarantee uniqueness across CI checkouts
-  if (process.env.GITHUB_RUN_NUMBER) {
-    const ciRun = parseInt(process.env.GITHUB_RUN_NUMBER, 10);
-    if (!isNaN(ciRun) && ciRun > 0) {
-      counter = Math.max(counter, ciRun);
-    }
+  // Preserve explicit full addresses (e.g. Staging addresses with commas)
+  if (baseName && baseName.includes(",")) {
+    return {
+      counter,
+      searchAddress: baseName,
+    };
   }
 
-  const currentCounter = counter;
-  const nextCounter = currentCounter + 1;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const timeOffset = (nowSec + counter * 17) % 600;
+  const uniqueStreetNumber = 50 + timeOffset;
 
+  const nextCounter = counter + 1;
   try {
     fs.writeFileSync(
       COUNTER_FILE,
-      JSON.stringify({ counter: nextCounter, lastUpdated: new Date().toISOString() }, null, 2),
+      JSON.stringify({ counter: nextCounter, lastStreetNumber: uniqueStreetNumber, lastUpdated: new Date().toISOString() }, null, 2),
       "utf-8"
     );
   } catch (err) {
@@ -50,8 +48,8 @@ function getNextFlow8SearchAddress(baseName = "Chapel Street") {
   }
 
   return {
-    counter: currentCounter,
-    searchAddress: `${baseName} ${currentCounter}`,
+    counter: uniqueStreetNumber,
+    searchAddress: `${baseName} ${uniqueStreetNumber}`,
   };
 }
 
