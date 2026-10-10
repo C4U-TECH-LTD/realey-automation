@@ -669,16 +669,29 @@ class PropertyLocationPage {
       console.log(`[PASS] Legacy solicitor "${legacy.email}" correctly excluded.`);
     }
 
-    // 3. Search and select authorized .tst solicitor
+    // 3. Search and select authorized solicitor
     console.log(`[Account Isolation Check] Searching for authorized solicitor: ${authorizedEmail}...`);
     await searchInput.fill(authorizedEmail.split("@")[0]);
     await this.page.waitForTimeout(1000);
 
-    const authorizedCard = dialog
+    let authorizedCard = dialog
       .locator("*")
       .filter({ hasText: new RegExp(authorizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") })
       .filter({ visible: true })
       .last();
+
+    if (!(await authorizedCard.isVisible({ timeout: 2000 }).catch(() => false))) {
+      const fallbackQuery = authorizedEmail.includes("solicitor.c4utest") ? "James Anderson" : authorizedEmail;
+      console.log(`[Account Isolation Check] Retrying search with: "${fallbackQuery}"...`);
+      await searchInput.fill(fallbackQuery);
+      await this.page.waitForTimeout(1000);
+
+      authorizedCard = dialog
+        .locator("*")
+        .filter({ hasText: new RegExp(authorizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") })
+        .filter({ visible: true })
+        .last();
+    }
 
     await expect(authorizedCard, `Authorized solicitor card "${authorizedEmail}" should be visible`).toBeVisible({ timeout: 10_000 });
     await authorizedCard.click();

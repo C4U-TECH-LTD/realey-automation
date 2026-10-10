@@ -50,6 +50,18 @@ jobs:
       TEST_AC_BROKER_PASSWORD: ${{ secrets.TEST_AC_BROKER_PASSWORD != '' && secrets.TEST_AC_BROKER_PASSWORD || 'Test12345@' }}
       TEST_AC_BROKER_OTP: ${{ secrets.TEST_AC_BROKER_OTP != '' && secrets.TEST_AC_BROKER_OTP || '123456' }}
 
+      REAL_AC_AGENT_EMAIL: ${{ secrets.REAL_AC_AGENT_EMAIL != '' && secrets.REAL_AC_AGENT_EMAIL || 'agent.c4utest@yopmail.com' }}
+      REAL_AC_AGENT_PASSWORD: ${{ secrets.REAL_AC_AGENT_PASSWORD != '' && secrets.REAL_AC_AGENT_PASSWORD || 'Test12345@' }}
+      REAL_AC_AGENT_OTP: ${{ secrets.REAL_AC_AGENT_OTP != '' && secrets.REAL_AC_AGENT_OTP || '123456' }}
+
+      REAL_AC_BUYER_EMAIL: ${{ secrets.REAL_AC_BUYER_EMAIL != '' && secrets.REAL_AC_BUYER_EMAIL || 'buyer.c4utest@yopmail.com' }}
+      REAL_AC_BUYER_PASSWORD: ${{ secrets.REAL_AC_BUYER_PASSWORD != '' && secrets.REAL_AC_BUYER_PASSWORD || 'Test12345@' }}
+      REAL_AC_BUYER_OTP: ${{ secrets.REAL_AC_BUYER_OTP != '' && secrets.REAL_AC_BUYER_OTP || '123456' }}
+
+      REAL_AC_SELLER_SOLICITOR_EMAIL: ${{ secrets.REAL_AC_SELLER_SOLICITOR_EMAIL != '' && secrets.REAL_AC_SELLER_SOLICITOR_EMAIL || 'solicitor.c4utest@yopmail.com' }}
+      REAL_AC_SELLER_SOLICITOR_PASSWORD: ${{ secrets.REAL_AC_SELLER_SOLICITOR_PASSWORD != '' && secrets.REAL_AC_SELLER_SOLICITOR_PASSWORD || 'Test12345@' }}
+      REAL_AC_SELLER_SOLICITOR_OTP: ${{ secrets.REAL_AC_SELLER_SOLICITOR_OTP != '' && secrets.REAL_AC_SELLER_SOLICITOR_OTP || '123456' }}
+
       TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER != '' && secrets.TEST_CARD_NUMBER || '4242 4242 4242 4242' }}
       TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '12/30' }}
       TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}

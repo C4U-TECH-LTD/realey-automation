@@ -37,3 +37,32 @@ Feature: F1 UAT TEST AC Check - UAT Test Account Isolation and Flow 1 E2E
     When I switch to Agent test account for F1 AC Check
     Then the Agent verifies the settlement shows 5/5 steps completed for F1 AC Check
     And backend APIs enforce isolation preventing test accounts from accessing legacy account data
+
+  # =====================================================
+  # SCENARIO 03: VERIFY REAL UAT AGENT ACCOUNT ISOLATION
+  # =====================================================
+  Scenario: 03. Verify Real UAT Agent Account Isolation
+    Given the real UAT agent logs in using real account
+    When the real UAT agent starts creating a Fixed Price listing with unique listing number
+    And the real UAT agent completes the property location step verifying TST accounts are excluded
+    And the real UAT agent completes property details for real listing
+    And the real UAT agent completes pricing and sale method for real listing
+    And the real UAT agent completes description and features for real listing
+    And the real UAT agent uploads media and publishes the real listing
+    Then the real listing is published successfully with unique listing number
+
+  # =====================================================
+  # SCENARIO 04: REAL USER PROPERTIES NOT VISIBLE TO TST USERS
+  # =====================================================
+  Scenario: 04. Verify Real User Properties Are Not Visible to TST Users
+    Given the real UAT agent session is cleared
+    When the TST user logs in using authorized TST account
+    Then the TST user verifies the property created by real UAT agent is not visible or accessible
+
+  # =====================================================
+  # SCENARIO 05: TST AGENT PROPERTIES NOT VISIBLE TO REAL UAT BUYERS
+  # =====================================================
+  Scenario: 05. Verify TST Agent Properties Are Not Visible to Real UAT Buyers
+    Given the TST user session is cleared
+    When the real UAT buyer logs in using real buyer account
+    Then the real UAT buyer verifies the property created by TST agent is not visible or accessible
