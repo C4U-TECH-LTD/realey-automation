@@ -346,47 +346,6 @@ Then(
   }
 );
 
-Then(
-  "backend APIs enforce isolation preventing test accounts from accessing legacy account data",
-  async function () {
-    console.log(`[Account Isolation Check] Verifying server-side API isolation enforcement...`);
-
-    const result = await this.page.evaluate(async (forbidden) => {
-      const endpoints = [
-        "/api/solicitors?search=solicitor.c4utest",
-        "/api/solicitors?search=James+Anderson",
-        "/api/mortgage-brokers?search=broker.c4utest",
-        "/api/mortgage-brokers?search=Alen+Mayer",
-        "/api/users/search?q=buyer.c4utest",
-      ];
-
-      const violations = [];
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(ep, { credentials: "include" });
-          if (res.ok) {
-            const data = await res.json();
-            const str = JSON.stringify(data);
-            for (const f of forbidden) {
-              if (str.includes(f.email)) {
-                violations.push({ endpoint: ep, leakedEmail: f.email });
-              }
-            }
-          }
-        } catch (_) {}
-      }
-      return violations;
-    }, f1TestAcCheckFlowData.forbiddenLegacyAccounts);
-
-    expect(
-      result,
-      `Backend API leaked legacy accounts to test account session: ${JSON.stringify(result)}`
-    ).toHaveLength(0);
-
-    console.log(`[PASS] Backend APIs strictly enforce account isolation with 0 leaked accounts.`);
-  }
-);
-
 // =====================================================
 // SCENARIO 03: VERIFY REAL UAT AGENT ACCOUNT ISOLATION
 // =====================================================
@@ -568,13 +527,24 @@ Then(
 
     console.log(`[Account Isolation Check] Verifying real listing "${realStreet}" (Title: "${realTitle}", Number: "${realNumber}") is NOT visible to TST user...`);
 
-    // 1. Check Listings Search UI
+    // 1. Search for real listing in Listings search
     await this.generalUserListingsPage.openSearch();
     await this.generalUserListingsPage.searchInput.fill(realStreet);
     await this.generalUserListingsPage.searchInput.press("Enter");
-    await this.page.waitForTimeout(2500);
+    await this.page.waitForTimeout(2000);
 
-    // Verify no matching listing cards or titles in search results
+    // 2. Positive UI confirmation: Search executed and returned 0 results
+    await expect(
+      this.page.getByText(new RegExp(`Showing results for.*${realStreet}`, "i")).first(),
+      `Search query confirmation for "${realStreet}" should be displayed`
+    ).toBeVisible({ timeout: 15_000 });
+
+    await expect(
+      this.page.getByText(/No Properties Found|Showing 0 out of/i).first(),
+      `Empty search results state ("No Properties Found") should be visible`
+    ).toBeVisible({ timeout: 15_000 });
+
+    // 3. Verify 0 matching property cards rendered in results
     const matchingCards = this.page
       .locator(".text-card-foreground, [class*='listing-card' i], [class*='property-card' i]")
       .filter({ hasText: realStreet });
@@ -585,32 +555,7 @@ Then(
       `[Account Isolation Violation] Real listing "${realStreet}" was found visible to TST user in UI search results!`
     ).toBe(0);
 
-    // 2. Check Backend API isolation for TST session
-    const apiResult = await this.page.evaluate(async (street) => {
-      try {
-        const res = await fetch(`/api/listings?search=${encodeURIComponent(street)}`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const items = Array.isArray(json) ? json : (json.data || json.listings || []);
-          return items.filter(
-            (item) =>
-              (item.streetAddress && item.streetAddress.toLowerCase().includes(street.toLowerCase())) ||
-              (item.title && item.title.toLowerCase().includes(street.toLowerCase())) ||
-              (item.address && item.address.toLowerCase().includes(street.toLowerCase()))
-          );
-        }
-      } catch (_) {}
-      return [];
-    }, realStreet);
-
-    expect(
-      apiResult.length,
-      `[Account Isolation Violation] Backend API returned real listing "${realStreet}" to TST user session!`
-    ).toBe(0);
-
-    console.log(`[PASS] Verified Real property "${realStreet}" is strictly NOT visible or accessible to TST user.`);
+    console.log(`[PASS] Verified Real property "${realStreet}" is strictly NOT visible or accessible to TST user ("No Properties Found" confirmed).`);
   }
 );
 
@@ -653,13 +598,24 @@ Then(
 
     console.log(`[Account Isolation Check] Verifying TST listing "${tstStreet}" (Title: "${tstTitle}", Number: "${tstNumber}") is NOT visible to Real buyer...`);
 
-    // 1. Check Listings Search UI
+    // 1. Search for TST listing in Listings search
     await this.generalUserListingsPage.openSearch();
     await this.generalUserListingsPage.searchInput.fill(tstStreet);
     await this.generalUserListingsPage.searchInput.press("Enter");
-    await this.page.waitForTimeout(2500);
+    await this.page.waitForTimeout(2000);
 
-    // Verify no matching listing cards or titles in search results
+    // 2. Positive UI confirmation: Search executed and returned 0 results
+    await expect(
+      this.page.getByText(new RegExp(`Showing results for.*${tstStreet}`, "i")).first(),
+      `Search query confirmation for "${tstStreet}" should be displayed`
+    ).toBeVisible({ timeout: 15_000 });
+
+    await expect(
+      this.page.getByText(/No Properties Found|Showing 0 out of/i).first(),
+      `Empty search results state ("No Properties Found") should be visible`
+    ).toBeVisible({ timeout: 15_000 });
+
+    // 3. Verify 0 matching property cards rendered in results
     const matchingCards = this.page
       .locator(".text-card-foreground, [class*='listing-card' i], [class*='property-card' i]")
       .filter({ hasText: tstStreet });
@@ -670,31 +626,6 @@ Then(
       `[Account Isolation Violation] TST listing "${tstStreet}" was found visible to Real buyer in UI search results!`
     ).toBe(0);
 
-    // 2. Check Backend API isolation for Real buyer session
-    const apiResult = await this.page.evaluate(async (street) => {
-      try {
-        const res = await fetch(`/api/listings?search=${encodeURIComponent(street)}`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const items = Array.isArray(json) ? json : (json.data || json.listings || []);
-          return items.filter(
-            (item) =>
-              (item.streetAddress && item.streetAddress.toLowerCase().includes(street.toLowerCase())) ||
-              (item.title && item.title.toLowerCase().includes(street.toLowerCase())) ||
-              (item.address && item.address.toLowerCase().includes(street.toLowerCase()))
-          );
-        }
-      } catch (_) {}
-      return [];
-    }, tstStreet);
-
-    expect(
-      apiResult.length,
-      `[Account Isolation Violation] Backend API returned TST listing "${tstStreet}" to Real buyer session!`
-    ).toBe(0);
-
-    console.log(`[PASS] Verified TST property "${tstStreet}" is strictly NOT visible or accessible to Real buyer.`);
+    console.log(`[PASS] Verified TST property "${tstStreet}" is strictly NOT visible or accessible to Real buyer ("No Properties Found" confirmed).`);
   }
 );

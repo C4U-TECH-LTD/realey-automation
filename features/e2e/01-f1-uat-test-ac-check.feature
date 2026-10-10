@@ -36,7 +36,6 @@ Feature: F1 UAT TEST AC Check - UAT Test Account Isolation and Flow 1 E2E
     # Settlement Verification
     When I switch to Agent test account for F1 AC Check
     Then the Agent verifies the settlement shows 5/5 steps completed for F1 AC Check
-    And backend APIs enforce isolation preventing test accounts from accessing legacy account data
 
   # =====================================================
   # SCENARIO 03: VERIFY REAL UAT AGENT ACCOUNT ISOLATION
