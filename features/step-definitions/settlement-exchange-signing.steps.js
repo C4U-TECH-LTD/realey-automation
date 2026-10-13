@@ -2919,7 +2919,7 @@ Then(
       await waitForPage(page);
     } else {
       const baseUrl = (process.env.BASE_URL || "https://uat.realey.au").replace(/\/$/, "");
-      await page.goto(`${baseUrl}/dashboard/solicitor?tab=schedule`, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await page.goto(`${baseUrl}/dashboard/solicitor?tab=schedule-availability`, { waitUntil: "domcontentloaded" }).catch(() => {});
       await waitForPage(page);
     }
     await page.waitForTimeout(1500);
@@ -2935,7 +2935,7 @@ Then(
       await page.waitForTimeout(2000);
     } else {
       const baseUrl = (process.env.BASE_URL || "https://uat.realey.au").replace(/\/$/, "");
-      await page.goto(`${baseUrl}/dashboard/solicitor?tab=schedule&sub=calendar`, { waitUntil: "domcontentloaded" }).catch(() => {});
+      await page.goto(`${baseUrl}/dashboard/solicitor?tab=schedule-availability&sub=calendar`, { waitUntil: "domcontentloaded" }).catch(() => {});
       await waitForPage(page);
       await page.waitForTimeout(1500);
     }
@@ -2967,6 +2967,10 @@ Then(
     await page.waitForTimeout(500);
 
     // Dynamically navigate calendar month if it doesn't match targetMonthYear
+    const calendarCard = visibleMonthSpan.locator("xpath=ancestor::div[contains(@class, 'border') or contains(@class, 'rounded')][1]");
+    const prevBtn = calendarCard.locator("button:has(svg.lucide-chevron-left), button:has([class*='chevron-left'])").first();
+    const nextBtn = calendarCard.locator("button:has(svg.lucide-chevron-right), button:has([class*='chevron-right'])").first();
+
     for (let attempt = 0; attempt < 12; attempt++) {
       let currentMonth = (await visibleMonthSpan.innerText().catch(() => "")).trim();
       console.log(`Visible calendar month heading: "${currentMonth}" (target: "${targetMonthYear}")`);
@@ -2978,28 +2982,18 @@ Then(
       const curDateObj = new Date(`${curMonthName} 1, ${curYearStr}`);
       const goForward = !isNaN(curDateObj.getTime()) ? curDateObj < expDateObj : true;
 
-      const navButtons = visibleMonthSpan.locator("xpath=following-sibling::div//button");
-      const btnCount = await navButtons.count();
-
-      if (btnCount >= 2) {
-        const nextBtn = navButtons.filter({ has: page.locator("svg.lucide-chevron-right, [class*='chevron-right']") }).first();
-        const prevBtn = navButtons.filter({ has: page.locator("svg.lucide-chevron-left, [class*='chevron-left']") }).first();
-
-        if (goForward) {
-          if (await nextBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-            await nextBtn.click();
-          } else {
-            await navButtons.first().click();
-          }
+      if (goForward) {
+        if (await nextBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await nextBtn.click();
         } else {
-          if (await prevBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-            await prevBtn.click();
-          } else {
-            await navButtons.last().click();
-          }
+          await calendarCard.locator("button").nth(1).click();
         }
-      } else if (btnCount === 1) {
-        await navButtons.first().click();
+      } else {
+        if (await prevBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await prevBtn.click();
+        } else {
+          await calendarCard.locator("button").first().click();
+        }
       }
 
       await page.waitForTimeout(1200);

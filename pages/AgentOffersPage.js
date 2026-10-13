@@ -131,6 +131,8 @@ class AgentOffersPage {
       }
 
       // 1. Filter using the search input with retry & reload if not found immediately
+      const searchStreet = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+      const searchTerm = searchStreet || shortName;
       const maxRetries = 3;
       for (let retry = 1; retry <= maxRetries; retry++) {
         const searchInput = this.page
@@ -138,8 +140,8 @@ class AgentOffersPage {
           .first();
 
         if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-          console.log(`Filtering Offers & Bids by: ${shortName} (attempt ${retry}/${maxRetries})`);
-          await searchInput.fill(shortName);
+          console.log(`Filtering Offers & Bids by: "${searchTerm}" (attempt ${retry}/${maxRetries})`);
+          await searchInput.fill(searchTerm);
           await searchInput.press("Enter").catch(() => {});
           await this.page.waitForTimeout(2000);
         }
@@ -380,10 +382,14 @@ class AgentOffersPage {
       return;
     }
 
-    // Fallback: Check if offer on page is already accepted or preparing for exchange
-    const acceptedTarget = this.page
+    // Fallback: Check if offer for this property is already accepted or preparing for exchange
+    const targetScope = propertyName
+      ? this.page.locator('div[class*="rounded"], div.border, article').filter({ hasText: propertyName.split(",")[0].trim() }).first()
+      : this.page;
+
+    const acceptedTarget = targetScope
       .getByText(/offer accepted|accepted|preparing for contract exchange/i)
-      .or(this.page.getByRole("button", { name: "Copy Settlement Link" }))
+      .or(targetScope.getByRole("button", { name: "Copy Settlement Link" }))
       .first();
 
     await expect(
