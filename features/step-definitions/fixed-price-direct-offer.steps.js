@@ -229,6 +229,7 @@ When(
     listingData.location.addressSearchText = populatedStreet;
     listingData.location.expectedPropertyName = fullName;
     listingData.fixedPriceFlow.generalUser.searchText = populatedStreet;
+    listingData.description.headline = `Flow 1 Test Property #${counter}`;
     this.createdListingStreet = populatedStreet;
     this.createdListingTitle = fullName;
 

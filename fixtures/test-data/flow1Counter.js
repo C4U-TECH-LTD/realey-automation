@@ -24,14 +24,8 @@ function getNextFlow1SearchAddress(baseName = "King Street") {
     console.warn("Could not read flow1-counter.json, defaulting to 1:", err.message);
   }
 
-  // Preserve explicit full addresses (e.g. Staging addresses with commas)
-  if (baseName && baseName.includes(",")) {
-    return {
-      counter,
-      searchAddress: baseName,
-    };
-  }
-
+  // Derive unique street number (50..649) to ensure valid Melbourne Google Places results
+  // and prevent collisions across multiple CI workflows sharing UAT/Staging.
   const nowSec = Math.floor(Date.now() / 1000);
   const timeOffset = (nowSec + counter * 17) % 600;
   const uniqueStreetNumber = 50 + timeOffset;
@@ -47,9 +41,17 @@ function getNextFlow1SearchAddress(baseName = "King Street") {
     console.warn("Could not write flow1-counter.json:", err.message);
   }
 
+  // Clean street base: strip leading numbers, trailing commas, or suburb
+  // e.g. "199 William Street, Melbourne VIC, Australia" -> "William Street"
+  // e.g. "King Street" -> "King Street"
+  const cleanBase = (baseName || "King Street")
+    .split(",")[0]
+    .replace(/^\d+[\s\/-]*/, "")
+    .trim() || "King Street";
+
   return {
     counter: uniqueStreetNumber,
-    searchAddress: `${baseName} ${uniqueStreetNumber}`,
+    searchAddress: `${uniqueStreetNumber} ${cleanBase}, Melbourne`,
   };
 }
 

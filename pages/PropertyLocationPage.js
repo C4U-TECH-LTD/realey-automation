@@ -287,6 +287,8 @@ class PropertyLocationPage {
       );
     }
 
+    this.selectedStreet = selectedAddress.trim();
+
     console.log(
       `[PropertyLocationPage] Selected address input value: "${selectedAddress}"`
     );
