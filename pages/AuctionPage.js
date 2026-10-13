@@ -44,11 +44,8 @@ class AuctionPage {
     // AUCTION ENDED
     // =====================================================
     this.auctionEndedText = page.getByText(
-      "Auction has ended!",
-      {
-        exact: true,
-      }
-    );
+      /auction has ended/i
+    ).first();
   }
 
   // =====================================================
@@ -238,24 +235,45 @@ class AuctionPage {
   // =====================================================
   // WAIT FOR AUCTION TO END
   // =====================================================
-async waitForAuctionToEnd(
-  timeoutMs = 20 * 60_000
-) {
-  console.log(
-    "Waiting for Auction to end..."
-  );
+  async waitForAuctionToEnd(
+    timeoutMs = 20 * 60_000
+  ) {
+    console.log(
+      "Waiting for Auction to end..."
+    );
 
-  await expect(
-    this.auctionEndedText,
-    '"Auction has ended!" should appear'
-  ).toBeVisible({
-    timeout: timeoutMs,
-  });
+    const locator = this.auctionEndedText;
+    const startTime = Date.now();
+    const pollInterval = 10_000;
 
-  console.log(
-    "Auction has ended successfully"
-  );
-}
+    while (Date.now() - startTime < timeoutMs) {
+      if (await locator.isVisible().catch(() => false)) {
+        console.log("Auction has ended successfully");
+        return;
+      }
+
+      await this.page.waitForTimeout(pollInterval);
+      const elapsed = Date.now() - startTime;
+
+      // Periodically reload to sync server state if WebSockets dropped or failed
+      if (elapsed > 45_000 && Math.floor(elapsed / 1000) % 30 < 12) {
+        console.log(`[AuctionPage] Reloading page to sync auction status (elapsed: ${Math.round(elapsed / 1000)}s)...`);
+        await this.page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+        await this.page.waitForTimeout(1000);
+      }
+    }
+
+    await expect(
+      locator,
+      '"Auction has ended!" should appear'
+    ).toBeVisible({
+      timeout: 5_000,
+    });
+
+    console.log(
+      "Auction has ended successfully"
+    );
+  }
 
   // =====================================================
   // CHECK WHETHER AUCTION ENDED

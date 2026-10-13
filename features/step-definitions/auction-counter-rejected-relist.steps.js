@@ -22,6 +22,12 @@ const {
 );
 
 const {
+  getNextFlow5SearchAddress,
+} = require(
+  "../../fixtures/test-data/flow5Counter"
+);
+
+const {
   AuctionCounterRejectedRelistPage,
 } = require(
   "../../pages/AuctionCounterRejectedRelistPage"
@@ -187,13 +193,39 @@ When(
     await this.propertyLocationPage
       .waitForPage();
 
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const baseAddress = isStaging
+      ? (process.env.FLOW5_ADDRESS || "199 William Street, Melbourne VIC, Australia")
+      : "Elizabeth Street";
+    const { counter, searchAddress } = getNextFlow5SearchAddress(baseAddress);
+    console.log(`[Flow 5] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
+
     await this.propertyLocationPage
       .typeAddressAndSelectFirstSuggestion(
-        listing.addressSearchText
+        searchAddress
       );
 
     await this.propertyLocationPage
       .waitForAutoFilledLocationFields();
+
+    // Dynamically retrieve the actual populated address details
+    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
+    if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
+      populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
+    }
+    const fullName = populatedSuburb ? `${populatedStreet}, ${populatedSuburb}` : populatedStreet;
+    const uniqueHeadline = `Flow 5 Auction Test Property #${counter}`;
+
+    console.log(`[Flow 5] Selected address: "${fullName}" (street: "${populatedStreet}")`);
+
+    // Dynamically update test data for all subsequent steps in this flow run
+    listing.addressSearchText = populatedStreet;
+    listing.expectedPropertyName = fullName;
+    listing.headline = uniqueHeadline;
+    auctionCounterRejectedRelistFlowData.buyer.searchText = populatedStreet;
+    this.createdListingStreet = populatedStreet;
+    this.createdListingTitle = fullName;
 
     await this.propertyLocationPage
       .clickNext();

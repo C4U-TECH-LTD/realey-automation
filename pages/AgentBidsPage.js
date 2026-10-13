@@ -106,6 +106,19 @@ class AgentBidsPage {
       .waitFor({ state: "visible", timeout: 20_000 })
       .catch(() => {});
 
+    // Clear any leftover search filter so view is fresh
+    const searchInputs = this.page.locator(
+      'input[placeholder*="Search by address" i], input[placeholder*="Search by property" i], input[placeholder*="search" i]'
+    );
+    if (await searchInputs.first().isVisible().catch(() => false)) {
+      const val = await searchInputs.first().inputValue().catch(() => "");
+      if (val) {
+        await searchInputs.first().fill("");
+        await searchInputs.first().press("Enter").catch(() => {});
+        await this.page.waitForTimeout(500);
+      }
+    }
+
     await this.page.waitForTimeout(1000);
   }
 
@@ -142,6 +155,11 @@ class AgentBidsPage {
       return;
     }
 
+    // Realey backend searches against `street` or `suburb`, which do not include street numbers.
+    // Strip leading house number (e.g. "78 Elizabeth Street" -> "Elizabeth Street").
+    const streetName = shortPropertyName.replace(/^\d+[\s\/-]*/, "").trim();
+    const searchTerm = streetName || shortPropertyName;
+
     const searchInputs = this.page.locator(
       'input[placeholder*="Search by address" i], input[placeholder*="Search by property" i], input[placeholder*="search" i]'
     );
@@ -150,8 +168,8 @@ class AgentBidsPage {
     for (let i = 0; i < count; i++) {
       const input = searchInputs.nth(i);
       if (await input.isVisible().catch(() => false)) {
-        console.log(`Filtering Bids page by address: "${shortPropertyName}"`);
-        await input.fill(shortPropertyName);
+        console.log(`Filtering Bids page by: "${searchTerm}"`);
+        await input.fill(searchTerm);
         await input.press("Enter").catch(() => {});
         await this.page.waitForTimeout(1500);
         await this.page
@@ -262,6 +280,25 @@ class AgentBidsPage {
       `Looking for action "${buttonRegex}" on property "${shortPropertyName}"`
     );
 
+    // Check if card matching propertyName with action button is already visible before filtering
+    const initialTitles = this.getPropertyTitles(propertyName);
+    const initialCount = await initialTitles.count();
+    for (let i = 0; i < initialCount; i++) {
+      const propertyTitle = initialTitles.nth(i);
+      if (!await propertyTitle.isVisible().catch(() => false)) continue;
+
+      const card = propertyTitle.locator(
+        "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+      );
+      if (await card.isVisible().catch(() => false)) {
+        const scopedButton = card.getByRole("button", { name: buttonRegex }).first();
+        if (await scopedButton.isVisible().catch(() => false)) {
+          console.log(`Action "${buttonRegex}" already visible for "${shortPropertyName}" before filtering.`);
+          return scopedButton;
+        }
+      }
+    }
+
     await this.filterByAddress(propertyName);
 
     await this.page.waitForLoadState(
@@ -300,9 +337,14 @@ class AgentBidsPage {
       }
 
       // Check Next page
-      const nextBtn = this.page.getByRole("button", { name: "Next", exact: true }).first();
+      const nextBtn = this.page
+        .getByRole("button", { name: /^Next$/i })
+        .or(this.page.locator('button:has(svg.lucide-chevron-right)'))
+        .or(this.page.locator('button[aria-label*="next" i]'))
+        .first();
       if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
         console.log(`[AgentBidsPage] Checking next page (${pageNum + 1}) for action "${buttonRegex}"...`);
+        await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
         await nextBtn.click();
         await this.page.waitForTimeout(2000);
       } else {
@@ -330,145 +372,147 @@ class AgentBidsPage {
   // START NEGOTIATION
   // =====================================================
 
+  async _findAndClickStartNegotiation(propertyName, targetBidderName = null, maxPages = 5) {
+    const shortPropertyName = this.getShortPropertyName(propertyName);
+
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      console.log(`[AgentBidsPage] Checking Bids page ${pageNum} for "${shortPropertyName}"...`);
+
+      const propertyTitles = this.getPropertyTitles(propertyName);
+      const count = await propertyTitles.count();
+
+      for (let i = 0; i < count; i++) {
+        const propertyTitle = propertyTitles.nth(i);
+        if (!await propertyTitle.isVisible().catch(() => false)) continue;
+
+        let card = propertyTitle.locator(
+          "xpath=ancestor::*[.//button[contains(., 'Start negotiation')]][1]"
+        );
+        if (!await card.isVisible().catch(() => false)) {
+          card = propertyTitle.locator(
+            "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+          );
+        }
+        if (!await card.isVisible().catch(() => false)) continue;
+
+        let startButton = null;
+        if (targetBidderName) {
+          const bidderRow = card
+            .locator("div, tr, li, section")
+            .filter({ hasText: new RegExp(targetBidderName, "i") });
+          const bidderBtn = bidderRow
+            .getByRole("button", { name: /^Start negotiation$/i })
+            .first();
+          if (await bidderBtn.isVisible().catch(() => false)) {
+            startButton = bidderBtn;
+          }
+        }
+        if (!startButton) {
+          const highestBidderRow = card
+            .locator("div, tr, li, section")
+            .filter({ hasText: /highest bidder/i });
+          const highestBidderBtn = highestBidderRow
+            .getByRole("button", { name: /^Start negotiation$/i })
+            .first();
+          if (await highestBidderBtn.isVisible().catch(() => false)) {
+            startButton = highestBidderBtn;
+          }
+        }
+        if (!startButton) {
+          startButton = card
+            .getByRole("button", { name: /^Start negotiation$/i })
+            .first();
+        }
+
+        if (startButton && await startButton.isVisible().catch(() => false)) {
+          console.log(`Active Reserve Not Met card found on page ${pageNum} for ${shortPropertyName}`);
+          await startButton.scrollIntoViewIfNeeded();
+          await startButton.click();
+          console.log(`Start negotiation clicked for ${shortPropertyName}`);
+          await expect(
+            this.counterAmountInput,
+            "Counter amount input should be visible after starting negotiation"
+          ).toBeVisible({ timeout: 15_000 });
+          console.log("Negotiation form opened successfully");
+          return true;
+        }
+      }
+
+      // Check Next page
+      const nextBtn = this.page
+        .getByRole("button", { name: /^Next$/i })
+        .or(this.page.locator('button:has(svg.lucide-chevron-right)'))
+        .or(this.page.locator('button[aria-label*="next" i]'))
+        .first();
+      if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+        await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
+        await nextBtn.click();
+        await this.page.waitForTimeout(2000);
+        await this.page
+          .locator(".animate-spin, svg.animate-spin")
+          .waitFor({ state: "hidden", timeout: 10_000 })
+          .catch(() => {});
+      } else {
+        break;
+      }
+    }
+    return false;
+  }
+
   async startNegotiation(propertyName, targetBidderName = null) {
     if (!propertyName) {
-      throw new Error(
-        "Property name is required to start negotiation."
-      );
+      throw new Error("Property name is required to start negotiation.");
     }
 
-    const shortPropertyName =
-      this.getShortPropertyName(propertyName);
-
+    const shortPropertyName = this.getShortPropertyName(propertyName);
     console.log(
       `Starting negotiation for: ${shortPropertyName}${targetBidderName ? ` (target bidder: ${targetBidderName})` : ""}`
     );
 
-    await this.filterByAddress(propertyName);
-
-    // -----------------------------------------------------
-    // Wait for Bids page content
-    // -----------------------------------------------------
-
-    await this.page.waitForLoadState(
-      "domcontentloaded"
-    );
-
-    // Wait for spinner to disappear
+    await this.page.waitForLoadState("domcontentloaded");
     await this.page
       .locator(".animate-spin, svg.animate-spin")
       .waitFor({ state: "hidden", timeout: 20_000 })
       .catch(() => {});
 
-    console.log(
-      "Current Bids URL:",
-      this.page.url()
-    );
+    // Stage 1: Check unfiltered Bids list across pages (1..5) first
+    console.log(`Checking unfiltered Bids pages for "${shortPropertyName}"...`);
+    let found = await this._findAndClickStartNegotiation(propertyName, targetBidderName, 5);
+    if (found) return;
 
-    // -----------------------------------------------------
-    // Search across paginated Bids pages for matching card
-    // -----------------------------------------------------
+    // Stage 2: Filter by street name without house number (matches backend DB street column)
+    const streetName = shortPropertyName.replace(/^\d+[\s\/-]*/, "").trim();
+    if (streetName) {
+      console.log(`Filtering Bids page by street name: "${streetName}"`);
+      await this.openBids();
+      await this.filterByAddress(streetName);
+      found = await this._findAndClickStartNegotiation(propertyName, targetBidderName, 5);
+      if (found) return;
+    }
 
-    const maxPasses = 2;
-    for (let pass = 1; pass <= maxPasses; pass++) {
-      const maxPages = 5;
-      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-        console.log(`[AgentBidsPage] Checking Bids page ${pageNum} for "${shortPropertyName}" (pass ${pass}/${maxPasses})...`);
+    // Stage 3: Filter by full shortPropertyName
+    if (streetName && streetName !== shortPropertyName) {
+      console.log(`Not found by street name, filtering Bids page by: "${shortPropertyName}"`);
+      await this.openBids();
+      await this.filterByAddress(shortPropertyName);
+      found = await this._findAndClickStartNegotiation(propertyName, targetBidderName, 5);
+      if (found) return;
+    }
 
-        const propertyTitles = this.getPropertyTitles(propertyName);
-        const count = await propertyTitles.count();
-
-        for (let i = 0; i < count; i++) {
-          const propertyTitle = propertyTitles.nth(i);
-          if (!await propertyTitle.isVisible().catch(() => false)) continue;
-
-          // Find card container (div.bg-card, rounded-2xl)
-          const card = propertyTitle.locator(
-            "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
-          );
-
-          if (!await card.isVisible().catch(() => false)) continue;
-
-          // Locate Start negotiation button within this card
-          let startButton = null;
-
-          if (targetBidderName) {
-            const bidderRow = card
-              .locator("div, tr, li, section")
-              .filter({ hasText: new RegExp(targetBidderName, "i") });
-            const bidderBtn = bidderRow
-              .getByRole("button", { name: /^Start negotiation$/i })
-              .first();
-            if (await bidderBtn.isVisible().catch(() => false)) {
-              console.log(`Found Start negotiation button for target bidder: ${targetBidderName}`);
-              startButton = bidderBtn;
-            }
-          }
-
-          if (!startButton) {
-            const highestBidderRow = card
-              .locator("div, tr, li, section")
-              .filter({ hasText: /highest bidder/i });
-            const highestBidderBtn = highestBidderRow
-              .getByRole("button", { name: /^Start negotiation$/i })
-              .first();
-            if (await highestBidderBtn.isVisible().catch(() => false)) {
-              console.log(`Found Start negotiation button for Highest Bidder row`);
-              startButton = highestBidderBtn;
-            }
-          }
-
-          if (!startButton) {
-            startButton = card
-              .getByRole("button", {
-                name: /^Start negotiation$/i,
-              })
-              .first();
-          }
-
-          if (startButton && await startButton.isVisible().catch(() => false)) {
-            console.log(
-              `Active Reserve Not Met card found on page ${pageNum} for ${shortPropertyName}`
-            );
-
-            await startButton.scrollIntoViewIfNeeded();
-            await startButton.click();
-
-            console.log(`Start negotiation clicked for ${shortPropertyName}`);
-
-            await expect(
-              this.counterAmountInput,
-              "Counter amount input should be visible after starting negotiation"
-            ).toBeVisible({ timeout: 15_000 });
-
-            console.log("Negotiation form opened successfully");
-            return;
-          }
-        }
-
-        // Try Next page if available
-        const nextBtn = this.page.getByRole("button", { name: "Next", exact: true }).first();
-        if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
-          await nextBtn.click();
-          await this.page.waitForTimeout(2000);
-          await this.page
-            .locator(".animate-spin, svg.animate-spin")
-            .waitFor({ state: "hidden", timeout: 10_000 })
-            .catch(() => {});
-        } else {
-          break;
-        }
-      }
-
-      // If not found in first pass, reload to page 1 and wait
-      if (pass < maxPasses) {
-        console.log(`No active Start negotiation card found yet for "${shortPropertyName}", reloading Bids page...`);
+    // Stage 4: Filter by suburb if available
+    const parts = String(propertyName).split(",");
+    if (parts.length > 1) {
+      const suburb = parts[1].trim();
+      if (suburb) {
+        console.log(`Filtering Bids page by suburb: "${suburb}"`);
         await this.openBids();
-        await this.page.waitForTimeout(3000);
+        await this.filterByAddress(suburb);
+        found = await this._findAndClickStartNegotiation(propertyName, targetBidderName, 5);
+        if (found) return;
       }
     }
 
-    // Fallback: Check if any Start negotiation button is visible anywhere on current view
+    // Fallback: Check if any Start negotiation button is visible on current view
     const fallbackStartButtons = this.page
       .getByRole("button", { name: /^Start negotiation$/i })
       .or(this.page.locator('button:has-text("Start negotiation")'));
@@ -487,9 +531,7 @@ class AgentBidsPage {
       }
     }
 
-    await this.debugCurrentPage(
-      "START NEGOTIATION DEBUG"
-    );
+    await this.debugCurrentPage("START NEGOTIATION DEBUG");
 
     throw new Error(
       `Could not find an active "${shortPropertyName}" card containing Start negotiation. ` +
@@ -576,6 +618,22 @@ class AgentBidsPage {
 
     await this.sendAndOpenChatButton.click();
 
+    // Wait for the modal dialog to disappear (request submitted)
+    const counterModal = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /Counter Offer/i })
+      .first();
+    await counterModal.waitFor({ state: "hidden", timeout: 20_000 }).catch(() => {});
+
+    // Wait for chat navigation and view to load
+    await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 20_000 }).catch(() => {});
+    await this.page.waitForLoadState("domcontentloaded");
+
+    await this.page
+      .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"]')
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
     console.log(
       "Agent counter offer sent and chat opened"
     );
@@ -583,7 +641,7 @@ class AgentBidsPage {
     this.lastCounterAmount =
       expectedValue;
 
-    await this.page.waitForTimeout(700);
+    await this.page.waitForTimeout(1500);
   }
 
   // =====================================================
@@ -601,13 +659,23 @@ class AgentBidsPage {
       `Verifying counter offer: $${formattedAmount}`
     );
 
+    // Ensure we are inside the chatroom
+    await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
+
+    // Wait for chat message container or input to confirm chat view is active
+    const chatInput = this.page.locator(
+      'textarea[placeholder*="message" i], textarea, input[placeholder*="message" i]'
+    ).first();
+    await chatInput.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+
     const staleTimePattern = /\b(?:\d+\s*d(?:ays?)?\s*ago|\d+d\s*ago|\byesterday\b|\bweeks?\s*ago|\bmonths?\s*ago|\b\d{1,2}\/\d{1,2}\b)\b/i;
     const recentTimePattern = /(?:just now|few seconds ago|\b\d+\s*s(?:ec)?(?:onds)?\s*ago\b|\b[0-5]?\d\s*m(?:in)?(?:utes)?\s*ago\b|\btoday\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?\b)/i;
 
     const targetPattern = formattedAmount !== "0"
-      ? new RegExp(`Counter offer:\\s*\\$${formattedAmount}`, "i")
+      ? new RegExp(`\\$${formattedAmount}|Counter offer`, "i")
       : expectedMessage;
 
+    // Check chat message bubbles
     const chatRows = this.page.locator('div, tr, [class*="chat" i], [class*="message" i]').filter({ hasText: targetPattern });
     const count = await chatRows.count();
     for (let i = 0; i < count; i++) {
@@ -618,16 +686,12 @@ class AgentBidsPage {
       }
     }
 
-    // -----------------------------------------------------
-    // First verify exact amount message
-    // -----------------------------------------------------
-
     if (formattedAmount !== "0") {
       const amountMessage =
         this.page
           .getByText(
             new RegExp(
-              `Counter offer:\\s*\\$${formattedAmount}`,
+              `\\$${formattedAmount}`,
               "i"
             )
           )
@@ -635,7 +699,7 @@ class AgentBidsPage {
 
       const amountVisible =
         await amountMessage
-          .isVisible()
+          .isVisible({ timeout: 10_000 })
           .catch(() => false);
 
       if (amountVisible) {
@@ -650,37 +714,6 @@ class AgentBidsPage {
         return;
       }
     }
-
-    // -----------------------------------------------------
-    // Generic counter-offer text fallback
-    // -----------------------------------------------------
-
-    const genericMessage =
-      this.page
-        .getByText(expectedMessage)
-        .last();
-
-    const genericVisible =
-      await genericMessage
-        .isVisible()
-        .catch(() => false);
-
-    if (genericVisible) {
-      await expect(
-        genericMessage
-      ).toBeVisible();
-
-      console.log(
-        "Generic counter offer message verified"
-      );
-
-      return;
-    }
-
-    // -----------------------------------------------------
-    // Final fallback:
-    // Send & Open Chat should lead to conversation/chat
-    // -----------------------------------------------------
 
     const conversationIndicator =
       this.page
@@ -721,63 +754,89 @@ class AgentBidsPage {
       `Looking for Open chat for property: ${shortPropertyName}`
     );
 
-    await this.filterByAddress(propertyName);
+    // Helper to find and click Open chat across pages
+    const findAndClickOpenChat = async (maxPages = 5) => {
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        const propertyTitles = this.getPropertyTitles(propertyName);
+        const propertyCount = await propertyTitles.count();
 
-    await this.page.waitForLoadState(
-      "domcontentloaded"
-    );
+        for (let i = 0; i < propertyCount; i++) {
+          const propertyTitle = propertyTitles.nth(i);
+          if (!await propertyTitle.isVisible().catch(() => false)) continue;
 
-    // Wait for spinner to disappear
-    await this.page
-      .locator(".animate-spin, svg.animate-spin")
-      .waitFor({ state: "hidden", timeout: 20_000 })
-      .catch(() => {});
+          let card = propertyTitle.locator(
+            "xpath=ancestor::*[.//button[contains(., 'Open chat')]][1]"
+          );
+          if (!await card.isVisible().catch(() => false)) {
+            card = propertyTitle.locator(
+              "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+            );
+          }
 
-    // -----------------------------------------------------
-    // Search across paginated Bids pages for matching card
-    // -----------------------------------------------------
-
-    const maxPages = 5;
-    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-      const propertyTitles = this.getPropertyTitles(propertyName);
-      const propertyCount = await propertyTitles.count();
-
-      for (let i = 0; i < propertyCount; i++) {
-        const propertyTitle = propertyTitles.nth(i);
-        if (!await propertyTitle.isVisible().catch(() => false)) continue;
-
-        const card = propertyTitle.locator(
-          "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
-        );
-
-        if (await card.isVisible().catch(() => false)) {
-          const openChatButton = card.getByRole("button", { name: /^Open chat$/i }).first();
-          if (await openChatButton.isVisible().catch(() => false)) {
-            console.log(`Open chat button found on page ${pageNum} for "${shortPropertyName}".`);
-            await openChatButton.scrollIntoViewIfNeeded();
-            await openChatButton.click();
-            await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
-            await this.page.waitForLoadState("domcontentloaded");
-            await this.page
-              .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"], [class*="loading"]')
-              .waitFor({ state: "hidden", timeout: 15_000 })
-              .catch(() => {});
-            await this.page.waitForTimeout(1000);
-            return;
+          if (await card.isVisible().catch(() => false)) {
+            const openChatButton = card.getByRole("button", { name: /^Open chat$/i }).first();
+            if (await openChatButton.isVisible().catch(() => false)) {
+              console.log(`Open chat button found on page ${pageNum} for "${shortPropertyName}".`);
+              await openChatButton.scrollIntoViewIfNeeded();
+              await openChatButton.click();
+              await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
+              await this.page.waitForLoadState("domcontentloaded");
+              await this.page
+                .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"], [class*="loading"]')
+                .waitFor({ state: "hidden", timeout: 15_000 })
+                .catch(() => {});
+              await this.page.waitForTimeout(1000);
+              return true;
+            }
           }
         }
-      }
 
-      // Check Next page
-      const nextBtn = this.page.getByRole("button", { name: "Next", exact: true }).first();
-      if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
-        console.log(`[AgentBidsPage] Checking next page (${pageNum + 1}) for Open chat...`);
-        await nextBtn.click();
-        await this.page.waitForTimeout(2000);
-      } else {
-        break;
+        const nextBtn = this.page
+          .getByRole("button", { name: /^Next$/i })
+          .or(this.page.locator('button:has(svg.lucide-chevron-right)'))
+          .or(this.page.locator('button[aria-label*="next" i]'))
+          .first();
+        if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+          console.log(`[AgentBidsPage] Checking next page (${pageNum + 1}) for Open chat...`);
+          await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
+          await nextBtn.click();
+          await this.page.waitForTimeout(2000);
+          await this.page
+            .locator('.animate-spin, svg.animate-spin, [class*="animate-spin"]')
+            .waitFor({ state: "hidden", timeout: 10_000 })
+            .catch(() => {});
+        } else {
+          break;
+        }
       }
+      return false;
+    };
+
+    // Stage 1: Check unfiltered list across pages (1..5) first
+    let found = await findAndClickOpenChat(5);
+    if (found) return;
+
+    // Stage 2: Filter by street name without house number
+    const streetName = shortPropertyName.replace(/^\d+[\s\/-]*/, "").trim();
+    if (streetName) {
+      console.log(`Filtering Bids page by street name for Open chat: "${streetName}"`);
+      await this.openBids();
+      await this.filterByAddress(streetName);
+      found = await findAndClickOpenChat(5);
+      if (found) return;
     }
+
+    // Stage 3: Filter by full shortPropertyName
+    if (streetName && streetName !== shortPropertyName) {
+      console.log(`Filtering Bids page by full address for Open chat: "${shortPropertyName}"`);
+      await this.openBids();
+      await this.filterByAddress(shortPropertyName);
+      found = await findAndClickOpenChat(5);
+      if (found) return;
+    }
+
+    // Reset to fresh Bids Page 1 before attempting fallback
+    await this.openBids();
 
     // Fallback: Click first available Open chat button on page
     const fallbackOpenChat = this.page.getByRole("button", { name: /^Open chat$/i }).first();

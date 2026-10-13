@@ -175,35 +175,76 @@ class AuctionCounterRejectedRelistPage {
 
     console.log("Re-list clicked");
 
-    await this.page.waitForTimeout(700);
+    // Wait for the Relist dialog to actually open before continuing
+    const relistModal = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /relist property/i })
+      .first();
+
+    await expect(
+      relistModal,
+      "Relist Property modal should appear"
+    ).toBeVisible({ timeout: 25_000 });
+
+    // Wait for any loading spinner inside modal to disappear
+    await this.page
+      .locator(".animate-spin, svg.animate-spin")
+      .waitFor({ state: "hidden", timeout: 15_000 })
+      .catch(() => {});
+
+    await this.page.waitForTimeout(1000);
   }
 
   async clickNext(stepName = "Re-list") {
+    const dialog = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /relist property|property details|pricing|description|photos/i })
+      .or(this.page.locator('[role="dialog"]'))
+      .last();
+
     await expect(
-      this.nextButton,
+      dialog,
+      `${stepName} dialog should be visible`
+    ).toBeVisible({ timeout: 20_000 });
+
+    const targetButton = dialog
+      .getByRole("button", {
+        name: "Next",
+        exact: true,
+      })
+      .or(dialog.locator('button:has-text("Next")'))
+      .last();
+
+    await expect(
+      targetButton,
       `${stepName} Next button should be visible`
     ).toBeVisible({
       timeout: 20_000,
     });
 
     await expect(
-      this.nextButton,
+      targetButton,
       `${stepName} Next button should be enabled`
     ).toBeEnabled({
       timeout: 20_000,
     });
 
-    await this.nextButton.scrollIntoViewIfNeeded();
-    await this.nextButton.click();
+    await targetButton.scrollIntoViewIfNeeded();
+    await targetButton.click();
 
     console.log(`${stepName} Next clicked`);
 
-    await this.page.waitForTimeout(500);
+    await this.page.waitForTimeout(1000);
   }
 
   async clickListingTypeEdit() {
-    const pencil = this.page
+    const dialog = this.page
+      .locator('[role="dialog"]')
+      .last();
+
+    const pencil = dialog
       .locator("svg.lucide-pencil")
+      .or(this.page.locator("svg.lucide-pencil"))
       .first();
 
     await expect(

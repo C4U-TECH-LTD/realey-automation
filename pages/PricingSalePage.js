@@ -411,12 +411,25 @@ class PricingSalePage {
     // -------------------------------------------------
     // END
     // -------------------------------------------------
-    const end = new Date(
+    let end = new Date(
       start.getTime() +
         durationMinutes *
           60 *
           1000
     );
+
+    // If remaining time before auction end is less than 4 minutes,
+    // add an extra slot to ensure buyer has sufficient time
+    // to navigate, register as bidder, and place bids before auction ends.
+    const minBufferMs = 4 * 60 * 1000;
+    if (end.getTime() - now.getTime() < minBufferMs) {
+      end = new Date(
+        end.getTime() +
+          slotMinutes *
+            60 *
+            1000
+      );
+    }
 
     // -------------------------------------------------
     // FORMAT DATE DD-MM-YYYY
