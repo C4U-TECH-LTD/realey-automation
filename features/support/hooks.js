@@ -407,7 +407,6 @@ Before(async function ({ pickle }) {
   this.scenarioArtifactTimestamp = artifactTimestamp();
 
   // Cooldown buffer between scenarios to allow CloudFront / AWS WAF / Auth rate limit tokens to refresh
-  const isStaging = (process.env.BASE_URL || "").includes("staging");
   const interScenarioCooldown = isStaging ? 15000 : 3000;
   await new Promise((resolve) => setTimeout(resolve, interScenarioCooldown));
 
