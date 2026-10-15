@@ -539,6 +539,8 @@ class PropertyLocationPage {
 
     console.log(`Checking for Assign Seller Solicitor on Location step (target: "${targetSearch}")...`);
 
+    await this.dismissNotificationPrompts();
+
     const addBtn = this.page
       .locator("button")
       .filter({ hasText: /Add a solicitor to this listing/i })
@@ -549,7 +551,8 @@ class PropertyLocationPage {
       .catch(() => false);
 
     if (!isAddBtnVisible) {
-      const selectedSolicitor = this.page
+      const modal = this.page.locator('[role="dialog"]').last();
+      const selectedSolicitor = modal
         .locator("*")
         .filter({ hasText: /solicitor\.c4utest|James Anderson|subratotest99/i })
         .filter({ visible: true })
@@ -561,7 +564,7 @@ class PropertyLocationPage {
       }
 
       console.log("No '+ Add a solicitor to this listing' button, checking fallback...");
-      const altBtn = this.page
+      const altBtn = modal
         .locator("button")
         .filter({ hasText: /Add.*solicitor/i })
         .first();
@@ -572,10 +575,20 @@ class PropertyLocationPage {
       }
 
       await altBtn.scrollIntoViewIfNeeded();
-      await altBtn.click();
+      try {
+        await altBtn.click({ timeout: 5000 });
+      } catch (err) {
+        console.log(`Standard click on Add solicitor fallback failed (${err.message}), retrying with force click...`);
+        await altBtn.click({ force: true });
+      }
     } else {
       await addBtn.scrollIntoViewIfNeeded();
-      await addBtn.click();
+      try {
+        await addBtn.click({ timeout: 5000 });
+      } catch (err) {
+        console.log(`Standard click on Add solicitor failed (${err.message}), retrying with force click...`);
+        await addBtn.click({ force: true });
+      }
     }
 
     console.log("Clicked '+ Add a solicitor to this listing'. Selecting solicitor...");
