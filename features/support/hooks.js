@@ -398,6 +398,10 @@ BeforeAll(function () {
 });
 
 Before(async function ({ pickle }) {
+  const isStaging = (process.env.BASE_URL || "").includes("staging");
+  if (isStaging && pickle?.name) {
+    pickle.name = pickle.name.replace(/^Flow 1\b/i, "Stag Flow 1");
+  }
   this.pickle = pickle;
   this.currentStepName = null;
   this.scenarioArtifactTimestamp = artifactTimestamp();

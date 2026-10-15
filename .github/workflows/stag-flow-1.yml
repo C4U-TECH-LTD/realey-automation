@@ -126,6 +126,11 @@ jobs:
           echo "formatted_duration=${minutes}m ${seconds}s" >> "$GITHUB_OUTPUT"
           echo "end_time=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
 
+      - name: Tag Staging Results (Stag Flow 1)
+        if: always()
+        run: |
+          node scripts/tag-allure-environment.js allure-results "Stag Flow 1"
+
       - name: Generate Allure Report
         if: always()
         run: |
