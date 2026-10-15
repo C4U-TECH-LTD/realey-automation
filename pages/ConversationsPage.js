@@ -174,55 +174,83 @@ class ConversationsPage {
     await this.page.waitForTimeout(1000);
 
     const shortName = expectedPropertyName.split(",")[0].trim();
+    const streetOnly = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+    const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedStreet = streetOnly ? streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
+    const cardPattern = new RegExp(`${escapedShort}${escapedStreet ? `|${escapedStreet}` : ""}`, "i");
 
-    // 1. Filter using the search input so the created listing's conversations are isolated
     const searchInput = this.page
       .getByPlaceholder(/search by property title or address/i)
       .or(this.page.locator('input[placeholder*="Search by property title or address" i]'))
       .first();
 
+    const locateCards = async () => {
+      return this.page
+        .locator('div[class*="rounded"].border, div[class*="rounded-2xl"], div[class*="bg-card"], div.border')
+        .filter({ hasText: cardPattern })
+        .filter({
+          has: this.page.locator(
+            "svg.lucide-chevron-down, svg.lucide-chevron-up, [class*='lucide-chevron']"
+          ),
+        });
+    };
+
+    // 1. Filter using search input with smart fallback
     if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
       console.log(`Filtering Conversations by: ${shortName}`);
       await searchInput.fill(shortName);
       await searchInput.press("Enter").catch(() => {});
-      await this.page.waitForTimeout(2000);
-    }
+      await this.page.waitForTimeout(1500);
 
-    // If still showing 0 Properties / loading, wait for data to populate
-    const zeroProperties = this.page.getByText(/^0\s*Properties$/i);
-    if (await zeroProperties.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log("Conversations list showing 0 properties, waiting for data to populate...");
-      await this.page.waitForTimeout(3000);
-      if (await zeroProperties.isVisible().catch(() => false)) {
-        console.log("Reloading conversations page...");
-        await this.page.reload({ waitUntil: "domcontentloaded" });
-        await this.page
-          .locator(".animate-spin, svg.animate-spin")
-          .first()
-          .waitFor({ state: "hidden", timeout: 30_000 })
-          .catch(() => {});
-        await this.page.waitForTimeout(2000);
-        
-        // Refilter after reload
-        if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await searchInput.fill(shortName);
-          await searchInput.press("Enter").catch(() => {});
-          await this.page.waitForTimeout(2000);
-        }
+      let cards = await locateCards();
+      if ((await cards.count()) === 0 && streetOnly && streetOnly !== shortName) {
+        console.log(`0 cards found for "${shortName}". Retrying filter with street name: "${streetOnly}"...`);
+        await searchInput.fill(streetOnly);
+        await searchInput.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(1500);
+      }
+
+      cards = await locateCards();
+      if ((await cards.count()) === 0) {
+        console.log(`0 cards found after search filter. Clearing search input to view all cards...`);
+        await searchInput.fill("");
+        await searchInput.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(1500);
       }
     }
 
-    // Look for isolated property cards
-    const cardCandidates = this.page
-      .locator('div[class*="rounded"].border, div[class*="rounded-2xl"], div[class*="bg-card"]')
-      .filter({ hasText: new RegExp(shortName, "i") })
-      .filter({
-        has: this.page.locator(
-          "svg.lucide-chevron-down, svg.lucide-chevron-up, [class*='lucide-chevron']"
-        ),
-      });
+    let cardCandidates = await locateCards();
+    let cardCount = await cardCandidates.count();
 
-    const cardCount = await cardCandidates.count();
+    // If still 0 cards, wait briefly and reload once to refresh API/WebSocket state
+    if (cardCount === 0) {
+      console.log(`No conversation card found for "${expectedPropertyName}", waiting and reloading page...`);
+      await this.page.waitForTimeout(3000);
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+      await this.page
+        .locator(".animate-spin, svg.animate-spin")
+        .first()
+        .waitFor({ state: "hidden", timeout: 30_000 })
+        .catch(() => {});
+      await this.page.waitForTimeout(2000);
+
+      if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await searchInput.fill(streetOnly || shortName);
+        await searchInput.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(1500);
+      }
+
+      cardCandidates = await locateCards();
+      cardCount = await cardCandidates.count();
+      if (cardCount === 0 && (await searchInput.isVisible().catch(() => false))) {
+        await searchInput.fill("");
+        await searchInput.press("Enter").catch(() => {});
+        await this.page.waitForTimeout(1500);
+        cardCandidates = await locateCards();
+        cardCount = await cardCandidates.count();
+      }
+    }
+
     if (cardCount > 0) {
       // Prefer cards that are NOT marked as completed, declined, or accepted
       const activeCards = [];
@@ -249,7 +277,7 @@ class ConversationsPage {
       }
 
       return {
-        propertyName: matchedCard.getByText(new RegExp(shortName, "i")).first(),
+        propertyName: matchedCard.getByText(cardPattern).first(),
         propertyRow: matchedCard,
       };
     }
@@ -260,9 +288,10 @@ class ConversationsPage {
       .or(
         this.page
           .locator("button, div")
-          .filter({ hasText: new RegExp(`^${shortName}`, "i") })
+          .filter({ hasText: new RegExp(`^${escapedShort}`, "i") })
       )
-      .or(this.page.getByText(new RegExp(shortName, "i")))
+      .or(this.page.getByText(new RegExp(escapedShort, "i")))
+      .or(this.page.getByText(new RegExp(escapedStreet, "i")))
       .first();
 
     await expect(
@@ -367,20 +396,7 @@ class ConversationsPage {
       `Opening latest Agent/Buyer conversation for: ${expectedPropertyName}`
     );
 
-    // 1. Filter property list in sidebar if search input exists
-    const searchInput = this.page
-      .getByPlaceholder(/search by property title or address/i)
-      .or(this.page.locator('input[placeholder*="Search by property title or address" i]'))
-      .first();
-
-    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log(`Filtering conversation list by: ${shortName}`);
-      await searchInput.fill(shortName);
-      await searchInput.press("Enter").catch(() => {});
-      await this.page.waitForTimeout(1500);
-    }
-
-    // 3. Expand the property card
+    // 1. Expand the property card (handles search filtering and card location)
     const propertyRow = await this.expandConversationList(expectedPropertyName);
     await this.page.waitForTimeout(1000);
 
@@ -518,20 +534,7 @@ class ConversationsPage {
       `Opening Buyer conversation for: ${expectedPropertyName}`
     );
 
-    // 1. Filter via sidebar search if present
-    const searchInput = this.page
-      .getByPlaceholder(/search by property title or address/i)
-      .or(this.page.locator('input[placeholder*="Search by property title or address" i]'))
-      .first();
-
-    if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.log(`Filtering conversation list by: ${shortName}`);
-      await searchInput.fill(shortName);
-      await searchInput.press("Enter").catch(() => {});
-      await this.page.waitForTimeout(1500);
-    }
-
-    // 2. Expand property row
+    // 1. Expand property row (handles search filtering and card location)
     const propertyRow = await this.expandConversationList(expectedPropertyName);
     await this.page.waitForTimeout(1000);
 

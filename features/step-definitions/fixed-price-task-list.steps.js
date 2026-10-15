@@ -482,12 +482,12 @@ When(
 When(
   "the Agent opens the submitted Fixed Price Task List offer",
   async function () {
+    const propName =
+      this.createdListingTitle ||
+      fixedPriceTaskListFlowData.agent.listing.expectedPropertyName;
     await this.agentOffersPage
       .openSubmittedOffer(
-        fixedPriceTaskListFlowData
-          .agent
-          .listing
-          .expectedPropertyName
+        propName
       );
   }
 );
@@ -499,6 +499,12 @@ When(
 When(
   "the Agent sends the Fixed Price Task List counter offer via chat",
   async function () {
+    const propName =
+      this.createdListingTitle ||
+      fixedPriceTaskListFlowData.agent.listing.expectedPropertyName;
+    if (!this.agentOffersPage.activeCounterButton && propName) {
+      await this.agentOffersPage.openSubmittedOffer(propName);
+    }
     await this.agentOffersPage
       .sendCounterOfferViaChat(
         fixedPriceTaskListFlowData

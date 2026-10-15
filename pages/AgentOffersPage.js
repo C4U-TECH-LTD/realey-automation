@@ -104,19 +104,22 @@ class AgentOffersPage {
 
     if (propertyName) {
       const shortName = propertyName.split(",")[0].trim();
-      const escaped = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const exactRegex = new RegExp(`(?:^|\\D)${escaped}(?:\\D|$)`, "i");
+      const streetOnly = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+      const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escapedStreet = streetOnly ? streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
+      const exactRegex = new RegExp(`(?:^|\\D)${escapedShort}(?:\\D|$)`, "i");
+      const cardPattern = new RegExp(`${escapedShort}${escapedStreet ? `|${escapedStreet}` : ""}`, "i");
 
       const scanCards = async () => {
         // Find property title matching exactRegex across headers, spans, or text nodes
         const matchingElements = this.page
           .getByText(exactRegex)
-          .or(this.page.locator('h1, h2, h3, h4, h5, p, span, div').filter({ hasText: exactRegex }));
+          .or(this.page.locator('h1, h2, h3, h4, h5, p, span, div').filter({ hasText: cardPattern }));
 
         const elCount = await matchingElements.count().catch(() => 0);
         for (let i = 0; i < elCount; i++) {
           const el = matchingElements.nth(i);
-          const card = el.locator('xpath=ancestor::*[contains(@class, "rounded-2xl") or contains(@class, "bg-card")][1]');
+          const card = el.locator('xpath=ancestor::*[contains(@class, "rounded") or contains(@class, "border") or contains(@class, "bg-card")][1]');
           if (!await card.isVisible().catch(() => false)) continue;
           await card.scrollIntoViewIfNeeded().catch(() => {});
 
@@ -137,7 +140,7 @@ class AgentOffersPage {
           // If neither button is visible and offer is not already accepted, only then try expanding
           const cardText = await card.innerText().catch(() => "");
           if (!/accepted|preparing for contract exchange/i.test(cardText)) {
-            const accordionToggle = card.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers")').first();
+            const accordionToggle = card.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers"), button:has(svg.lucide-chevron-down), svg.lucide-chevron-down').first();
             if (await accordionToggle.isVisible().catch(() => false)) {
               console.log(`Attempting to expand offer accordion on card for "${propertyName}"...`);
               await accordionToggle.click().catch(() => {});
@@ -148,24 +151,34 @@ class AgentOffersPage {
                 console.log(`Found active 'Accept' button after expanding accordion for "${propertyName}".`);
                 return true;
               }
+              if (await counterBtn.isVisible().catch(() => false)) {
+                this.activeCounterButton = counterBtn;
+                console.log(`Found active 'Counter via Chat' button after expanding accordion for "${propertyName}".`);
+                return true;
+              }
             }
           }
         }
 
-        // Street-name fallback: find card on same street that has an active Accept button
-        const streetOnly = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+        // Street-name fallback: find card on same street that has an active Accept or Counter button
         if (streetOnly) {
-          const streetRegex = new RegExp(streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+          const streetRegex = new RegExp(escapedStreet, "i");
           const streetElements = this.page.getByText(streetRegex);
           const stCount = await streetElements.count().catch(() => 0);
           for (let s = 0; s < stCount; s++) {
             const stEl = streetElements.nth(s);
-            const card = stEl.locator('xpath=ancestor::*[contains(@class, "rounded-2xl") or contains(@class, "bg-card")][1]');
+            const card = stEl.locator('xpath=ancestor::*[contains(@class, "rounded") or contains(@class, "border") or contains(@class, "bg-card")][1]');
             if (!await card.isVisible().catch(() => false)) continue;
             const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).or(card.locator('button').filter({ hasText: /^Accept/i })).first();
+            const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).first();
             if (await acceptBtn.isVisible().catch(() => false)) {
               this.activeAcceptButton = acceptBtn;
               console.log(`Found active 'Accept' button on street-matching card for "${streetOnly}".`);
+              return true;
+            }
+            if (await counterBtn.isVisible().catch(() => false)) {
+              this.activeCounterButton = counterBtn;
+              console.log(`Found active 'Counter via Chat' button on street-matching card for "${streetOnly}".`);
               return true;
             }
           }
@@ -303,6 +316,17 @@ class AgentOffersPage {
       counterButton = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
     }
 
+    if (!counterButton || !(await counterButton.isVisible().catch(() => false))) {
+      const accordions = this.page.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers"), button:has(svg.lucide-chevron-down), svg.lucide-chevron-down');
+      const count = await accordions.count().catch(() => 0);
+      for (let i = 0; i < count; i++) {
+        await accordions.nth(i).click().catch(() => {});
+        await this.page.waitForTimeout(500);
+        counterButton = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
+        if (await counterButton.isVisible().catch(() => false)) break;
+      }
+    }
+
     await expect(
       counterButton,
       "Counter via Chat button should be visible"
@@ -396,6 +420,21 @@ class AgentOffersPage {
         }
       }
     }
+    if (!acceptBtn || !(await acceptBtn.isVisible().catch(() => false))) {
+      const accordions = this.page.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers"), button:has(svg.lucide-chevron-down), svg.lucide-chevron-down');
+      const count = await accordions.count().catch(() => 0);
+      for (let i = 0; i < count; i++) {
+        await accordions.nth(i).click().catch(() => {});
+        await this.page.waitForTimeout(500);
+        acceptBtn = this.page
+          .getByRole("button", { name: /^Accept$/i })
+          .or(this.page.locator('button').filter({ hasText: /^Accept$/i }))
+          .or(this.page.getByRole("button", { name: /accept/i }))
+          .first();
+        if (await acceptBtn.isVisible().catch(() => false)) break;
+      }
+    }
+
     if (!acceptBtn) {
       acceptBtn = this.page
         .getByRole("button", { name: /^Accept$/i })

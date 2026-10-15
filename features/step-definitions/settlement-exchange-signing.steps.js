@@ -1170,29 +1170,74 @@ async function openSettlementCard(worldOrPage, specificTitle = null) {
     "London Circuit";
 
   const shortName = targetTitle.split(",")[0].trim();
+  const streetOnly = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+  const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedStreet = streetOnly ? streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
+  const matchPattern = new RegExp(`${escapedShort}${escapedStreet ? `|${escapedStreet}` : ""}`, "i");
 
-  // 4. Wait specifically for the settlement search input (do NOT use generic 'search' which matches other tabs)
+  // 4. Wait for settlement search input (support all possible search placeholders)
   const searchInput = page
-    .locator('input[placeholder*="Search by property title" i]')
+    .locator('input[placeholder*="Search by property title" i], input[placeholder*="Search by address" i], input[placeholder*="search" i]')
     .first();
 
-  await searchInput.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+  await searchInput.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+
+  const locateSettlementCard = () => {
+    return page
+      .getByText(shortName, { exact: false })
+      .or(page.getByText(streetOnly, { exact: false }))
+      .or(page.locator('div[class*="border"], div[class*="rounded"]').filter({ hasText: matchPattern }))
+      .filter({ visible: true })
+      .first();
+  };
 
   if (await searchInput.isVisible().catch(() => false)) {
-    const currentVal = await searchInput.inputValue().catch(() => "");
-    if (currentVal !== shortName) {
-      console.log(`Filtering settlements list by: ${shortName}`);
-      await searchInput.fill(shortName);
+    console.log(`Filtering settlements list by: ${shortName}`);
+    await searchInput.fill(shortName);
+    await searchInput.press("Enter").catch(() => {});
+    await page.waitForTimeout(2000);
+
+    let foundCard = locateSettlementCard();
+    if (!(await foundCard.isVisible().catch(() => false)) && streetOnly && streetOnly !== shortName) {
+      console.log(`0 settlements found for "${shortName}". Retrying filter by street name: "${streetOnly}"...`);
+      await searchInput.fill(streetOnly);
       await searchInput.press("Enter").catch(() => {});
       await page.waitForTimeout(2000);
     }
+
+    foundCard = locateSettlementCard();
+    if (!(await foundCard.isVisible().catch(() => false))) {
+      console.log(`0 settlements found with filter. Clearing search input to browse pages...`);
+      await searchInput.fill("");
+      await searchInput.press("Enter").catch(() => {});
+      await page.waitForTimeout(1500);
+    }
   }
 
-  // 5. Locate and scroll to the matching settlement card
-  const titleLocator = page
-    .getByText(shortName, { exact: false })
-    .filter({ visible: true })
-    .first();
+  // 5. Locate matching settlement card with pagination check if needed
+  let titleLocator = locateSettlementCard();
+  let cardVisible = await titleLocator.isVisible().catch(() => false);
+
+  if (!cardVisible) {
+    for (let p = 1; p <= 4; p++) {
+      const nextBtn = page.getByRole("button", { name: /^Next$/i })
+        .or(page.locator('button:has-text("Next"), [aria-label*="next page" i]'))
+        .first();
+      if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+        console.log(`Settlement card not on page ${p}, navigating to page ${p + 1}...`);
+        await nextBtn.click();
+        await page.waitForTimeout(2000);
+        titleLocator = locateSettlementCard();
+        if (await titleLocator.isVisible().catch(() => false)) {
+          cardVisible = true;
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+  }
+
   await expect(titleLocator, `Settlement card for "${targetTitle}" should be visible`).toBeVisible({ timeout: 20_000 });
   await titleLocator.scrollIntoViewIfNeeded().catch(() => {});
 }
