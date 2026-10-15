@@ -357,10 +357,12 @@ When(
 When(
   "the Agent opens the submitted Offer Price offer",
   async function () {
+    const propName =
+      this.createdListingTitle ||
+      offerPriceFlowData.agent.listing.expectedPropertyName;
     await this.agentOffersPage
       .openSubmittedOffer(
-        offerPriceFlowData.agent.listing
-          .expectedPropertyName
+        propName
       );
   }
 );
@@ -368,6 +370,12 @@ When(
 When(
   "the Agent sends the configured counter offer via chat",
   async function () {
+    const propName =
+      this.createdListingTitle ||
+      offerPriceFlowData.agent.listing.expectedPropertyName;
+    if (!this.agentOffersPage.activeCounterButton && propName) {
+      await this.agentOffersPage.openSubmittedOffer(propName);
+    }
     await this.agentOffersPage
       .sendCounterOfferViaChat(
         offerPriceFlowData.counterOffer

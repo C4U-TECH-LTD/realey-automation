@@ -108,82 +108,75 @@ class AgentOffersPage {
       const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const escapedStreet = streetOnly ? streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
       const exactRegex = new RegExp(`(?:^|\\D)${escapedShort}(?:\\D|$)`, "i");
-      const cardPattern = new RegExp(`${escapedShort}${escapedStreet ? `|${escapedStreet}` : ""}`, "i");
 
-      const scanCards = async () => {
-        // Find property title matching exactRegex across headers, spans, or text nodes
-        const matchingElements = this.page
-          .getByText(exactRegex)
-          .or(this.page.locator('h1, h2, h3, h4, h5, p, span, div').filter({ hasText: cardPattern }));
+      const inspectCard = async (card, label) => {
+        if (!await card.isVisible().catch(() => false)) return false;
+        await card.scrollIntoViewIfNeeded().catch(() => {});
 
-        const elCount = await matchingElements.count().catch(() => 0);
-        for (let i = 0; i < elCount; i++) {
-          const el = matchingElements.nth(i);
-          const card = el.locator('xpath=ancestor::*[contains(@class, "rounded") or contains(@class, "border") or contains(@class, "bg-card")][1]');
-          if (!await card.isVisible().catch(() => false)) continue;
-          await card.scrollIntoViewIfNeeded().catch(() => {});
+        const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).or(card.locator('button').filter({ hasText: /^Accept/i })).first();
+        const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).or(card.locator('button').filter({ hasText: /Counter via Chat/i })).first();
 
-          const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).or(card.locator('button').filter({ hasText: /^Accept/i })).first();
-          const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).first();
+        let hasAccept = await acceptBtn.isVisible().catch(() => false);
+        let hasCounter = await counterBtn.isVisible().catch(() => false);
 
-          if (await acceptBtn.isVisible().catch(() => false)) {
-            this.activeAcceptButton = acceptBtn;
-            console.log(`Found active 'Accept' button for "${propertyName}".`);
-            return true;
-          }
-          if (await counterBtn.isVisible().catch(() => false)) {
-            this.activeCounterButton = counterBtn;
-            console.log(`Found active 'Counter via Chat' button for "${propertyName}".`);
-            return true;
-          }
-
-          // If neither button is visible and offer is not already accepted, only then try expanding
+        if (!hasAccept && !hasCounter) {
           const cardText = await card.innerText().catch(() => "");
           if (!/accepted|preparing for contract exchange/i.test(cardText)) {
             const accordionToggle = card.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers"), button:has(svg.lucide-chevron-down), svg.lucide-chevron-down').first();
             if (await accordionToggle.isVisible().catch(() => false)) {
-              console.log(`Attempting to expand offer accordion on card for "${propertyName}"...`);
+              console.log(`Attempting to expand offer accordion on card (${label})...`);
               await accordionToggle.click().catch(() => {});
               await this.page.waitForTimeout(1000);
-
-              if (await acceptBtn.isVisible().catch(() => false)) {
-                this.activeAcceptButton = acceptBtn;
-                console.log(`Found active 'Accept' button after expanding accordion for "${propertyName}".`);
-                return true;
-              }
-              if (await counterBtn.isVisible().catch(() => false)) {
-                this.activeCounterButton = counterBtn;
-                console.log(`Found active 'Counter via Chat' button after expanding accordion for "${propertyName}".`);
-                return true;
-              }
+              hasAccept = await acceptBtn.isVisible().catch(() => false);
+              hasCounter = await counterBtn.isVisible().catch(() => false);
             }
           }
         }
 
-        // Street-name fallback: find card on same street that has an active Accept or Counter button
-        if (streetOnly) {
-          const streetRegex = new RegExp(escapedStreet, "i");
-          const streetElements = this.page.getByText(streetRegex);
-          const stCount = await streetElements.count().catch(() => 0);
-          for (let s = 0; s < stCount; s++) {
-            const stEl = streetElements.nth(s);
-            const card = stEl.locator('xpath=ancestor::*[contains(@class, "rounded") or contains(@class, "border") or contains(@class, "bg-card")][1]');
-            if (!await card.isVisible().catch(() => false)) continue;
-            const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).or(card.locator('button').filter({ hasText: /^Accept/i })).first();
-            const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).first();
-            if (await acceptBtn.isVisible().catch(() => false)) {
-              this.activeAcceptButton = acceptBtn;
-              console.log(`Found active 'Accept' button on street-matching card for "${streetOnly}".`);
-              return true;
-            }
-            if (await counterBtn.isVisible().catch(() => false)) {
-              this.activeCounterButton = counterBtn;
-              console.log(`Found active 'Counter via Chat' button on street-matching card for "${streetOnly}".`);
-              return true;
-            }
-          }
+        if (hasAccept) {
+          this.activeAcceptButton = acceptBtn;
+          console.log(`Found active 'Accept' button (${label}).`);
+        }
+        if (hasCounter) {
+          this.activeCounterButton = counterBtn;
+          console.log(`Found active 'Counter via Chat' button (${label}).`);
         }
 
+        return Boolean(hasAccept || hasCounter);
+      };
+
+      const scanCards = async () => {
+        // Priority 1: Direct cards matching exact unique address (e.g. "203 Bourke Street")
+        const exactCards = this.page
+          .locator('div[class*="rounded"], div.border, article')
+          .filter({ hasText: exactRegex });
+        const exactCount = await exactCards.count().catch(() => 0);
+        for (let i = 0; i < exactCount; i++) {
+          if (await inspectCard(exactCards.nth(i), `exact: "${shortName}"`)) return true;
+        }
+
+        // Priority 2: Text elements matching exact unique address
+        const matchingElements = this.page.getByText(exactRegex);
+        const elCount = await matchingElements.count().catch(() => 0);
+        for (let i = 0; i < elCount; i++) {
+          const el = matchingElements.nth(i);
+          const card = el.locator('xpath=ancestor::*[contains(@class, "rounded") or contains(@class, "border") or contains(@class, "bg-card")][last()]');
+          if (await inspectCard(card, `exact ancestor: "${shortName}"`)) return true;
+        }
+
+        return false;
+      };
+
+      const scanStreetFallback = async () => {
+        if (!streetOnly) return false;
+        const streetRegex = new RegExp(`(?:^|\\D)${escapedStreet}(?:\\D|$)`, "i");
+        const streetCards = this.page
+          .locator('div[class*="rounded"], div.border, article')
+          .filter({ hasText: streetRegex });
+        const count = await streetCards.count().catch(() => 0);
+        for (let s = 0; s < count; s++) {
+          if (await inspectCard(streetCards.nth(s), `street fallback: "${streetOnly}"`)) return true;
+        }
         return false;
       };
 
@@ -274,6 +267,8 @@ class AgentOffersPage {
         }
       }
 
+      if (await scanStreetFallback()) return;
+
       return;
     }
 
@@ -313,7 +308,9 @@ class AgentOffersPage {
       this.activeCounterButton || this.counterViaChatButton;
 
     if (!counterButton || !(await counterButton.isVisible().catch(() => false))) {
-      counterButton = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
+      counterButton = this.page.getByRole("button", { name: /Counter via Chat/i })
+        .or(this.page.locator('button').filter({ hasText: /Counter via Chat/i }))
+        .first();
     }
 
     if (!counterButton || !(await counterButton.isVisible().catch(() => false))) {
@@ -322,10 +319,14 @@ class AgentOffersPage {
       for (let i = 0; i < count; i++) {
         await accordions.nth(i).click().catch(() => {});
         await this.page.waitForTimeout(500);
-        counterButton = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
+        counterButton = this.page.getByRole("button", { name: /Counter via Chat/i })
+          .or(this.page.locator('button').filter({ hasText: /Counter via Chat/i }))
+          .first();
         if (await counterButton.isVisible().catch(() => false)) break;
       }
     }
+
+    await counterButton.scrollIntoViewIfNeeded().catch(() => {});
 
     await expect(
       counterButton,

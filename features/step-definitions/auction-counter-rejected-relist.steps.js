@@ -588,11 +588,12 @@ When(
 When(
   "the Agent starts negotiation for the Auction Counter Rejected Relist flow",
   async function () {
+    const propName =
+      this.createdListingTitle ||
+      auctionCounterRejectedRelistFlowData.agent.listing.expectedPropertyName;
     await this.agentBidsPage
       .startNegotiation(
-        auctionCounterRejectedRelistFlowData
-          .agent.listing
-          .expectedPropertyName
+        propName
       );
   }
 );

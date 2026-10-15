@@ -209,6 +209,14 @@ class AgentBidsPage {
     const escapedPropertyName =
       this.escapeRegex(shortPropertyName);
 
+    const streetName = shortPropertyName.replace(/^\d+[\s\/-]*/, "").trim();
+    if (streetName && streetName !== shortPropertyName) {
+      const escapedStreet = this.escapeRegex(streetName);
+      return this.page.getByText(
+        new RegExp(`(?:${escapedPropertyName}|${escapedStreet})`, "i")
+      );
+    }
+
     /*
      * Partial + case-insensitive match.
      *
@@ -288,7 +296,7 @@ class AgentBidsPage {
       if (!await propertyTitle.isVisible().catch(() => false)) continue;
 
       const card = propertyTitle.locator(
-        "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+        "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded') or contains(@class, 'border')][1]"
       );
       if (await card.isVisible().catch(() => false)) {
         const scopedButton = card.getByRole("button", { name: buttonRegex }).first();
@@ -321,7 +329,7 @@ class AgentBidsPage {
         if (!await propertyTitle.isVisible().catch(() => false)) continue;
 
         const cardWithButton = propertyTitle.locator(
-          "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+          "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded') or contains(@class, 'border')][1]"
         );
 
         if (await cardWithButton.isVisible().catch(() => false)) {
@@ -390,7 +398,7 @@ class AgentBidsPage {
         );
         if (!await card.isVisible().catch(() => false)) {
           card = propertyTitle.locator(
-            "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+            "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded') or contains(@class, 'border')][1]"
           );
         }
         if (!await card.isVisible().catch(() => false)) continue;
@@ -512,16 +520,23 @@ class AgentBidsPage {
       }
     }
 
-    // Fallback: Check if any Start negotiation button is visible on current view
-    const fallbackStartButtons = this.page
+    // Fallback: Check if any Start negotiation button is visible on current view (or reopen Bids)
+    let fallbackStartButtons = this.page
       .getByRole("button", { name: /^Start negotiation$/i })
       .or(this.page.locator('button:has-text("Start negotiation")'));
-    const fallbackCount = await fallbackStartButtons.count();
+    let fallbackCount = await fallbackStartButtons.count();
+    if (fallbackCount === 0) {
+      await this.openBids().catch(() => {});
+      fallbackStartButtons = this.page
+        .getByRole("button", { name: /^Start negotiation$/i })
+        .or(this.page.locator('button:has-text("Start negotiation")'));
+      fallbackCount = await fallbackStartButtons.count();
+    }
     for (let f = 0; f < fallbackCount; f++) {
       const btn = fallbackStartButtons.nth(f);
-      if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (await btn.isVisible().catch(() => false)) {
         console.log(`Fallback: Clicked Start negotiation button index ${f} on Bids page`);
-        await btn.scrollIntoViewIfNeeded();
+        await btn.scrollIntoViewIfNeeded().catch(() => {});
         await btn.click();
         await expect(
           this.counterAmountInput,
@@ -769,7 +784,7 @@ class AgentBidsPage {
           );
           if (!await card.isVisible().catch(() => false)) {
             card = propertyTitle.locator(
-              "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded-2xl')][1]"
+              "xpath=ancestor::*[contains(@class, 'bg-card') or contains(@class, 'rounded') or contains(@class, 'border')][1]"
             );
           }
 
