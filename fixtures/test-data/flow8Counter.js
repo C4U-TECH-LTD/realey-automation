@@ -24,14 +24,6 @@ function getNextFlow8SearchAddress(baseName = "Chapel Street") {
     console.warn("Could not read flow8-counter.json, defaulting to 1:", err.message);
   }
 
-  // Preserve explicit full addresses (e.g. Staging addresses with commas)
-  if (baseName && baseName.includes(",")) {
-    return {
-      counter,
-      searchAddress: baseName,
-    };
-  }
-
   const nowSec = Math.floor(Date.now() / 1000);
   const timeOffset = (nowSec + counter * 17) % 600;
   const uniqueStreetNumber = 50 + timeOffset;
@@ -47,9 +39,14 @@ function getNextFlow8SearchAddress(baseName = "Chapel Street") {
     console.warn("Could not write flow8-counter.json:", err.message);
   }
 
+  const cleanBase = (baseName || "Chapel Street")
+    .split(",")[0]
+    .replace(/^\d+[\s\/-]*/, "")
+    .trim() || "Chapel Street";
+
   return {
     counter: uniqueStreetNumber,
-    searchAddress: `${baseName} ${uniqueStreetNumber}`,
+    searchAddress: `${uniqueStreetNumber} ${cleanBase}, Melbourne`,
   };
 }
 

@@ -249,37 +249,47 @@ class PropertyLocationPage {
     await firstSuggestion.dispatchEvent("mouseup").catch(() => {});
     await firstSuggestion.click({ force: true }).catch(() => {});
 
-    await this.page.waitForTimeout(1000);
+    // Wait for Google Places place details to populate Suburb (can take up to 3-4s over network)
+    let suburbVal = "";
+    for (let w = 0; w < 8; w++) {
+      suburbVal = (await this.suburbInput.inputValue().catch(() => "")).trim();
+      if (suburbVal) break;
+      await this.page.waitForTimeout(500);
+    }
 
-    // Check if Suburb was auto-filled, or if validation warning persists
-    let suburbVal = (await this.suburbInput.inputValue().catch(() => "")).trim();
     const validationWarning = this.page.getByText(
       /Please select your address from the suggestions/i
     );
     const hasValidationError = await validationWarning.isVisible().catch(() => false);
 
-    // Fallback attempt: Native keyboard navigation (ArrowDown + Enter)
+    // If suburb still not populated or warning visible after waiting, re-click first suggestion
     if (!suburbVal || hasValidationError) {
-      console.log(
-        "[PropertyLocationPage] Suburb not populated after click or validation warning visible. Using ArrowDown + Enter fallback..."
-      );
-      await this.streetAddressInput.focus();
-      await this.page.keyboard.press("ArrowDown");
-      await this.page.waitForTimeout(300);
-      await this.page.keyboard.press("Enter");
-      await this.page.waitForTimeout(1000);
+      if (await this.googleSuggestions.first().isVisible().catch(() => false)) {
+        console.log("[PropertyLocationPage] Suggestions still visible, re-clicking first item...");
+        await this.googleSuggestions.first().dispatchEvent("mousedown").catch(() => {});
+        await this.googleSuggestions.first().click({ force: true }).catch(() => {});
+        for (let w = 0; w < 6; w++) {
+          suburbVal = (await this.suburbInput.inputValue().catch(() => "")).trim();
+          if (suburbVal) break;
+          await this.page.waitForTimeout(500);
+        }
+      }
     }
 
-    // Secondary fallback: if suggestion dropdown is still open, click it again
-    suburbVal = (await this.suburbInput.inputValue().catch(() => "")).trim();
-    if (!suburbVal && (await this.googleSuggestions.first().isVisible().catch(() => false))) {
-      console.log("[PropertyLocationPage] Suggestions still visible, re-clicking first item...");
-      await this.googleSuggestions.first().click({ force: true }).catch(() => {});
-      await this.page.waitForTimeout(1000);
-    }
+    let selectedAddress = (await this.streetAddressInput.inputValue()).trim();
 
-    const selectedAddress =
-      await this.streetAddressInput.inputValue();
+    // If search text had a street number (e.g., "473 Collins Street"), but Google Places stripped it
+    // restoring the street number ensures unique listing creation and prevents collision with generic street names
+    if (!/^\d+/.test(selectedAddress) && /^\d+/.test(searchText)) {
+      const numMatch = searchText.match(/^(\d+)/);
+      if (numMatch) {
+        selectedAddress = `${numMatch[1]} ${selectedAddress}`;
+        await this.streetAddressInput.fill(selectedAddress);
+        console.log(
+          `[PropertyLocationPage] Preserved street number into street address input: "${selectedAddress}"`
+        );
+      }
+    }
 
     if (!selectedAddress.trim()) {
       throw new Error(

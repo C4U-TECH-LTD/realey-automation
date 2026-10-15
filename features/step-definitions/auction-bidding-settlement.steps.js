@@ -19,6 +19,10 @@ const {
   auctionFlowData,
 } = require("../../fixtures/test-data/auctionFlowData");
 
+const {
+  getNextFlow3SearchAddress,
+} = require("../../fixtures/test-data/flow3Counter");
+
 // =====================================================
 // GLOBAL TIMEOUT
 //
@@ -198,13 +202,41 @@ When(
     await this.propertyLocationPage
       .waitForPage();
 
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const baseAddress = isStaging
+      ? (process.env.FLOW3_ADDRESS || "199 William Street, Melbourne VIC, Australia")
+      : (listing.addressSearchText || "Chapel Street");
+    const { counter, searchAddress } = getNextFlow3SearchAddress(baseAddress);
+    console.log(`[Flow 3] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
+
     await this.propertyLocationPage
       .typeAddressAndSelectFirstSuggestion(
-        listing.addressSearchText
+        searchAddress
       );
 
     await this.propertyLocationPage
       .waitForAutoFilledLocationFields();
+
+    // Dynamically retrieve the actual populated address details
+    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
+    if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
+      populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
+    }
+    const fullName = populatedSuburb ? `${populatedStreet}, ${populatedSuburb}` : populatedStreet;
+
+    console.log(`[Flow 3] Selected address: "${fullName}" (street: "${populatedStreet}")`);
+
+    // Dynamically update test data for all subsequent steps in this flow run
+    listing.addressSearchText = populatedStreet;
+    listing.expectedPropertyName = fullName;
+    listing.headline = `Flow 3 Auction Property #${counter}`;
+    auctionFlowData.firstBuyer.searchText = populatedStreet;
+    if (auctionFlowData.secondBuyer) {
+      auctionFlowData.secondBuyer.searchText = populatedStreet;
+    }
+    this.createdListingStreet = populatedStreet;
+    this.createdListingTitle = fullName;
 
     await this.propertyLocationPage
       .clickNext();

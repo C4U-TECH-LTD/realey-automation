@@ -197,7 +197,7 @@ class OfferPage {
     );
 
     if (isDialog) {
-      const submitBtn = dialog
+      const submitBtn = offerDialog
         .getByRole("button", { name: /submit offer/i })
         .first();
 
@@ -293,11 +293,19 @@ class OfferPage {
   async verifyOfferSubmitted(
     expectedMessage
   ) {
+    // 1. Ensure submit dialog has finished and closed
+    const submitDialog = this.page.locator('[role="dialog"]').first();
+    if (await submitDialog.isVisible().catch(() => false)) {
+      await submitDialog.waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
+    }
+
+    // 2. Wait for success toast or active offer status
     const successTarget = this.page
-      .getByText(expectedMessage)
-      .or(this.page.getByText(/offer.*submitted|offer.*updated/i))
-      .or(this.page.locator('text=$25,000'))
-      .or(this.page.locator('text=25,000'))
+      .locator('[data-sonner-toast], [role="status"], [class*="toast" i]')
+      .filter({ hasText: /offer.*submitted|offer.*updated/i })
+      .or(this.page.getByText(expectedMessage || /offer.*submitted/i))
+      .or(this.page.getByText(/Your offer has been submitted/i))
+      .or(this.page.locator('text=/Status:\\s*Pending/i'))
       .first();
 
     await expect(
@@ -306,6 +314,9 @@ class OfferPage {
     ).toBeVisible({
       timeout: 30_000,
     });
+
+    // 3. Short wait to ensure backend transaction commits before switching sessions
+    await this.page.waitForTimeout(2000);
 
     console.log(
       "Offer submitted successfully"

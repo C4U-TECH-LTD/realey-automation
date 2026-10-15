@@ -140,7 +140,28 @@ async function getSalesInstructionsButton(page, world) {
     return modalBtn;
   }
 
-  // 2. Active settlement card is the first card on Settlements tab (identified by its View Details button container)
+  // 2. Active settlement card for this specific property
+  const targetTitle =
+    world?.createdListingTitle ||
+    salesInstructionsFlowData?.agent?.listing?.expectedPropertyName ||
+    "London Circuit";
+  const shortName = targetTitle.split(",")[0].trim();
+
+  const titleElement = page.getByText(shortName, { exact: false }).filter({ visible: true }).first();
+  if (await titleElement.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const card = titleElement.locator(
+      "xpath=ancestor::div[contains(@class, 'rounded') or contains(@class, 'border') or contains(@class, 'card') or contains(@class, 'shadow') or contains(@class, 'p-')][1]"
+    );
+    const viewDetailsBtn = card.getByRole("button", { name: /view details/i }).first();
+    const buttonContainer = (await viewDetailsBtn.isVisible({ timeout: 1000 }).catch(() => false))
+      ? viewDetailsBtn.locator("..")
+      : card;
+    const cardBtn = buttonContainer.getByRole("button", { name: /sales instructions/i }).first();
+    if (await cardBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      return cardBtn;
+    }
+  }
+
   const viewDetailsBtn = page.getByRole("button", { name: /view details/i }).first();
   if (await viewDetailsBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
     const buttonContainer = viewDetailsBtn.locator("..");
@@ -247,7 +268,7 @@ async function checkInAppNotification(target, expectedRegex) {
   return false;
 }
 
-async function checkChatroomMessage(target, expectedRegex, propertyName = "10 London Circuit") {
+async function checkChatroomMessage(target, expectedRegex, propertyName = null) {
   const page = target?.page || target;
   const conversationsPage = target?.conversationsPage;
   const effectiveRegex = target?.salesInstructionsRef
@@ -304,7 +325,12 @@ async function checkChatroomMessage(target, expectedRegex, propertyName = "10 Lo
     );
   }
 
-  const shortName = (propertyName || "10 London Circuit").split(",")[0].trim();
+  const effectivePropertyName =
+    propertyName ||
+    target?.createdListingTitle ||
+    salesInstructionsFlowData?.agent?.listing?.expectedPropertyName ||
+    "London Circuit";
+  const shortName = effectivePropertyName.split(",")[0].trim();
 
   // Expand top property accordion matching the property name
   const propHeader = page.getByText(new RegExp(shortName, "i")).first();
@@ -392,12 +418,30 @@ Then(
     const page = this.page;
     await page.waitForTimeout(1500);
 
-    const viewDetailsBtn = page.getByRole("button", { name: /view details/i }).first();
-    await expect(viewDetailsBtn, "Active settlement card should have a View Details button").toBeVisible({
+    const targetTitle =
+      this.createdListingTitle ||
+      salesInstructionsFlowData?.agent?.listing?.expectedPropertyName ||
+      "London Circuit";
+    const shortName = targetTitle.split(",")[0].trim();
+
+    const titleElement = page
+      .getByText(shortName, { exact: false })
+      .filter({ visible: true })
+      .first();
+
+    await expect(titleElement, `Settlement card for "${targetTitle}" should be visible`).toBeVisible({
       timeout: salesInstructionsFlowData.timeout.action,
     });
 
-    const buttonContainer = viewDetailsBtn.locator("..");
+    const card = titleElement.locator(
+      "xpath=ancestor::div[contains(@class, 'rounded') or contains(@class, 'border') or contains(@class, 'card') or contains(@class, 'shadow') or contains(@class, 'p-')][1]"
+    );
+
+    const viewDetailsBtn = card.getByRole("button", { name: /view details/i }).first();
+    const buttonContainer = (await viewDetailsBtn.isVisible({ timeout: 2000 }).catch(() => false))
+      ? viewDetailsBtn.locator("..")
+      : card;
+
     const salesInstructionsBtn = buttonContainer.getByRole("button", { name: /sales instructions/i }).first();
     const visible = await salesInstructionsBtn.isVisible({ timeout: 1500 }).catch(() => false);
 
@@ -772,7 +816,7 @@ Then(
     const page = this.page;
 
     // Expand property accordion if needed
-    const shortName = (salesInstructionsFlowData.agent.listing.expectedPropertyName || "10 London Circuit").split(",")[0].trim();
+    const shortName = (this.createdListingTitle || salesInstructionsFlowData.agent.listing.expectedPropertyName || "London Circuit").split(",")[0].trim();
 
     const agentRow = page
       .locator("button")

@@ -24,14 +24,6 @@ function getNextFlow5SearchAddress(baseName = "Elizabeth Street") {
     console.warn("Could not read flow5-counter.json, defaulting to 1:", err.message);
   }
 
-  // Preserve explicit full addresses (e.g. Staging addresses with commas other than base Elizabeth Street)
-  if (baseName && baseName.includes(",") && !baseName.toLowerCase().startsWith("elizabeth street")) {
-    return {
-      counter,
-      searchAddress: baseName,
-    };
-  }
-
   // Derive unique street number (50..649) to ensure valid Melbourne Google Places results
   // and prevent collisions across multiple CI workflows sharing UAT.
   const nowSec = Math.floor(Date.now() / 1000);
@@ -49,7 +41,11 @@ function getNextFlow5SearchAddress(baseName = "Elizabeth Street") {
     console.warn("Could not write flow5-counter.json:", err.message);
   }
 
-  const cleanBase = baseName.replace(/,.*$/, "").trim();
+  const cleanBase = (baseName || "Elizabeth Street")
+    .split(",")[0]
+    .replace(/^\d+[\s\/-]*/, "")
+    .trim() || "Elizabeth Street";
+
   return {
     counter: uniqueStreetNumber,
     searchAddress: `${uniqueStreetNumber} ${cleanBase}, Melbourne`,

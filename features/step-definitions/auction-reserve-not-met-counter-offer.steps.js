@@ -21,6 +21,12 @@ const {
   "../../fixtures/test-data/auctionReserveNotMetFlowData"
 );
 
+const {
+  getNextFlow4SearchAddress,
+} = require(
+  "../../fixtures/test-data/flow4Counter"
+);
+
 // Auction can run for 15 minutes.
 setDefaultTimeout(20 * 60 * 1000);
 
@@ -163,13 +169,38 @@ When(
     await this.propertyLocationPage
       .waitForPage();
 
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const baseAddress = isStaging
+      ? (process.env.FLOW4_ADDRESS || "199 William Street, Melbourne VIC, Australia")
+      : (listing.addressSearchText || "Degraves Street");
+    const { counter, searchAddress } = getNextFlow4SearchAddress(baseAddress);
+    console.log(`[Flow 4] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
+
     await this.propertyLocationPage
       .typeAddressAndSelectFirstSuggestion(
-        listing.addressSearchText
+        searchAddress
       );
 
     await this.propertyLocationPage
       .waitForAutoFilledLocationFields();
+
+    // Dynamically retrieve the actual populated address details
+    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
+    if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
+      populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
+    }
+    const fullName = populatedSuburb ? `${populatedStreet}, ${populatedSuburb}` : populatedStreet;
+
+    console.log(`[Flow 4] Selected address: "${fullName}" (street: "${populatedStreet}")`);
+
+    // Dynamically update test data for all subsequent steps in this flow run
+    listing.addressSearchText = populatedStreet;
+    listing.expectedPropertyName = fullName;
+    listing.headline = `Flow 4 Auction Property #${counter}`;
+    auctionReserveNotMetFlowData.buyer.searchText = populatedStreet;
+    this.createdListingStreet = populatedStreet;
+    this.createdListingTitle = fullName;
 
     await this.propertyLocationPage
       .clickNext();

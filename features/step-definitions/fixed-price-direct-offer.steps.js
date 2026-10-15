@@ -45,6 +45,18 @@ const {
   "../../fixtures/test-data/flow1Counter"
 );
 
+const {
+  getNextFlow6SearchAddress,
+} = require(
+  "../../fixtures/test-data/flow6Counter"
+);
+
+const {
+  getNextFlow7SearchAddress,
+} = require(
+  "../../fixtures/test-data/flow7Counter"
+);
+
 function isFlow7Scenario(world) {
   return Boolean(world?.isFlow7 || world?.pickle?.tags?.some((t) => t.name === "@flow-7"));
 }
@@ -642,21 +654,25 @@ When(
   async function () {
     const isFlow7 = isFlow7Scenario(this);
     const isFlow6 = isFlow6Scenario(this);
-    const addressSearchText = isFlow7
-      ? salesInstructionsFlowData.agent.listing.addressSearchText
-      : isFlow6
-      ? settlementExchangeFlowData.agent.listing.addressSearchText
-      : listingData.location.addressSearchText;
-    const headline = isFlow7
-      ? salesInstructionsFlowData.agent.listing.headline
-      : isFlow6
-      ? settlementExchangeFlowData.agent.listing.headline
-      : listingData.description.headline;
-    const description = isFlow7
-      ? salesInstructionsFlowData.agent.listing.propertyDescription
-      : isFlow6
-      ? settlementExchangeFlowData.agent.listing.propertyDescription
-      : listingData.description.propertyDescription;
+    let addressSearchText = listingData.location.addressSearchText;
+    let headline = listingData.description.headline;
+    let description = listingData.description.propertyDescription;
+
+    if (isFlow7) {
+      const { counter, searchAddress } = getNextFlow7SearchAddress(salesInstructionsFlowData.agent.listing.addressSearchText);
+      addressSearchText = searchAddress;
+      headline = `Flow 7 Sales Instructions Property #${counter}`;
+      salesInstructionsFlowData.agent.listing.headline = headline;
+      description = salesInstructionsFlowData.agent.listing.propertyDescription;
+      console.log(`[Flow 7] Listing creation using dynamic address: "${searchAddress}" (counter #${counter})`);
+    } else if (isFlow6) {
+      const { counter, searchAddress } = getNextFlow6SearchAddress(settlementExchangeFlowData.agent.listing.addressSearchText);
+      addressSearchText = searchAddress;
+      headline = `Flow 6 Settlement Exchange Property #${counter}`;
+      settlementExchangeFlowData.agent.listing.headline = headline;
+      description = settlementExchangeFlowData.agent.listing.propertyDescription;
+      console.log(`[Flow 6] Listing creation using dynamic address: "${searchAddress}" (counter #${counter})`);
+    }
 
     await this.dashboardPage
       .clickCreateListing();
@@ -673,7 +689,14 @@ When(
       .waitForAutoFilledLocationFields();
 
     // Dynamically retrieve the actual populated address details
-    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    if (!/^\d+/.test(populatedStreet) && /^\d+/.test(addressSearchText)) {
+      const numMatch = addressSearchText.match(/^(\d+)/);
+      if (numMatch) {
+        populatedStreet = `${numMatch[1]} ${populatedStreet}`;
+        console.log(`[Listing Creation] Restoring street number from query: "${populatedStreet}"`);
+      }
+    }
     let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
     if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
       populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
@@ -685,6 +708,13 @@ When(
       settlementExchangeFlowData.agent.listing.addressSearchText = populatedStreet;
       settlementExchangeFlowData.agent.listing.expectedPropertyName = fullName;
       settlementExchangeFlowData.generalUser.searchText = populatedStreet;
+      this.createdListingStreet = populatedStreet;
+      this.createdListingTitle = fullName;
+    } else if (isFlow7) {
+      console.log(`[Flow 7] Selected address: "${fullName}" (street: "${populatedStreet}")`);
+      salesInstructionsFlowData.agent.listing.addressSearchText = populatedStreet;
+      salesInstructionsFlowData.agent.listing.expectedPropertyName = fullName;
+      salesInstructionsFlowData.generalUser.searchText = populatedStreet;
       this.createdListingStreet = populatedStreet;
       this.createdListingTitle = fullName;
     }

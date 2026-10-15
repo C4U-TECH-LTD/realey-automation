@@ -742,7 +742,7 @@ class SettlementPage {
   }
 
   async selectCardTabIfNeeded(target) {
-    const scopes = target ? [target] : [...this.page.frames(), this.page];
+    const scopes = target ? [target] : [this.page, ...this.page.frames()];
 
     for (const scope of scopes) {
       const isPage = scope === this.page;
@@ -750,29 +750,27 @@ class SettlementPage {
 
       if (isPage) {
         const modal = this.page.locator('div[role="dialog"], [class*="modal"], [class*="fixed inset-0"]').first();
-        if (!(await modal.isVisible().catch(() => false))) continue;
+        if (!(await modal.isVisible({ timeout: 1000 }).catch(() => false))) continue;
 
         cardTabCandidates = [
-          modal.getByRole("tab", { name: /card/i }),
-          modal.locator('button:has-text("Card"), [role="tab"]:has-text("Card")'),
-          modal.locator('button, [role="tab"]').filter({ hasText: /^\s*Card\s*$/i }),
+          modal.getByRole("tab", { name: /^Card$/i }),
+          modal.locator('button, [role="tab"], div, label').filter({ hasText: /^\s*Card\s*$/i }),
         ];
       } else {
         cardTabCandidates = [
-          scope.getByRole("tab", { name: /card/i }),
           scope.locator('#tab-card, [id*="card" i][role="tab"]'),
-          scope.locator('button[id*="card" i], button[aria-controls*="card" i]'),
-          scope.locator('button:has-text("Card"), [role="tab"]:has-text("Card")'),
-          scope.locator('button, [role="tab"]').filter({ hasText: /^\s*Card\s*$/i }),
-          scope.getByText(/^\s*Card\s*$/i),
+          scope.locator('[data-testid*="card" i]'),
+          scope.locator('button, [role="tab"], div, label').filter({ hasText: /^\s*Card\s*$/i }),
+          scope.getByText(/^Card$/i),
+          scope.getByRole("tab", { name: /^Card$/i }),
         ];
       }
 
       for (const candidate of cardTabCandidates) {
-        if (await candidate.first().isVisible().catch(() => false)) {
+        if (await candidate.first().isVisible({ timeout: 500 }).catch(() => false)) {
           const text = await candidate.first().innerText().catch(() => "Card");
           console.log(`Found Card tab in ${isPage ? "modal" : "frame"}: "${text.trim()}". Clicking to switch to Card...`);
-          await candidate.first().click({ force: true });
+          await candidate.first().click({ force: true }).catch(() => {});
           await this.page.waitForTimeout(1_000);
           return;
         }
@@ -796,25 +794,36 @@ class SettlementPage {
     while (
       Date.now() - startedAt < timeoutMs
     ) {
+      // 1. Check if card input is directly on page
+      const pageCard = this.page.locator(
+        '#payment-numberInput, input[name="number"], input[name="cardNumber"], input[aria-label*="Card number" i], input[placeholder*="Card number" i]'
+      ).first();
+      if (await pageCard.isVisible({ timeout: 500 }).catch(() => false)) {
+        console.log("Fixed Price payment field found directly on page");
+        return this.page;
+      }
+
+      // 2. Check all frames safely
       const frames = this.page.frames();
-
       for (const frame of frames) {
-        const cardNumber = frame.locator(
-          '#payment-numberInput, input[name="number"], input[name="cardNumber"], input[aria-label*="Card number" i], input[placeholder*="Card number" i]'
-        );
+        try {
+          const cardNumber = frame.locator(
+            '#payment-numberInput, input[name="number"], input[name="cardNumber"], input[aria-label*="Card number" i], input[placeholder*="Card number" i]'
+          ).first();
 
-        if (
-          await cardNumber
-            .isVisible()
-            .catch(() => false)
-        ) {
-          console.log(
-            "Fixed Price payment frame found:",
-            frame.url()
-          );
+          if (
+            await cardNumber
+              .isVisible({ timeout: 500 })
+              .catch(() => false)
+          ) {
+            console.log(
+              "Fixed Price payment frame found:",
+              frame.url()
+            );
 
-          return frame;
-        }
+            return frame;
+          }
+        } catch (_) {}
       }
 
       await this.selectCardTabIfNeeded();

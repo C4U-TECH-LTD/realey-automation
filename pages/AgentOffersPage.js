@@ -107,112 +107,164 @@ class AgentOffersPage {
       const escaped = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const exactRegex = new RegExp(`(?:^|\\D)${escaped}(?:\\D|$)`, "i");
 
-      // Check if matching card with active action button is already visible before searching
-      const initialCards = this.page
-        .locator('div[class*="rounded"], div.border, article')
-        .filter({ hasText: exactRegex });
+      const scanCards = async () => {
+        // Find property title matching exactRegex across headers, spans, or text nodes
+        const matchingElements = this.page
+          .getByText(exactRegex)
+          .or(this.page.locator('h1, h2, h3, h4, h5, p, span, div').filter({ hasText: exactRegex }));
 
-      const initialCount = await initialCards.count().catch(() => 0);
-      for (let i = 0; i < initialCount; i++) {
-        const card = initialCards.nth(i);
-        const counterBtn = card.getByRole("button", { name: "Counter via Chat", exact: true }).first();
-        const acceptBtn = card.getByRole("button", { name: "Accept", exact: true }).first();
+        const elCount = await matchingElements.count().catch(() => 0);
+        for (let i = 0; i < elCount; i++) {
+          const el = matchingElements.nth(i);
+          const card = el.locator('xpath=ancestor::*[contains(@class, "rounded-2xl") or contains(@class, "bg-card")][1]');
+          if (!await card.isVisible().catch(() => false)) continue;
+          await card.scrollIntoViewIfNeeded().catch(() => {});
 
-        if (await counterBtn.isVisible().catch(() => false)) {
-          this.activeCounterButton = counterBtn;
-          console.log(`Found active 'Counter via Chat' button on initial card #${i + 1} for "${propertyName}".`);
-          return;
+          const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).or(card.locator('button').filter({ hasText: /^Accept/i })).first();
+          const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).first();
+
+          if (await acceptBtn.isVisible().catch(() => false)) {
+            this.activeAcceptButton = acceptBtn;
+            console.log(`Found active 'Accept' button for "${propertyName}".`);
+            return true;
+          }
+          if (await counterBtn.isVisible().catch(() => false)) {
+            this.activeCounterButton = counterBtn;
+            console.log(`Found active 'Counter via Chat' button for "${propertyName}".`);
+            return true;
+          }
+
+          // If neither button is visible and offer is not already accepted, only then try expanding
+          const cardText = await card.innerText().catch(() => "");
+          if (!/accepted|preparing for contract exchange/i.test(cardText)) {
+            const accordionToggle = card.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers")').first();
+            if (await accordionToggle.isVisible().catch(() => false)) {
+              console.log(`Attempting to expand offer accordion on card for "${propertyName}"...`);
+              await accordionToggle.click().catch(() => {});
+              await this.page.waitForTimeout(1000);
+
+              if (await acceptBtn.isVisible().catch(() => false)) {
+                this.activeAcceptButton = acceptBtn;
+                console.log(`Found active 'Accept' button after expanding accordion for "${propertyName}".`);
+                return true;
+              }
+            }
+          }
         }
-        if (await acceptBtn.isVisible().catch(() => false)) {
-          this.activeAcceptButton = acceptBtn;
-          console.log(`Found active 'Accept' button on initial card #${i + 1} for "${propertyName}".`);
-          return;
-        }
-      }
 
-      // 1. Filter using the search input with retry & reload if not found immediately
-      const searchStreet = shortName.replace(/^\d+[\s\/-]*/, "").trim();
-      const searchTerm = searchStreet || shortName;
-      const maxRetries = 3;
-      for (let retry = 1; retry <= maxRetries; retry++) {
+        // Street-name fallback: find card on same street that has an active Accept button
+        const streetOnly = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+        if (streetOnly) {
+          const streetRegex = new RegExp(streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+          const streetElements = this.page.getByText(streetRegex);
+          const stCount = await streetElements.count().catch(() => 0);
+          for (let s = 0; s < stCount; s++) {
+            const stEl = streetElements.nth(s);
+            const card = stEl.locator('xpath=ancestor::*[contains(@class, "rounded-2xl") or contains(@class, "bg-card")][1]');
+            if (!await card.isVisible().catch(() => false)) continue;
+            const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).or(card.locator('button').filter({ hasText: /^Accept/i })).first();
+            if (await acceptBtn.isVisible().catch(() => false)) {
+              this.activeAcceptButton = acceptBtn;
+              console.log(`Found active 'Accept' button on street-matching card for "${streetOnly}".`);
+              return true;
+            }
+          }
+        }
+
+        return false;
+      };
+
+      // 1. Check if matching card is already visible on current page
+      if (await scanCards()) return;
+
+      // 1b. If not immediately visible, wait briefly and reload once to account for backend indexing delay
+      console.log(`Offer for "${propertyName}" not immediately visible on page 1. Waiting 3s and reloading...`);
+      await this.page.waitForTimeout(3000);
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+      await this.page.waitForTimeout(2000);
+      if (await scanCards()) return;
+
+      // 2. Search by street name (backend matches street name, suburb, or buyer; street numbers yield 0)
+      const streetName = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+      const searchTerms = [
+        streetName,
+        "Daniel"
+      ].filter(Boolean);
+
+      for (const term of searchTerms) {
         const searchInput = this.page
           .locator('input[placeholder*="Search by address" i], input[placeholder*="search" i]')
           .first();
 
         if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-          console.log(`Filtering Offers & Bids by: "${searchTerm}" (attempt ${retry}/${maxRetries})`);
-          await searchInput.fill(searchTerm);
+          console.log(`Searching Offers & Bids by: "${term}"...`);
+          await searchInput.click();
+          await searchInput.fill("");
+          await searchInput.fill(term);
+          await searchInput.dispatchEvent("input").catch(() => {});
           await searchInput.press("Enter").catch(() => {});
-          await this.page.waitForTimeout(2000);
-        }
-
-        // 2. Look for cards matching this specific property after filtering with active buttons
-        const matchingCards = this.page
-          .locator('div[class*="rounded"], div.border, article')
-          .filter({ hasText: exactRegex });
-
-        const cardCount = await matchingCards.count().catch(() => 0);
-        for (let i = 0; i < cardCount; i++) {
-          const card = matchingCards.nth(i);
-          const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).first();
-          const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).first();
-
-          if (await counterBtn.isVisible().catch(() => false)) {
-            this.activeCounterButton = counterBtn;
-            console.log(`Found active 'Counter via Chat' button on offer card #${i + 1} for "${propertyName}".`);
+          const searchBtn = searchInput
+            .locator('xpath=following-sibling::button | ancestor::div[1]//button')
+            .filter({ has: this.page.locator('svg.lucide-search') })
+            .first();
+          if (await searchBtn.isVisible().catch(() => false)) {
+            await searchBtn.click().catch(() => {});
           }
-
-          if (await acceptBtn.isVisible().catch(() => false)) {
-            this.activeAcceptButton = acceptBtn;
-            console.log(`Found active 'Accept' button on offer card #${i + 1} for "${propertyName}".`);
-          }
-
-          if (this.activeCounterButton || this.activeAcceptButton) {
-            return;
-          }
-        }
-
-        // Also check if any card in the filtered search view has the button
-        const filteredCounter = this.page.getByRole("button", { name: /Counter via Chat/i }).first();
-        if (await filteredCounter.isVisible({ timeout: 1500 }).catch(() => false)) {
-          this.activeCounterButton = filteredCounter;
-          console.log(`Found active 'Counter via Chat' button in filtered view.`);
-          return;
-        }
-
-        const filteredAccept = this.page.getByRole("button", { name: /^Accept$/i }).first();
-        if (await filteredAccept.isVisible({ timeout: 1500 }).catch(() => false)) {
-          this.activeAcceptButton = filteredAccept;
-          console.log(`Found active 'Accept' button in filtered view.`);
-          return;
-        }
-
-        if (retry < maxRetries) {
-          console.log(`No active offer button found yet for "${shortName}", reloading offers page...`);
-          await this.page.reload({ waitUntil: "domcontentloaded" });
           await this.page.waitForTimeout(2500);
+          await this.page
+            .locator('.animate-spin, svg.animate-spin')
+            .waitFor({ state: "hidden", timeout: 10_000 })
+            .catch(() => {});
+
+          if (await scanCards()) return;
+
+          // Check all available pages under this search
+          for (let p = 1; p <= 5; p++) {
+            const nextBtn = this.page.getByRole("button", { name: /^Next$/i }).first();
+            if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+              console.log(`Navigating to page ${p + 1} under search "${term}"...`);
+              await nextBtn.click();
+              await this.page.waitForTimeout(2000);
+              await this.page
+                .locator('.animate-spin, svg.animate-spin')
+                .waitFor({ state: "hidden", timeout: 10_000 })
+                .catch(() => {});
+              if (await scanCards()) return;
+            } else {
+              break;
+            }
+          }
         }
       }
 
-      // If search returned literally zero cards, clear search to expose all newest offers
-      const searchInput = this.page
-        .locator('input[placeholder*="Search by address" i], input[placeholder*="search" i]')
-        .first();
-      const anyMatching = await this.page
-        .locator('div[class*="rounded"], div.border, article')
-        .filter({ hasText: exactRegex })
-        .count()
-        .catch(() => 0);
+      // If search returned nothing, reset cleanly to base offers list on page 1
+      console.log(`Resetting to base offers list on page 1...`);
+      const baseUrl = this.page.url().split("&")[0].split("?")[0] + "?tab=offers-bids";
+      await this.page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+      await this.page.waitForTimeout(2000);
+      if (await scanCards()) return;
 
-      if (anyMatching === 0 && (await searchInput.isVisible().catch(() => false))) {
-        console.log(`No cards returned at all for "${shortName}", clearing search input...`);
-        await searchInput.fill("");
-        await searchInput.press("Enter").catch(() => {});
-        await this.page.waitForTimeout(1500);
+      // 3. Fallback scan forward up to 5 pages of base list if search did not yield card
+      for (let p = 1; p <= 5; p++) {
+        const nextBtn = this.page.getByRole("button", { name: /^Next$/i }).first();
+        if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
+          console.log(`Navigating to next page of offers (page ${p + 1})...`);
+          await nextBtn.click();
+          await this.page.waitForTimeout(2000);
+          await this.page
+            .locator('.animate-spin, svg.animate-spin')
+            .waitFor({ state: "hidden", timeout: 10_000 })
+            .catch(() => {});
+          if (await scanCards()) return;
+        } else {
+          break;
+        }
       }
+
+      return;
     }
 
-    // Fallback: check newest action button on the page
+    // Fallback: check newest action button on the page ONLY when propertyName was not specified
     const counterBtn = this.page.getByRole("button", { name: "Counter via Chat", exact: true }).first();
     const acceptBtn = this.page.getByRole("button", { name: "Accept", exact: true }).first();
 
@@ -320,13 +372,39 @@ class AgentOffersPage {
       await this.openOffersAndBids();
     }
 
-    const acceptBtn = this.activeAcceptButton || this.page
-      .getByRole("button", { name: /^Accept$/i })
-      .or(this.page.locator('button').filter({ hasText: /^Accept$/i }))
-      .or(this.page.getByRole("button", { name: /accept/i }))
-      .first();
+    let acceptBtn = this.activeAcceptButton;
+    if (!acceptBtn && propertyName) {
+      const shortName = propertyName.split(",")[0].trim();
+      const escaped = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const exactRegex = new RegExp(`(?:^|\\D)${escaped}(?:\\D|$)`, "i");
+      const matchingCard = this.page.locator('div[class*="rounded"], div.border, article').filter({ hasText: exactRegex }).first();
+      if (await matchingCard.isVisible({ timeout: 2000 }).catch(() => false)) {
+        acceptBtn = matchingCard.getByRole("button", { name: /^Accept$/i }).first();
+      }
 
-    if (await acceptBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      if (!acceptBtn) {
+        const searchStreet = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+        if (searchStreet) {
+          const streetCard = this.page.locator('div[class*="rounded"], div.border, article')
+            .filter({ hasText: new RegExp(searchStreet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") })
+            .filter({ has: this.page.getByRole("button", { name: /^Accept$/i }) })
+            .first();
+          if (await streetCard.isVisible({ timeout: 2000 }).catch(() => false)) {
+            acceptBtn = streetCard.getByRole("button", { name: /^Accept$/i }).first();
+            console.log(`Found active Accept button on street-matching card for "${searchStreet}".`);
+          }
+        }
+      }
+    }
+    if (!acceptBtn) {
+      acceptBtn = this.page
+        .getByRole("button", { name: /^Accept$/i })
+        .or(this.page.locator('button').filter({ hasText: /^Accept$/i }))
+        .or(this.page.getByRole("button", { name: /accept/i }))
+        .first();
+    }
+
+    if (acceptBtn && (await acceptBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
       console.log("Found visible Accept button. Clicking Accept...");
       await acceptBtn.scrollIntoViewIfNeeded().catch(() => {});
       try {
