@@ -262,7 +262,14 @@ When(
       : (isStaging
         ? (process.env.FLOW1_SELLER_SOLICITOR_SEARCH || process.env.SELLER_SOLICITOR_SEARCH || "subratotest99.2@gmail.com")
         : undefined);
-    await this.propertyLocationPage.clickNext(solicitorSearch);
+
+    const brokerSearch = isProd
+      ? (process.env.FLOW1_RECOMMENDED_BROKER_SEARCH || process.env.BROKER_SEARCH || "Sz Broker")
+      : (isStaging
+        ? (process.env.FLOW1_RECOMMENDED_BROKER_SEARCH || process.env.BROKER_SEARCH || "subrato")
+        : (process.env.FLOW1_RECOMMENDED_BROKER_SEARCH || "Alen Mayer"));
+
+    await this.propertyLocationPage.clickNext(solicitorSearch, brokerSearch);
     await this.propertyDetailsPage.waitForPage();
   }
 );

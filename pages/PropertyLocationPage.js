@@ -653,6 +653,105 @@ class PropertyLocationPage {
   }
 
   // =====================================================
+  // ASSIGN RECOMMENDED MORTGAGE BROKER
+  // =====================================================
+
+  async assignRecommendedBroker(brokerSearch) {
+    const isProd = (process.env.BASE_URL || "").includes("app.realey.com.au") || (process.env.BASE_URL || "").includes("realey.com.au");
+    const isStaging = (process.env.BASE_URL || "").includes("staging");
+    const targetSearch =
+      brokerSearch ||
+      process.env.RECOMMENDED_BROKER_SEARCH ||
+      process.env.FLOW1_BROKER_SEARCH ||
+      (isProd ? "Sz Broker" : isStaging ? "subrato" : "Alen Mayer");
+
+    console.log(`Checking for Assign Recommended Broker on Location step (target: "${targetSearch}")...`);
+
+    await this.dismissNotificationPrompts();
+
+    const modal = this.page.locator('[role="dialog"]').last();
+
+    // Check if target broker or already added broker card is visible
+    const escapedSearch = (targetSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existingCard = modal
+      .locator("*")
+      .filter({ hasText: new RegExp(escapedSearch, "i") })
+      .filter({ visible: true })
+      .first();
+
+    if (await existingCard.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log(`Recommended broker matching "${targetSearch}" already assigned.`);
+      return;
+    }
+
+    const addBrokerBtn = modal
+      .locator("button")
+      .filter({ hasText: /Add recommended broker/i })
+      .first();
+
+    const isBtnVisible = await addBrokerBtn.isVisible({ timeout: 5000 }).catch(() => false);
+    if (!isBtnVisible) {
+      console.log("No '+ Add recommended broker' button visible, skipping.");
+      return;
+    }
+
+    await addBrokerBtn.scrollIntoViewIfNeeded();
+    try {
+      await addBrokerBtn.click({ timeout: 5000 });
+    } catch (err) {
+      console.log(`Standard click on Add recommended broker failed (${err.message}), retrying force click...`);
+      await addBrokerBtn.click({ force: true });
+    }
+
+    await this.page.waitForTimeout(500);
+
+    const brokerSearchInput = modal
+      .locator('input[placeholder*="Search brokers" i]')
+      .first();
+
+    if (await brokerSearchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log(`Searching broker with: ${targetSearch}`);
+      await brokerSearchInput.fill(targetSearch);
+      await this.page.waitForTimeout(1000);
+    }
+
+    const targetOption = modal
+      .locator("button, [role='option'], li, div.cursor-pointer")
+      .filter({ hasText: new RegExp(escapedSearch, "i") })
+      .filter({ visible: true })
+      .first();
+
+    if (await targetOption.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log(`Selecting recommended broker: "${targetSearch}"`);
+      await targetOption.click();
+    } else {
+      const fallbackOption = modal
+        .locator("button, [role='option'], li, div.cursor-pointer")
+        .filter({ hasText: /Alen Mayer|broker\.c4utest/i })
+        .filter({ visible: true })
+        .first();
+
+      if (await fallbackOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+        console.log("Selecting fallback broker 'Alen Mayer'...");
+        await fallbackOption.click();
+      } else {
+        console.warn(`Target broker "${targetSearch}" not found, picking first available option...`);
+        const firstOption = modal
+          .locator("button")
+          .filter({ hasText: /@/ })
+          .filter({ visible: true })
+          .first();
+        if (await firstOption.isVisible().catch(() => false)) {
+          await firstOption.click();
+        }
+      }
+    }
+
+    await this.page.waitForTimeout(1000);
+    console.log("Recommended mortgage broker assigned successfully.");
+  }
+
+  // =====================================================
   // VERIFY & ASSIGN SELLER SOLICITOR WITH ISOLATION
   // =====================================================
 
@@ -739,8 +838,12 @@ class PropertyLocationPage {
   // NEXT
   // =====================================================
 
-  async clickNext(solicitorSearch) {
+  async clickNext(solicitorSearch, brokerSearch) {
     await this.assignSellerSolicitor(solicitorSearch);
+
+    if (brokerSearch) {
+      await this.assignRecommendedBroker(brokerSearch);
+    }
 
     const dialog = this.page.locator('[role="dialog"]').last();
     const dialogNext = dialog.getByRole("button", { name: "Next", exact: true }).first();

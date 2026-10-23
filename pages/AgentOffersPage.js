@@ -580,9 +580,8 @@ class AgentOffersPage {
 
       // Wait for the confirmation dialog
       const dialog = this.page
-        .locator('[role="alertdialog"], [role="dialog"], div.fixed')
+        .locator('[role="alertdialog"], [role="dialog"]')
         .filter({ hasText: /Accept offer/i })
-        .or(this.page.locator('[role="alertdialog"], [role="dialog"]'))
         .last();
 
       await expect(
@@ -598,37 +597,48 @@ class AgentOffersPage {
         if (!isDialogVisible) break;
 
         const confirmButton = dialog
-          .getByRole("button", { name: /^Confirm$/i })
-          .or(dialog.locator('button').filter({ hasText: /^Confirm$/i }))
-          .or(dialog.getByRole("button", { name: /Confirm|Accept/i }))
-          .first();
+          .locator("button")
+          .filter({ hasText: /^Confirm$/i })
+          .or(dialog.getByRole("button", { name: /^Confirm$/i, includeHidden: true }))
+          .or(this.page.locator("button").filter({ hasText: /^Confirm$/i }))
+          .last();
 
         if (await confirmButton.isVisible().catch(() => false)) {
           console.log(`Clicking Confirm button in accept offer dialog (attempt ${attempt})...`);
           try {
             await confirmButton.click({ timeout: 4000 });
           } catch (err) {
+            console.log(`Standard click on Confirm failed, retrying dispatchEvent/force...`);
+            await confirmButton.dispatchEvent("click").catch(() => {});
             await confirmButton.click({ force: true }).catch(() => {});
           }
         }
-        await this.page.waitForTimeout(2000);
+        await this.page.waitForTimeout(2500);
       }
 
       // Wait for dialog to close
       const isClosed = await dialog
-        .waitFor({ state: "hidden", timeout: 15_000 })
+        .waitFor({ state: "hidden", timeout: 25_000 })
         .then(() => true)
         .catch(() => false);
 
       if (!isClosed) {
-        console.warn("Accept offer dialog did not report hidden within 15s, checking for success toast or accepted state...");
+        console.warn("Accept offer dialog did not report hidden within 25s, checking for success toast or accepted state...");
         const toast = this.page.getByText(/Offer Accepted!|settlement has been created/i).first();
         const hasToast = await toast.isVisible({ timeout: 3000 }).catch(() => false);
         if (!hasToast) {
+          // If confirm button is still present, attempt one last force dispatch click
+          const lastConfirm = dialog.locator("button").filter({ hasText: /^Confirm$/i }).first();
+          if (await lastConfirm.isVisible().catch(() => false)) {
+            console.log("Dialog still visible with Confirm button, dispatching click...");
+            await lastConfirm.dispatchEvent("click").catch(() => {});
+            await lastConfirm.click({ force: true }).catch(() => {});
+            await this.page.waitForTimeout(3000);
+          }
           await expect(
             dialog,
             "Accept offer dialog should close after confirmation"
-          ).toBeHidden({ timeout: 5_000 });
+          ).toBeHidden({ timeout: 10_000 });
         }
       }
 

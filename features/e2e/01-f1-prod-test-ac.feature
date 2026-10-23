@@ -5,7 +5,7 @@ Feature: Prod F1 Test AC - Production Flow 1 E2E with Test Account Isolation
   Scenario: 01. Authenticate all six authorized Prod test accounts
     Given all six designated Prod test accounts authenticate successfully on Production
 
-  @prod-flow-1 @flow-1
+  @prod-flow-1
   Scenario: 02. Flow 1 E2E execution with Prod test accounts
     # Agent Flow: Create and Publish Fixed Price Listing
     Given the agent logs in using authorized Prod test account

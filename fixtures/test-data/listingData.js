@@ -240,7 +240,7 @@ const listingData = {
           ? "subrato"
           : ((process.env.BASE_URL || "").includes("realey.com.au")
             ? "Sz Broker"
-            : "Alen")),
+            : "Alen Mayer")),
     },
 
     payment: {
