@@ -1635,6 +1635,43 @@ class SettlementPage {
     }
   }
 
+  async verifyPaymentSuccessfulOrLiveDecline() {
+    const successMessage = this.page.getByText(/Payment Successful/i).first();
+    const liveDeclined = this.page.getByText(/Your request was in live mode, but used a known test card|Your card was declined/i).first();
+
+    const start = Date.now();
+    while (Date.now() - start < 35_000) {
+      if (await successMessage.isVisible().catch(() => false)) {
+        console.log("Payment Successful message confirmed in modal");
+        const completeSetupBtn = this.page
+          .getByRole("button", { name: /Complete Setup|Complete Settlement/i })
+          .or(this.page.locator('button:has-text("Complete Setup")'))
+          .last();
+        if (await completeSetupBtn.isVisible({ timeout: 15_000 }).catch(() => false)) {
+          await completeSetupBtn.click();
+        }
+        return false;
+      }
+
+      if (await liveDeclined.isVisible().catch(() => false)) {
+        console.log("Live Stripe card decline detected in modal (known test card in live mode).");
+        const closeBtn = this.page.locator('button[aria-label*="close" i], button:has(svg.lucide-x), button:has-text("Cancel")').first();
+        if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await closeBtn.click().catch(() => {});
+        } else {
+          await this.page.keyboard.press("Escape").catch(() => {});
+        }
+        await this.page.waitForTimeout(1000);
+        return true;
+      }
+
+      await this.page.waitForTimeout(1000);
+    }
+
+    await expect(successMessage, "Payment Successful or Live Decline message should appear").toBeVisible({ timeout: 1000 });
+    return false;
+  }
+
 
   async completeSettlement() {
     const completeButton = this.page
@@ -1813,6 +1850,88 @@ class SettlementPage {
     }
 
     console.log("Verified: Settlement card shows 5/5 steps completed / Setup Complete successfully");
+  }
+
+  async verifyAgentSettlementInProgressOrComplete(propertyName) {
+    console.log(`Verifying settlement status on Agent Settlements menu for: ${propertyName || "latest settlement"}...`);
+
+    if (!this.page.url().includes("settlement")) {
+      const settlementsTab = this.page
+        .getByRole("link", { name: /settlements/i })
+        .or(this.page.getByRole("button", { name: /settlements/i }))
+        .or(this.page.getByText(/^settlements$/i))
+        .first();
+
+      if (await settlementsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await settlementsTab.click();
+        await this.page.waitForLoadState("domcontentloaded");
+        await this.page.waitForTimeout(1500);
+      } else {
+        await this.page.goto("/dashboard/agent/?tab=settlements");
+        await this.page.waitForLoadState("domcontentloaded");
+        await this.page.waitForTimeout(1500);
+      }
+    }
+
+    const street = propertyName ? propertyName.split(",")[0].trim() : null;
+
+    const getStatusIndicator = async () => {
+      if (street) {
+        const heading = this.page
+          .getByText(propertyName, { exact: false })
+          .or(this.page.getByText(street, { exact: false }))
+          .first();
+
+        if (await heading.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await heading.scrollIntoViewIfNeeded().catch(() => {});
+          const card = heading.locator(
+            "xpath=ancestor::div[contains(@class, 'rounded') or contains(@class, 'border') or contains(@class, 'card') or contains(@class, 'shadow') or contains(@class, 'p-')][1]"
+          );
+          const cardIndicator = card.getByText(/(\d+)\/5 steps completed|Setup Complete|In Progress|Settlement/i).first();
+          if (await cardIndicator.isVisible({ timeout: 3000 }).catch(() => false)) {
+            return cardIndicator;
+          }
+        }
+
+        const searchInput = this.page
+          .locator('input[placeholder*="Search by property title" i], input[placeholder*="search" i]')
+          .first();
+        if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await searchInput.fill(street);
+          await this.page.waitForTimeout(1500);
+
+          if (await heading.isVisible({ timeout: 3000 }).catch(() => false)) {
+            const card = heading.locator(
+              "xpath=ancestor::div[contains(@class, 'rounded') or contains(@class, 'border') or contains(@class, 'card') or contains(@class, 'shadow') or contains(@class, 'p-')][1]"
+            );
+            const cardIndicator = card.getByText(/(\d+)\/5 steps completed|Setup Complete|In Progress|Settlement/i).first();
+            if (await cardIndicator.isVisible({ timeout: 3000 }).catch(() => false)) {
+              return cardIndicator;
+            }
+          }
+        }
+      }
+
+      return this.page.getByText(/(\d+)\/5 steps completed|Setup Complete|In Progress/i).first();
+    };
+
+    let statusIndicator = await getStatusIndicator();
+    let isVisible = await statusIndicator.isVisible({ timeout: 4000 }).catch(() => false);
+
+    if (!isVisible) {
+      console.log("Settlement card not immediately visible, reloading to fetch latest backend state...");
+      await this.page.reload();
+      await this.page.waitForLoadState("domcontentloaded");
+      await this.page.waitForTimeout(2000);
+      statusIndicator = await getStatusIndicator();
+    }
+
+    await expect(
+      statusIndicator,
+      `Settlement card for ${propertyName || "property"} on Agent menu should be visible`
+    ).toBeVisible({ timeout: 25_000 });
+
+    console.log("Verified: Settlement card is present and in progress on Agent menu successfully");
   }
 
 }

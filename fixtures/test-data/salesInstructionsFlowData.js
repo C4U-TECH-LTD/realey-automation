@@ -9,7 +9,7 @@ const salesInstructionsFlowData = {
     email:
       process.env.FLOW7_AGENT_EMAIL ||
       process.env.AGENT_EMAIL ||
-      "agent.c4utest@yopmail.com",
+      "uat.agent.c4utest@yopmail.com",
 
     password:
       process.env.FLOW7_AGENT_PASSWORD ||

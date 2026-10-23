@@ -88,6 +88,7 @@ async function loginAs(world, account, maxAttempts = 3) {
       await world.loginPage.submitOtp();
       return;
     } catch (err) {
+      lastErr = err;
       const isRateLimited = /too many login attempts/i.test(err.message);
       const retryDelay = isRateLimited ? 60000 : 3000;
       console.warn(`[Flow 2 Login Retry] Attempt ${attempts}/${maxAttempts} for ${account.email} failed: ${err.message}. Retrying fresh login in ${retryDelay / 1000}s...`);

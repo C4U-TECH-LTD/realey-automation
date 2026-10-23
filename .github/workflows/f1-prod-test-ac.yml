@@ -1,0 +1,201 @@
+name: Prod F1 Test AC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: f1-prod-test-ac
+  cancel-in-progress: false
+
+jobs:
+  run-f1-prod-test-ac:
+    name: Run Prod F1 Test AC
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      CI: "true"
+      HEADLESS: "true"
+      SLOW_MO: "0"
+
+      BASE_URL: ${{ secrets.PROD_BASE_URL != '' && secrets.PROD_BASE_URL || 'https://app.realey.com.au/' }}
+
+      PROD_TEST_AGENT_EMAIL: ${{ secrets.PROD_TEST_AGENT_EMAIL != '' && secrets.PROD_TEST_AGENT_EMAIL || 'prod.agent.c4u.tst@yopmail.com' }}
+      PROD_TEST_AGENT_PASSWORD: ${{ secrets.PROD_TEST_AGENT_PASSWORD != '' && secrets.PROD_TEST_AGENT_PASSWORD || 'Test12345@' }}
+      PROD_TEST_AGENT_OTP: ${{ secrets.PROD_TEST_AGENT_OTP != '' && secrets.PROD_TEST_AGENT_OTP || '123456' }}
+
+      AGENT_EMAIL: ${{ secrets.PROD_TEST_AGENT_EMAIL != '' && secrets.PROD_TEST_AGENT_EMAIL || 'prod.agent.c4u.tst@yopmail.com' }}
+      AGENT_PASSWORD: ${{ secrets.PROD_TEST_AGENT_PASSWORD != '' && secrets.PROD_TEST_AGENT_PASSWORD || 'Test12345@' }}
+      AGENT_OTP: ${{ secrets.PROD_TEST_AGENT_OTP != '' && secrets.PROD_TEST_AGENT_OTP || '123456' }}
+
+      PROD_TEST_BUYER_EMAIL: ${{ secrets.PROD_TEST_BUYER_EMAIL != '' && secrets.PROD_TEST_BUYER_EMAIL || 'prod.user.c4u.tst@yopmail.com' }}
+      PROD_TEST_BUYER_PASSWORD: ${{ secrets.PROD_TEST_BUYER_PASSWORD != '' && secrets.PROD_TEST_BUYER_PASSWORD || 'Test12345@' }}
+      PROD_TEST_BUYER_OTP: ${{ secrets.PROD_TEST_BUYER_OTP != '' && secrets.PROD_TEST_BUYER_OTP || '123456' }}
+
+      GENERAL_USER_EMAIL: ${{ secrets.PROD_TEST_BUYER_EMAIL != '' && secrets.PROD_TEST_BUYER_EMAIL || 'prod.user.c4u.tst@yopmail.com' }}
+      GENERAL_USER_PASSWORD: ${{ secrets.PROD_TEST_BUYER_PASSWORD != '' && secrets.PROD_TEST_BUYER_PASSWORD || 'Test12345@' }}
+      GENERAL_USER_OTP: ${{ secrets.PROD_TEST_BUYER_OTP != '' && secrets.PROD_TEST_BUYER_OTP || '123456' }}
+
+      PROD_TEST_VENDOR_EMAIL: ${{ secrets.PROD_TEST_VENDOR_EMAIL != '' && secrets.PROD_TEST_VENDOR_EMAIL || 'prod.2ndbuyer.c4u.tst@yopmail.com' }}
+      PROD_TEST_VENDOR_PASSWORD: ${{ secrets.PROD_TEST_VENDOR_PASSWORD != '' && secrets.PROD_TEST_VENDOR_PASSWORD || 'Test12345@' }}
+      PROD_TEST_VENDOR_OTP: ${{ secrets.PROD_TEST_VENDOR_OTP != '' && secrets.PROD_TEST_VENDOR_OTP || '123456' }}
+
+      VENDOR_EMAIL: ${{ secrets.PROD_TEST_VENDOR_EMAIL != '' && secrets.PROD_TEST_VENDOR_EMAIL || 'prod.2ndbuyer.c4u.tst@yopmail.com' }}
+      VENDOR_PASSWORD: ${{ secrets.PROD_TEST_VENDOR_PASSWORD != '' && secrets.PROD_TEST_VENDOR_PASSWORD || 'Test12345@' }}
+      VENDOR_OTP: ${{ secrets.PROD_TEST_VENDOR_OTP != '' && secrets.PROD_TEST_VENDOR_OTP || '123456' }}
+
+      PROD_TEST_SELLER_SOLICITOR_EMAIL: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_EMAIL != '' && secrets.PROD_TEST_SELLER_SOLICITOR_EMAIL || 'prod.sellsol.c4u.tst@yopmail.com' }}
+      PROD_TEST_SELLER_SOLICITOR_PASSWORD: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_PASSWORD != '' && secrets.PROD_TEST_SELLER_SOLICITOR_PASSWORD || 'Test12345@' }}
+      PROD_TEST_SELLER_SOLICITOR_OTP: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_OTP != '' && secrets.PROD_TEST_SELLER_SOLICITOR_OTP || '123456' }}
+      PROD_TEST_SELLER_SOLICITOR_SEARCH: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_SEARCH != '' && secrets.PROD_TEST_SELLER_SOLICITOR_SEARCH || 'prod.sellsol.c4u.tst@yopmail.com' }}
+
+      SELLER_SOLICITOR_EMAIL: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_EMAIL != '' && secrets.PROD_TEST_SELLER_SOLICITOR_EMAIL || 'prod.sellsol.c4u.tst@yopmail.com' }}
+      SELLER_SOLICITOR_PASSWORD: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_PASSWORD != '' && secrets.PROD_TEST_SELLER_SOLICITOR_PASSWORD || 'Test12345@' }}
+      SELLER_SOLICITOR_OTP: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_OTP != '' && secrets.PROD_TEST_SELLER_SOLICITOR_OTP || '123456' }}
+      SELLER_SOLICITOR_SEARCH: ${{ secrets.PROD_TEST_SELLER_SOLICITOR_SEARCH != '' && secrets.PROD_TEST_SELLER_SOLICITOR_SEARCH || 'prod.sellsol.c4u.tst@yopmail.com' }}
+
+      PROD_TEST_BUYER_SOLICITOR_EMAIL: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_EMAIL != '' && secrets.PROD_TEST_BUYER_SOLICITOR_EMAIL || 'prod.bsol.c4u.tst@yopmail.com' }}
+      PROD_TEST_BUYER_SOLICITOR_PASSWORD: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_PASSWORD != '' && secrets.PROD_TEST_BUYER_SOLICITOR_PASSWORD || 'Test12345@' }}
+      PROD_TEST_BUYER_SOLICITOR_OTP: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_OTP != '' && secrets.PROD_TEST_BUYER_SOLICITOR_OTP || '123456' }}
+      PROD_TEST_BUYER_SOLICITOR_SEARCH: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_SEARCH != '' && secrets.PROD_TEST_BUYER_SOLICITOR_SEARCH || 'prod.bsol.c4u.tst@yopmail.com' }}
+
+      BUYER_SOLICITOR_EMAIL: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_EMAIL != '' && secrets.PROD_TEST_BUYER_SOLICITOR_EMAIL || 'prod.bsol.c4u.tst@yopmail.com' }}
+      BUYER_SOLICITOR_PASSWORD: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_PASSWORD != '' && secrets.PROD_TEST_BUYER_SOLICITOR_PASSWORD || 'Test12345@' }}
+      BUYER_SOLICITOR_OTP: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_OTP != '' && secrets.PROD_TEST_BUYER_SOLICITOR_OTP || '123456' }}
+      BUYER_SOLICITOR_SEARCH: ${{ secrets.PROD_TEST_BUYER_SOLICITOR_SEARCH != '' && secrets.PROD_TEST_BUYER_SOLICITOR_SEARCH || 'prod.bsol.c4u.tst@yopmail.com' }}
+
+      PROD_TEST_BROKER_EMAIL: ${{ secrets.PROD_TEST_BROKER_EMAIL != '' && secrets.PROD_TEST_BROKER_EMAIL || 'prod.broker..c4u.tst@yopmail.com' }}
+      PROD_TEST_BROKER_PASSWORD: ${{ secrets.PROD_TEST_BROKER_PASSWORD != '' && secrets.PROD_TEST_BROKER_PASSWORD || 'Test12345@' }}
+      PROD_TEST_BROKER_OTP: ${{ secrets.PROD_TEST_BROKER_OTP != '' && secrets.PROD_TEST_BROKER_OTP || '123456' }}
+      PROD_TEST_BROKER_SEARCH: ${{ secrets.PROD_TEST_BROKER_SEARCH != '' && secrets.PROD_TEST_BROKER_SEARCH || 'prod.broker..c4u.tst@yopmail.com' }}
+
+      BROKER_EMAIL: ${{ secrets.PROD_TEST_BROKER_EMAIL != '' && secrets.PROD_TEST_BROKER_EMAIL || 'prod.broker..c4u.tst@yopmail.com' }}
+      BROKER_PASSWORD: ${{ secrets.PROD_TEST_BROKER_PASSWORD != '' && secrets.PROD_TEST_BROKER_PASSWORD || 'Test12345@' }}
+      BROKER_OTP: ${{ secrets.PROD_TEST_BROKER_OTP != '' && secrets.PROD_TEST_BROKER_OTP || '123456' }}
+      BROKER_SEARCH: ${{ secrets.PROD_TEST_BROKER_SEARCH != '' && secrets.PROD_TEST_BROKER_SEARCH || 'prod.broker..c4u.tst@yopmail.com' }}
+
+      TEST_CARD_NUMBER: ${{ secrets.TEST_CARD_NUMBER != '' && secrets.TEST_CARD_NUMBER || '4242 4242 4242 4242' }}
+      TEST_CARD_EXPIRY: ${{ secrets.TEST_CARD_EXPIRY != '' && secrets.TEST_CARD_EXPIRY || '12/30' }}
+      TEST_CARD_CVC: ${{ secrets.TEST_CARD_CVC != '' && secrets.TEST_CARD_CVC || '123' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Install Playwright Browser
+        run: |
+          npx playwright install --with-deps chromium
+
+      - name: Install Google Chrome
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+
+      - name: Verify environment
+        run: |
+          node --version
+          npm --version
+          npx playwright --version
+          npx cucumber-js --version
+          npx allure --version
+          google-chrome --version
+
+      - name: Clean previous reports
+        run: |
+          rm -rf allure-results
+          rm -rf allure-report
+          rm -rf reports/cucumber
+          rm -rf screenshots/cucumber
+          rm -rf videos
+
+      - name: Run Prod F1 Test AC
+        id: cucumber-tests
+        continue-on-error: true
+        run: |
+          npx cucumber-js --tags "@f1-prod-test-ac" --retry 1
+
+      - name: Tag Allure Results
+        if: always()
+        run: |
+          node scripts/tag-allure-environment.js allure-results "Production" 2>/dev/null || true
+          cat << 'EOF' > allure-results/environment.properties
+          Suite=Prod F1 Test AC
+          Environment=Production
+          Prod.URL=https://app.realey.com.au/
+          Authorized.Suffix=.tst@yopmail.com
+          Browser=Chromium (Headless)
+          Runner=Ubuntu Latest
+          EOF
+
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "Generating Allure report..."
+            npx allure generate allure-results --clean -o allure-report
+          else
+            echo "No Allure results generated."
+            mkdir -p allure-report
+            echo "<h1>No Allure results generated</h1>" > allure-report/index.html
+          fi
+
+      - name: Upload Cucumber Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-prod-test-ac-cucumber-report
+          path: reports/cucumber/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure Raw Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-prod-test-ac-allure-results
+          path: allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Allure HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-prod-test-ac-allure-html-report
+          path: allure-report/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1-prod-test-ac-screenshots
+          path: screenshots/cucumber/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Fail Job if Cucumber Tests Failed
+        if: always()
+        run: |
+          if [ "${{ steps.cucumber-tests.outcome }}" != "success" ]; then
+            echo "Cucumber tests failed or were broken."
+            exit 1
+          fi

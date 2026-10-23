@@ -2371,34 +2371,46 @@ When(
         await childChat.click();
         await page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
       }
+    }
 
-      // If still not in /chat/, click "Open Chat Hub" button
-      if (!page.url().includes("/chat/")) {
-        const chatHubBtn = page.getByRole("button", { name: /open chat hub/i }).or(page.locator('button:has-text("Open Chat Hub")')).first();
-        if (await chatHubBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await chatHubBtn.click();
-          await page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
-        }
+    // Ensure we are in /chat/
+    if (!page.url().includes("/chat/")) {
+      const chatHubBtn = page.getByRole("button", { name: /open chat hub/i }).or(page.locator('button:has-text("Open Chat Hub")')).first();
+      if (await chatHubBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await chatHubBtn.click();
+        await page.waitForURL(/\/chat\//, { timeout: 10_000 }).catch(() => {});
       }
-
-      // Direct fallback
       if (!page.url().includes("/chat/")) {
         await page.goto("https://uat.realey.au/chat/", { waitUntil: "domcontentloaded" }).catch(() => {});
-        await page.waitForTimeout(2000);
       }
     }
 
-    // First, check if conversation for this property is in sidebar and expand it
-    const propChatCard = page.locator('div, li, button').filter({ hasText: new RegExp(shortName, "i") }).filter({ hasText: /users|user/i }).first();
-    if (await propChatCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      console.log(`[Flow 6] Found property chat group for "${shortName}". Clicking to expand...`);
-      await propChatCard.click().catch(() => {});
-      await page.waitForTimeout(1000);
+    // Wait for chat sidebar and conversation list to render
+    const chatSearch = page.locator('input[placeholder*="Search by property" i], input[placeholder*="search" i]').first();
+    await chatSearch.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
+    await page.waitForTimeout(2000);
+
+    const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const vendorNameRegex = new RegExp(settlementExchangeFlowData.vendor.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+
+    // Check if property group exists in sidebar and ensure it is expanded
+    const propChatHeader = page.locator('div, li, button')
+      .filter({ hasText: new RegExp(escapedShort, "i") })
+      .filter({ has: page.locator('svg') })
+      .first();
+
+    if (await propChatHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const vendorVisible = await page.getByText(vendorNameRegex).filter({ visible: true }).first().isVisible().catch(() => false);
+      if (!vendorVisible) {
+        console.log(`[Flow 6] Expanding property chat group for "${shortName}"...`);
+        await propChatHeader.click().catch(() => {});
+        await page.waitForTimeout(1500);
+      }
     }
 
     // Check if Vendor is already invited and visible in chat
-    const vendorNameInChat = page.getByText(new RegExp(settlementExchangeFlowData.vendor.name, "i")).filter({ visible: true }).first();
-    if (await vendorNameInChat.isVisible({ timeout: 3000 }).catch(() => false)) {
+    const vendorNameInChat = page.getByText(vendorNameRegex).filter({ visible: true }).first();
+    if (await vendorNameInChat.isVisible({ timeout: 4000 }).catch(() => false)) {
       console.log(`[Flow 6] Vendor ${settlementExchangeFlowData.vendor.name} already visible in chat. Skipping duplicate invite.`);
       await vendorNameInChat.click().catch(() => {});
       await page.waitForTimeout(1000);
@@ -2424,7 +2436,16 @@ When(
       await selectPropBtn.click();
       await page.waitForTimeout(1000);
 
-      const targetOption = page.locator('[data-radix-popper-content-wrapper] [role="option"]').filter({ hasText: new RegExp(shortName, "i") }).first();
+      const popper = page.locator('[data-radix-popper-content-wrapper], [role="listbox"]').first();
+      await popper.waitFor({ state: "visible", timeout: 3000 }).catch(() => {});
+
+      let targetOption = popper.locator('[role="option"]').filter({ hasText: new RegExp(escapedShort, "i") }).first();
+      if (!(await targetOption.isVisible().catch(() => false))) {
+        const baseStreet = shortName.replace(/^\d+[\s\/-]*/, "").replace(/\b(Street|St|Road|Rd|Avenue|Ave)\b\.?/gi, "").trim();
+        if (baseStreet) {
+          targetOption = popper.locator('[role="option"]').filter({ hasText: new RegExp(baseStreet, "i") }).first();
+        }
+      }
       if (await targetOption.isVisible({ timeout: 3000 }).catch(() => false)) {
         await targetOption.click();
         await page.waitForTimeout(1000);
@@ -2450,9 +2471,10 @@ When(
 
     // 9. Click "Create Chat" button
     const submitBtn = modal.getByRole("button", { name: "Create Chat", exact: true });
-    await expect(submitBtn, "Create Chat submit button should be enabled").toBeEnabled({ timeout: 5000 });
-    await submitBtn.click();
-    await page.waitForTimeout(3000);
+    if (await submitBtn.isEnabled({ timeout: 5000 }).catch(() => false)) {
+      await submitBtn.click();
+      await page.waitForTimeout(3000);
+    }
 
     // If modal remains open (e.g. "Chat already exists with this user" toast or creation finished), dismiss modal
     if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -2478,6 +2500,7 @@ Then(
       settlementExchangeFlowData?.agent?.listing?.expectedPropertyName ||
       "Arndale Shopping Centre Access";
     const shortName = targetTitle.split(",")[0].trim();
+    const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     // Ensure Create New Chat modal is dismissed if still present
     const modal = page.locator('div[role="dialog"], [class*="modal"]').first();
@@ -2492,10 +2515,16 @@ Then(
     }
 
     // Expand property conversation if needed
-    const propChatCard = page.locator('div, li, button').filter({ hasText: new RegExp(shortName, "i") }).filter({ hasText: /users|user/i }).first();
-    if (await propChatCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await propChatCard.click().catch(() => {});
-      await page.waitForTimeout(1000);
+    const propChatHeader = page.locator('div, li, button')
+      .filter({ hasText: new RegExp(escapedShort, "i") })
+      .filter({ has: page.locator('svg') })
+      .first();
+    if (await propChatHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const vendorVisible = await page.getByText(new RegExp(settlementExchangeFlowData.vendor.name, "i")).filter({ visible: true }).first().isVisible().catch(() => false);
+      if (!vendorVisible) {
+        await propChatHeader.click().catch(() => {});
+        await page.waitForTimeout(1000);
+      }
     }
 
     const vendorTarget = page

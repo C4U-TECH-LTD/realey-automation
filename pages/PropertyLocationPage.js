@@ -58,19 +58,29 @@ class PropertyLocationPage {
     // =====================================================
 
     this.suburbInput = page
-      .locator("label")
-      .filter({
-        hasText: /^Suburb\b/i,
-      })
-      .locator("xpath=following-sibling::*//input | following-sibling::input")
+      .getByPlaceholder("e.g., Deakin", { exact: true })
+      .or(page.locator('input[placeholder*="Deakin" i]'))
+      .or(
+        page
+          .locator("label")
+          .filter({
+            hasText: /^Suburb\b/i,
+          })
+          .locator("xpath=following-sibling::*//input | following-sibling::input")
+      )
       .first();
 
     this.postcodeInput = page
-      .locator("label")
-      .filter({
-        hasText: /^Postcode\b/i,
-      })
-      .locator("xpath=following-sibling::*//input | following-sibling::input")
+      .getByPlaceholder("e.g., 2600", { exact: true })
+      .or(page.locator('input[placeholder*="2600" i]'))
+      .or(
+        page
+          .locator("label")
+          .filter({
+            hasText: /^Postcode\b/i,
+          })
+          .locator("xpath=following-sibling::*//input | following-sibling::input")
+      )
       .first();
 
     this.stateDropdown = page
@@ -530,12 +540,13 @@ class PropertyLocationPage {
   // =====================================================
 
   async assignSellerSolicitor(solicitorSearch) {
+    const isProd = (process.env.BASE_URL || "").includes("app.realey.com.au") || (process.env.BASE_URL || "").includes("realey.com.au");
     const isStaging = (process.env.BASE_URL || "").includes("staging");
     const targetSearch =
       solicitorSearch ||
       process.env.SELLER_SOLICITOR_SEARCH ||
       process.env.SELLER_SOLICITOR_EMAIL ||
-      (isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com");
+      (isProd ? "prod.sellsol.c4u.tst@yopmail.com" : isStaging ? "subratotest99.2@gmail.com" : "solicitor.c4utest@yopmail.com");
 
     console.log(`Checking for Assign Seller Solicitor on Location step (target: "${targetSearch}")...`);
 
@@ -554,7 +565,7 @@ class PropertyLocationPage {
       const modal = this.page.locator('[role="dialog"]').last();
       const selectedSolicitor = modal
         .locator("*")
-        .filter({ hasText: /solicitor\.c4utest|James Anderson|subratotest99/i })
+        .filter({ hasText: /solicitor\.c4utest|James Anderson|subratotest99|prod\.sellsol|Sz Sell Sol/i })
         .filter({ visible: true })
         .first();
 

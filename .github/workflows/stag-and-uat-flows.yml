@@ -146,7 +146,7 @@ jobs:
 
           BASE_URL: ${{ secrets.BASE_URL != '' && secrets.BASE_URL || 'https://uat.realey.au/' }}
 
-          AGENT_EMAIL: ${{ secrets.AGENT_EMAIL != '' && secrets.AGENT_EMAIL || 'agent.c4utest@yopmail.com' }}
+          AGENT_EMAIL: ${{ secrets.UAT_AGENT_EMAIL != '' && secrets.UAT_AGENT_EMAIL || (secrets.AGENT_EMAIL != 'agent.c4utest@yopmail.com' && secrets.AGENT_EMAIL != '' && secrets.AGENT_EMAIL) || 'uat.agent.c4utest@yopmail.com' }}
           AGENT_PASSWORD: ${{ secrets.AGENT_PASSWORD != '' && secrets.AGENT_PASSWORD || 'Test12345@' }}
           AGENT_OTP: ${{ secrets.AGENT_OTP != '' && secrets.AGENT_OTP || '123456' }}
 

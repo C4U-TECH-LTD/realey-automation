@@ -3,11 +3,24 @@ const path = require("path");
 
 const COUNTER_FILE = path.resolve(__dirname, "flow6-counter.json");
 
+const CBD_STREETS = [
+  "Bourke Street",
+  "Flinders Street",
+  "Russell Street",
+  "Exhibition Street",
+  "Spring Street",
+  "Lonsdale Street",
+  "William Street",
+  "Queen Street",
+  "King Street",
+];
+
 /**
  * Returns the search query with a unique street number for Flow 6 listing creation.
  * Combines local counter with a time-based offset (50..650) to guarantee uniqueness
  * across ephemeral GitHub Actions CI runners, multiple workflows, and re-runs
- * without colliding with existing listings on UAT.
+ * without colliding with existing listings on UAT. Rotates through CBD street names
+ * to avoid saturating any single street in the agent's account.
  */
 function getNextFlow6SearchAddress(baseName = "Collins Street") {
   let counter = 1;
@@ -39,13 +52,18 @@ function getNextFlow6SearchAddress(baseName = "Collins Street") {
     console.warn("Could not write flow6-counter.json:", err.message);
   }
 
-  const cleanBase = (baseName && !baseName.includes("Arndale"))
-    ? (baseName.split(",")[0].replace(/^\d+[\s\/-]*/, "").trim() || "Collins Street")
-    : "Collins Street";
+  // Pick rotated street if baseName is absent or default/Arndale/Collins
+  let streetName;
+  if (!baseName || baseName.includes("Arndale") || baseName.includes("Collins")) {
+    streetName = CBD_STREETS[counter % CBD_STREETS.length];
+  } else {
+    streetName = baseName.split(",")[0].replace(/^\d+[\s\/-]*/, "").trim() || CBD_STREETS[counter % CBD_STREETS.length];
+  }
 
   return {
     counter: uniqueStreetNumber,
-    searchAddress: `${uniqueStreetNumber} ${cleanBase}, Melbourne`,
+    searchAddress: `${uniqueStreetNumber} ${streetName}, Melbourne`,
+    streetName,
   };
 }
 

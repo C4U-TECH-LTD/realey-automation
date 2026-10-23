@@ -526,23 +526,24 @@ class LoginPage {
         .first();
 
       if (await rateLimitBanner.isVisible().catch(() => false)) {
+        this.rateLimitRetryCount = (this.rateLimitRetryCount || 0) + 1;
+        const cooldownSec = Math.min(60 + this.rateLimitRetryCount * 20, 120);
         const bannerText = await rateLimitBanner.innerText().catch(() => "");
         console.warn(
-          `[Rate Limit Warning] Detected: "${bannerText.replace(/\n+/g, " ")}". Waiting 60s cooldown before retrying login...`
+          `[Rate Limit Warning] Detected: "${bannerText.replace(/\n+/g, " ")}" (attempt ${this.rateLimitRetryCount}). Waiting ${cooldownSec}s cooldown before retrying login...`
         );
-        await this.page.waitForTimeout(60_000);
-        if (await this.loginButton.isVisible().catch(() => false)) {
+        await this.page.waitForTimeout(cooldownSec * 1000);
+        try {
+          await this.page.goto("/login", { waitUntil: "domcontentloaded" });
+          await this.page.waitForTimeout(2000);
           if (this.lastEmail && this.lastPassword) {
-            const currentEmail = await this.emailInput.inputValue().catch(() => "");
-            if (!currentEmail) {
-              await this.fillLoginForm(this.lastEmail, this.lastPassword).catch(() => {});
-            }
+            await this.fillLoginForm(this.lastEmail, this.lastPassword).catch(() => {});
+            console.log("Re-submitting Login after clean cooldown reload...");
+            await this.clickLogin().catch(() => {});
           }
-          console.log("Re-clicking Login button after cooldown...");
-          await this.loginButton.click().catch(() => {});
-        }
+        } catch (_) {}
         await this.page.waitForTimeout(3000);
-        timeoutMs += 65_000;
+        timeoutMs += (cooldownSec + 10) * 1000;
         continue;
       }
 
@@ -598,22 +599,23 @@ class LoginPage {
 
         if (errorText.trim()) {
           if (/too many login attempts/i.test(errorText)) {
+            this.rateLimitRetryCount = (this.rateLimitRetryCount || 0) + 1;
+            const cooldownSec = Math.min(60 + this.rateLimitRetryCount * 20, 120);
             console.warn(
-              `[Rate Limit Warning] Detected via errorMessage: "${errorText.replace(/\n+/g, " ")}". Waiting 60s cooldown before retrying login...`
+              `[Rate Limit Warning] Detected via errorMessage: "${errorText.replace(/\n+/g, " ")}" (attempt ${this.rateLimitRetryCount}). Waiting ${cooldownSec}s cooldown before retrying login...`
             );
-            await this.page.waitForTimeout(60_000);
-            if (await this.loginButton.isVisible().catch(() => false)) {
+            await this.page.waitForTimeout(cooldownSec * 1000);
+            try {
+              await this.page.goto("/login", { waitUntil: "domcontentloaded" });
+              await this.page.waitForTimeout(2000);
               if (this.lastEmail && this.lastPassword) {
-                const currentEmail = await this.emailInput.inputValue().catch(() => "");
-                if (!currentEmail) {
-                  await this.fillLoginForm(this.lastEmail, this.lastPassword).catch(() => {});
-                }
+                await this.fillLoginForm(this.lastEmail, this.lastPassword).catch(() => {});
+                console.log("Re-submitting Login after clean cooldown reload...");
+                await this.clickLogin().catch(() => {});
               }
-              console.log("Re-clicking Login button after cooldown...");
-              await this.loginButton.click().catch(() => {});
-            }
+            } catch (_) {}
             await this.page.waitForTimeout(3000);
-            timeoutMs += 65_000;
+            timeoutMs += (cooldownSec + 10) * 1000;
             continue;
           }
 

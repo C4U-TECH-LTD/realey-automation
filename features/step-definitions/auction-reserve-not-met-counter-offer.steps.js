@@ -185,7 +185,14 @@ When(
       .waitForAutoFilledLocationFields();
 
     // Dynamically retrieve the actual populated address details
-    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    if (!/^\d+/.test(populatedStreet) && /^\d+/.test(searchAddress)) {
+      const numMatch = searchAddress.match(/^(\d+)/);
+      if (numMatch) {
+        populatedStreet = `${numMatch[1]} ${populatedStreet}`;
+        console.log(`[Flow 4 Listing Creation] Restoring street number from query: "${populatedStreet}"`);
+      }
+    }
     let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
     if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
       populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();

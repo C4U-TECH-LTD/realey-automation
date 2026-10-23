@@ -179,7 +179,8 @@ const listingData = {
       agent: {
         email:
           process.env.FLOW1_AGENT_EMAIL ||
-          "agent.c4utest@yopmail.com",
+          process.env.AGENT_EMAIL ||
+          "uat.agent.c4utest@yopmail.com",
         password:
           process.env.FLOW1_AGENT_PASSWORD ||
           "Test12345@",
@@ -228,14 +229,18 @@ const listingData = {
         process.env.BUYER_SOLICITOR_SEARCH ||
         ((process.env.BASE_URL || "").includes("staging")
           ? "subrato"
-          : "Maxel"),
+          : ((process.env.BASE_URL || "").includes("realey.com.au")
+            ? "Sz Buyer Sol"
+            : "Maxel")),
 
       brokerSearch:
         process.env.FLOW1_BROKER_SEARCH ||
         process.env.BROKER_SEARCH ||
         ((process.env.BASE_URL || "").includes("staging")
           ? "subrato"
-          : "Alen"),
+          : ((process.env.BASE_URL || "").includes("realey.com.au")
+            ? "Sz Broker"
+            : "Alen")),
     },
 
     payment: {

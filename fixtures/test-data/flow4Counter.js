@@ -3,11 +3,24 @@ const path = require("path");
 
 const COUNTER_FILE = path.resolve(__dirname, "flow4-counter.json");
 
+const CBD_STREETS = [
+  "Bourke Street",
+  "Flinders Street",
+  "Russell Street",
+  "Exhibition Street",
+  "Spring Street",
+  "Lonsdale Street",
+  "William Street",
+  "Queen Street",
+  "King Street",
+];
+
 /**
  * Returns the search query with a unique street number for Flow 4 (Auction Reserve Not Met) listing creation.
  * Combines local counter with a time-based offset (50..650) to guarantee uniqueness
  * across ephemeral GitHub Actions CI runners, multiple workflows, and re-runs
- * without colliding with existing listings on UAT or Staging.
+ * without colliding with existing listings on UAT or Staging. Rotates through CBD
+ * street names to avoid saturating any single street in the agent's account.
  */
 function getNextFlow4SearchAddress(baseName = "Degraves Street") {
   let counter = 1;
@@ -39,14 +52,18 @@ function getNextFlow4SearchAddress(baseName = "Degraves Street") {
     console.warn("Could not write flow4-counter.json:", err.message);
   }
 
-  const cleanBase = (baseName || "Degraves Street")
-    .split(",")[0]
-    .replace(/^\d+[\s\/-]*/, "")
-    .trim() || "Degraves Street";
+  // Pick rotated street if baseName is absent or default/Degraves
+  let streetName;
+  if (!baseName || baseName.includes("Degraves") || baseName.includes("Arndale")) {
+    streetName = CBD_STREETS[counter % CBD_STREETS.length];
+  } else {
+    streetName = baseName.split(",")[0].replace(/^\d+[\s\/-]*/, "").trim() || CBD_STREETS[counter % CBD_STREETS.length];
+  }
 
   return {
     counter: uniqueStreetNumber,
-    searchAddress: `${uniqueStreetNumber} ${cleanBase}, Melbourne`,
+    searchAddress: `${uniqueStreetNumber} ${streetName}, Melbourne`,
+    streetName,
   };
 }
 

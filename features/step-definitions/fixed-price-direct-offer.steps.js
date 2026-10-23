@@ -215,10 +215,11 @@ When(
 When(
   "the agent completes the property location step for the Fixed Price listing",
   async function () {
+    const isProd = (process.env.BASE_URL || "").includes("app.realey.com.au") || (process.env.BASE_URL || "").includes("realey.com.au");
     const isStaging = (process.env.BASE_URL || "").includes("staging");
     const configuredAddress = isStaging
       ? (process.env.FLOW1_ADDRESS || "199 William Street, Melbourne VIC, Australia")
-      : "King Street";
+      : (process.env.FLOW1_ADDRESS || "King Street");
     const { counter, searchAddress } = getNextFlow1SearchAddress(configuredAddress);
     console.log(`[Flow 1] Listing creation using address query: "${searchAddress}" (run counter #${counter})`);
 
@@ -228,7 +229,14 @@ When(
     await this.propertyLocationPage.waitForAutoFilledLocationFields();
 
     // Dynamically retrieve the actual populated address details
-    const populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    let populatedStreet = (this.propertyLocationPage.selectedStreet || await this.propertyLocationPage.streetAddressInput.inputValue()).trim();
+    if (!/^\d+/.test(populatedStreet) && /^\d+/.test(searchAddress)) {
+      const numMatch = searchAddress.match(/^(\d+)/);
+      if (numMatch) {
+        populatedStreet = `${numMatch[1]} ${populatedStreet}`;
+        console.log(`[Flow 1 Listing Creation] Restoring street number from query: "${populatedStreet}"`);
+      }
+    }
     let populatedSuburb = this.propertyLocationPage.selectedSuburb || "";
     if (!populatedSuburb && this.propertyLocationPage.suburbInput) {
       populatedSuburb = (await this.propertyLocationPage.suburbInput.inputValue().catch(() => "")).trim();
@@ -241,15 +249,19 @@ When(
     listingData.location.addressSearchText = populatedStreet;
     listingData.location.expectedPropertyName = fullName;
     listingData.fixedPriceFlow.generalUser.searchText = populatedStreet;
-    listingData.description.headline = isStaging
-      ? `Stag Flow 1 Test Property #${counter}`
-      : `Flow 1 Test Property #${counter}`;
+    listingData.description.headline = isProd
+      ? `Prod F1 Test Property #${counter}`
+      : (isStaging
+        ? `Stag Flow 1 Test Property #${counter}`
+        : `Flow 1 Test Property #${counter}`);
     this.createdListingStreet = populatedStreet;
     this.createdListingTitle = fullName;
 
-    const solicitorSearch = isStaging
-      ? (process.env.FLOW1_SELLER_SOLICITOR_SEARCH || process.env.SELLER_SOLICITOR_SEARCH || "subratotest99.2@gmail.com")
-      : undefined;
+    const solicitorSearch = isProd
+      ? (process.env.FLOW1_SELLER_SOLICITOR_SEARCH || process.env.SELLER_SOLICITOR_SEARCH || "prod.sellsol.c4u.tst@yopmail.com")
+      : (isStaging
+        ? (process.env.FLOW1_SELLER_SOLICITOR_SEARCH || process.env.SELLER_SOLICITOR_SEARCH || "subratotest99.2@gmail.com")
+        : undefined);
     await this.propertyLocationPage.clickNext(solicitorSearch);
     await this.propertyDetailsPage.waitForPage();
   }

@@ -3,11 +3,24 @@ const path = require("path");
 
 const COUNTER_FILE = path.resolve(__dirname, "flow1-counter.json");
 
+const CBD_STREETS = [
+  "Bourke Street",
+  "Flinders Street",
+  "Russell Street",
+  "Exhibition Street",
+  "Spring Street",
+  "Lonsdale Street",
+  "William Street",
+  "Queen Street",
+  "King Street",
+];
+
 /**
  * Returns the search query with a unique street number for Flow 1 listing creation.
  * Combines local counter with a time-based offset (50..650) to guarantee uniqueness
  * across ephemeral GitHub Actions CI runners, multiple workflows, and re-runs
- * without colliding with existing listings on UAT/Staging.
+ * without colliding with existing listings on UAT/Staging. Rotates through CBD
+ * street names to avoid saturating any single street in the agent's account.
  */
 function getNextFlow1SearchAddress(baseName = "King Street") {
   let counter = 1;
@@ -41,17 +54,18 @@ function getNextFlow1SearchAddress(baseName = "King Street") {
     console.warn("Could not write flow1-counter.json:", err.message);
   }
 
-  // Clean street base: strip leading numbers, trailing commas, or suburb
-  // e.g. "199 William Street, Melbourne VIC, Australia" -> "William Street"
-  // e.g. "King Street" -> "King Street"
-  const cleanBase = (baseName || "King Street")
-    .split(",")[0]
-    .replace(/^\d+[\s\/-]*/, "")
-    .trim() || "King Street";
+  // Pick rotated street if baseName is absent or default/King
+  let streetName;
+  if (!baseName || baseName.includes("King") || baseName.includes("Arndale")) {
+    streetName = CBD_STREETS[counter % CBD_STREETS.length];
+  } else {
+    streetName = baseName.split(",")[0].replace(/^\d+[\s\/-]*/, "").trim() || CBD_STREETS[counter % CBD_STREETS.length];
+  }
 
   return {
     counter: uniqueStreetNumber,
-    searchAddress: `${uniqueStreetNumber} ${cleanBase}, Melbourne`,
+    searchAddress: `${uniqueStreetNumber} ${streetName}, Melbourne`,
+    streetName,
   };
 }
 

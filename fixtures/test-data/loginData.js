@@ -6,7 +6,7 @@ const loginData = {
   },
 
   agent: {
-    email: process.env.AGENT_EMAIL || "agent.c4utest@yopmail.com",
+    email: process.env.AGENT_EMAIL || "uat.agent.c4utest@yopmail.com",
     password: process.env.AGENT_PASSWORD || "Test12345@",
     otp: process.env.AGENT_OTP || "123456",
   },

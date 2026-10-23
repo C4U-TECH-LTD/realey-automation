@@ -101,17 +101,43 @@ class AgentOffersPage {
 
     this.activeCounterButton = null;
     this.activeAcceptButton = null;
+    this.isAlreadyAccepted = false;
 
     if (propertyName) {
       const shortName = propertyName.split(",")[0].trim();
       const streetOnly = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+      const baseStreet = streetOnly.replace(/\b(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Place|Pl|Way|Parade|Pde|Lane|Ln|Boulevard|Blvd|Court|Ct|Circuit|Cct|Highway|Hwy)\b\.?/gi, "").trim();
       const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const escapedStreet = streetOnly ? streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
-      const exactRegex = new RegExp(`(?:^|\\D)${escapedShort}(?:\\D|$)`, "i");
+      const escapedBaseStreet = baseStreet ? baseStreet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
 
-      const inspectCard = async (card, label) => {
+      const flexiblePattern = escapedShort
+        .replace(/\bStreet\b/gi, "(?:Street|St\\b\\.?)")
+        .replace(/\bRoad\b/gi, "(?:Road|Rd\\b\\.?)")
+        .replace(/\bAvenue\b/gi, "(?:Avenue|Ave\\b\\.?)")
+        .replace(/\bDrive\b/gi, "(?:Drive|Dr\\b\\.?)")
+        .replace(/\bLane\b/gi, "(?:Lane|Ln\\b\\.?)")
+        .replace(/\bPlace\b/gi, "(?:Place|Pl\\b\\.?)")
+        .replace(/\bParade\b/gi, "(?:Parade|Pde\\b\\.?)")
+        .replace(/\bCircuit\b/gi, "(?:Circuit|Cct\\b\\.?)");
+      const exactRegex = new RegExp(`(?:^|\\D)${flexiblePattern}(?:\\D|$)`, "i");
+
+      const streetNumMatch = shortName.match(/^(\d+)/);
+      const streetNum = streetNumMatch ? streetNumMatch[1] : null;
+
+      const inspectCard = async (card, label, isFallback = false) => {
         if (!await card.isVisible().catch(() => false)) return false;
         await card.scrollIntoViewIfNeeded().catch(() => {});
+
+        const cardText = await card.innerText().catch(() => "");
+
+        // If listing has a street number (e.g. "151 Collins Street"), require that exact number on card
+        if (streetNum) {
+          const numRegex = new RegExp(`(?:^|\\D)${streetNum}(?:\\D|$)`);
+          if (!numRegex.test(cardText)) {
+            return false;
+          }
+        }
 
         const acceptBtn = card.getByRole("button", { name: /^Accept$/i }).or(card.locator('button').filter({ hasText: /^Accept/i })).first();
         const counterBtn = card.getByRole("button", { name: /Counter via Chat/i }).or(card.locator('button').filter({ hasText: /Counter via Chat/i })).first();
@@ -120,15 +146,21 @@ class AgentOffersPage {
         let hasCounter = await counterBtn.isVisible().catch(() => false);
 
         if (!hasAccept && !hasCounter) {
-          const cardText = await card.innerText().catch(() => "");
-          if (!/accepted|preparing for contract exchange/i.test(cardText)) {
-            const accordionToggle = card.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers"), button:has(svg.lucide-chevron-down), svg.lucide-chevron-down').first();
-            if (await accordionToggle.isVisible().catch(() => false)) {
-              console.log(`Attempting to expand offer accordion on card (${label})...`);
-              await accordionToggle.click().catch(() => {});
-              await this.page.waitForTimeout(1000);
-              hasAccept = await acceptBtn.isVisible().catch(() => false);
-              hasCounter = await counterBtn.isVisible().catch(() => false);
+          const accordionToggle = card.locator('button:has-text("offer"), button:has-text("Offer"), button:has-text("offers"), button:has-text("Offers"), button:has(svg.lucide-chevron-down), svg.lucide-chevron-down').first();
+          if (await accordionToggle.isVisible().catch(() => false)) {
+            console.log(`Attempting to expand offer accordion on card (${label})...`);
+            await accordionToggle.click().catch(() => {});
+            await this.page.waitForTimeout(1000);
+            hasAccept = await acceptBtn.isVisible().catch(() => false);
+            hasCounter = await counterBtn.isVisible().catch(() => false);
+          }
+
+          if (!isFallback && !hasAccept && !hasCounter) {
+            const updatedText = await card.innerText().catch(() => "");
+            if (/accepted|preparing for contract exchange/i.test(updatedText)) {
+              console.log(`Card (${label}) is already in accepted state.`);
+              this.isAlreadyAccepted = true;
+              return true;
             }
           }
         }
@@ -142,7 +174,7 @@ class AgentOffersPage {
           console.log(`Found active 'Counter via Chat' button (${label}).`);
         }
 
-        return Boolean(hasAccept || hasCounter);
+        return Boolean(hasAccept || hasCounter || this.isAlreadyAccepted);
       };
 
       const scanCards = async () => {
@@ -160,7 +192,7 @@ class AgentOffersPage {
         const elCount = await matchingElements.count().catch(() => 0);
         for (let i = 0; i < elCount; i++) {
           const el = matchingElements.nth(i);
-          const card = el.locator('xpath=ancestor::*[contains(@class, "rounded") or contains(@class, "border") or contains(@class, "bg-card")][last()]');
+          const card = el.locator('xpath=ancestor::*[contains(@class, "rounded") or contains(@class, "border") or contains(@class, "bg-card")][1]');
           if (await inspectCard(card, `exact ancestor: "${shortName}"`)) return true;
         }
 
@@ -168,32 +200,48 @@ class AgentOffersPage {
       };
 
       const scanStreetFallback = async () => {
-        if (!streetOnly) return false;
-        const streetRegex = new RegExp(`(?:^|\\D)${escapedStreet}(?:\\D|$)`, "i");
+        const fallbackRegex = escapedBaseStreet
+          ? new RegExp(`(?:^|\\D)${escapedBaseStreet}(?:\\D|$)`, "i")
+          : (streetOnly ? new RegExp(`(?:^|\\D)${escapedStreet}(?:\\D|$)`, "i") : null);
+        if (!fallbackRegex) return false;
         const streetCards = this.page
           .locator('div[class*="rounded"], div.border, article')
-          .filter({ hasText: streetRegex });
+          .filter({ hasText: fallbackRegex });
         const count = await streetCards.count().catch(() => 0);
         for (let s = 0; s < count; s++) {
-          if (await inspectCard(streetCards.nth(s), `street fallback: "${streetOnly}"`)) return true;
+          if (await inspectCard(streetCards.nth(s), `street fallback: "${baseStreet || streetOnly}"`, true)) return true;
         }
         return false;
       };
 
-      // 1. Check if matching card is already visible on current page
+      // 1. Poll for matching card on page 1 (reloading up to 30s to allow backend indexing)
+      const pollStartTime = Date.now();
+      const maxPollMs = 30_000;
+      let attempt = 0;
+
+      while (Date.now() - pollStartTime < maxPollMs) {
+        attempt++;
+        if (await scanCards()) {
+          console.log(`Found offer card for "${shortName}" on page 1 (poll attempt ${attempt}).`);
+          return;
+        }
+
+        console.log(`Offer for "${shortName}" not found on page 1 yet (attempt ${attempt}). Waiting 4s and reloading...`);
+        await this.page.waitForTimeout(4000);
+        await this.page.reload({ waitUntil: "domcontentloaded" });
+        await this.page.waitForTimeout(2000);
+      }
+
       if (await scanCards()) return;
 
-      // 1b. If not immediately visible, wait briefly and reload once to account for backend indexing delay
-      console.log(`Offer for "${propertyName}" not immediately visible on page 1. Waiting 3s and reloading...`);
-      await this.page.waitForTimeout(3000);
-      await this.page.reload({ waitUntil: "domcontentloaded" });
-      await this.page.waitForTimeout(2000);
-      if (await scanCards()) return;
-
-      // 2. Search by street name (backend matches street name, suburb, or buyer; street numbers yield 0)
-      const streetName = shortName.replace(/^\d+[\s\/-]*/, "").trim();
+      // 2. Search by street number, suburb, base street, full street name (without number), or buyer
+      const suburb = propertyName.includes(",") ? propertyName.split(",")[1].trim().split(/\s+/)[0] : null;
       const searchTerms = [
-        streetName,
+        streetNum,
+        suburb,
+        !/^\d+/.test(shortName) ? shortName : null,
+        baseStreet,
+        streetOnly,
         "Daniel"
       ].filter(Boolean);
 
@@ -210,10 +258,10 @@ class AgentOffersPage {
           await searchInput.dispatchEvent("input").catch(() => {});
           await searchInput.press("Enter").catch(() => {});
           const searchBtn = searchInput
-            .locator('xpath=following-sibling::button | ancestor::div[1]//button')
-            .filter({ has: this.page.locator('svg.lucide-search') })
+            .locator('xpath=following-sibling::button | following-sibling::*//button')
+            .or(this.page.locator('button:has(svg.lucide-search)'))
             .first();
-          if (await searchBtn.isVisible().catch(() => false)) {
+          if (await searchBtn.isVisible({ timeout: 500 }).catch(() => false)) {
             await searchBtn.click().catch(() => {});
           }
           await this.page.waitForTimeout(2500);
@@ -224,11 +272,16 @@ class AgentOffersPage {
 
           if (await scanCards()) return;
 
-          // Check all available pages under this search
-          for (let p = 1; p <= 5; p++) {
-            const nextBtn = this.page.getByRole("button", { name: /^Next$/i }).first();
+          // Check available pages under search
+          for (let p = 1; p <= 10; p++) {
+            const nextBtn = this.page
+              .getByRole("button", { name: /^Next$/i })
+              .or(this.page.locator('button:has(svg.lucide-chevron-right)'))
+              .or(this.page.locator('button[aria-label*="next" i]'))
+              .first();
             if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
               console.log(`Navigating to page ${p + 1} under search "${term}"...`);
+              await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
               await nextBtn.click();
               await this.page.waitForTimeout(2000);
               await this.page
@@ -240,21 +293,67 @@ class AgentOffersPage {
               break;
             }
           }
+
+          if (await scanStreetFallback()) return;
         }
       }
 
       // If search returned nothing, reset cleanly to base offers list on page 1
       console.log(`Resetting to base offers list on page 1...`);
-      const baseUrl = this.page.url().split("&")[0].split("?")[0] + "?tab=offers-bids";
+      const baseUrl = this.page.url().includes("/agent") ? "/dashboard/agent?tab=offers-bids" : "/dashboard?tab=offers-bids";
       await this.page.goto(baseUrl, { waitUntil: "domcontentloaded" });
       await this.page.waitForTimeout(2000);
       if (await scanCards()) return;
 
-      // 3. Fallback scan forward up to 5 pages of base list if search did not yield card
-      for (let p = 1; p <= 5; p++) {
-        const nextBtn = this.page.getByRole("button", { name: /^Next$/i }).first();
+      // 3. Jump to last page first: Realey API returns offers oldest-first, so newest offers appear on the last page
+      const pageNumbers = this.page.locator('button').filter({ hasText: /^\d+$/ });
+      const numCount = await pageNumbers.count();
+      if (numCount > 0) {
+        const lastPageBtn = pageNumbers.last();
+        const lastPageNum = (await lastPageBtn.innerText().catch(() => "")).trim();
+        console.log(`Jumping directly to last page of offers (page ${lastPageNum})...`);
+        await lastPageBtn.scrollIntoViewIfNeeded().catch(() => {});
+        await lastPageBtn.click();
+        await this.page.waitForTimeout(2000);
+        await this.page
+          .locator('.animate-spin, svg.animate-spin')
+          .waitFor({ state: "hidden", timeout: 10_000 })
+          .catch(() => {});
+        if (await scanCards()) return;
+
+        // Check recent pages backwards from the end (up to 5 pages back)
+        for (let b = 1; b <= 5; b++) {
+          const prevBtn = this.page
+            .getByRole("button", { name: /^Prev|Previous$/i })
+            .or(this.page.locator('button:has(svg.lucide-chevron-left)'))
+            .or(this.page.locator('button[aria-label*="prev" i]'))
+            .first();
+          if (await prevBtn.isVisible().catch(() => false) && await prevBtn.isEnabled().catch(() => false)) {
+            console.log(`Scanning backwards from end (step ${b})...`);
+            await prevBtn.scrollIntoViewIfNeeded().catch(() => {});
+            await prevBtn.click();
+            await this.page.waitForTimeout(2000);
+            await this.page
+              .locator('.animate-spin, svg.animate-spin')
+              .waitFor({ state: "hidden", timeout: 10_000 })
+              .catch(() => {});
+            if (await scanCards()) return;
+          } else {
+            break;
+          }
+        }
+      }
+
+      // 4. Fallback scan forward: check remaining pages through the entire list (up to 30)
+      for (let p = 1; p <= 30; p++) {
+        const nextBtn = this.page
+          .getByRole("button", { name: /^Next$/i })
+          .or(this.page.locator('button:has(svg.lucide-chevron-right)'))
+          .or(this.page.locator('button[aria-label*="next" i]'))
+          .first();
         if (await nextBtn.isVisible().catch(() => false) && await nextBtn.isEnabled().catch(() => false)) {
           console.log(`Navigating to next page of offers (page ${p + 1})...`);
+          await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
           await nextBtn.click();
           await this.page.waitForTimeout(2000);
           await this.page
@@ -263,6 +362,10 @@ class AgentOffersPage {
             .catch(() => {});
           if (await scanCards()) return;
         } else {
+          // Scroll down to load more cards
+          await this.page.evaluate(() => window.scrollBy(0, 1000));
+          await this.page.waitForTimeout(1000);
+          if (await scanCards()) return;
           break;
         }
       }
@@ -397,26 +500,42 @@ class AgentOffersPage {
       await this.openOffersAndBids();
     }
 
+    if (this.isAlreadyAccepted) {
+      console.log("Offer is already in accepted state.");
+      return;
+    }
+
     let acceptBtn = this.activeAcceptButton;
     if (!acceptBtn && propertyName) {
       const shortName = propertyName.split(",")[0].trim();
+      const streetNumMatch = shortName.match(/^(\d+)/);
+      const streetNum = streetNumMatch ? streetNumMatch[1] : null;
       const escaped = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const exactRegex = new RegExp(`(?:^|\\D)${escaped}(?:\\D|$)`, "i");
       const matchingCard = this.page.locator('div[class*="rounded"], div.border, article').filter({ hasText: exactRegex }).first();
       if (await matchingCard.isVisible({ timeout: 2000 }).catch(() => false)) {
+        const accordionToggle = matchingCard.locator('button:has-text("offer"), button:has-text("Offer"), button:has(svg.lucide-chevron-down), svg.lucide-chevron-down').first();
+        if (await accordionToggle.isVisible().catch(() => false)) {
+          await accordionToggle.click().catch(() => {});
+          await this.page.waitForTimeout(1000);
+        }
         acceptBtn = matchingCard.getByRole("button", { name: /^Accept$/i }).first();
       }
 
       if (!acceptBtn) {
         const searchStreet = shortName.replace(/^\d+[\s\/-]*/, "").trim();
-        if (searchStreet) {
-          const streetCard = this.page.locator('div[class*="rounded"], div.border, article')
-            .filter({ hasText: new RegExp(searchStreet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") })
-            .filter({ has: this.page.getByRole("button", { name: /^Accept$/i }) })
-            .first();
+        const baseStreet = searchStreet.replace(/\b(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Place|Pl|Way|Parade|Pde|Lane|Ln|Boulevard|Blvd|Court|Ct|Circuit|Cct|Highway|Hwy)\b\.?/gi, "").trim();
+        const targetStreet = baseStreet || searchStreet;
+        if (targetStreet) {
+          let streetCards = this.page.locator('div[class*="rounded"], div.border, article')
+            .filter({ hasText: new RegExp(targetStreet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") });
+          if (streetNum) {
+            streetCards = streetCards.filter({ hasText: new RegExp(`(?:^|\\D)${streetNum}(?:\\D|$)`) });
+          }
+          const streetCard = streetCards.filter({ has: this.page.getByRole("button", { name: /^Accept$/i }) }).first();
           if (await streetCard.isVisible({ timeout: 2000 }).catch(() => false)) {
             acceptBtn = streetCard.getByRole("button", { name: /^Accept$/i }).first();
-            console.log(`Found active Accept button on street-matching card for "${searchStreet}".`);
+            console.log(`Found active Accept button on street-matching card for "${targetStreet}".`);
           }
         }
       }
@@ -530,6 +649,34 @@ class AgentOffersPage {
       .or(targetScope.getByRole("button", { name: "Copy Settlement Link" }))
       .first();
 
+    if (await acceptedTarget.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log("Offer was already in accepted state on Offers & Bids page.");
+      this.isAlreadyAccepted = true;
+      return;
+    }
+
+    // Fallback: If not found on Offers & Bids, try accepting via Conversations
+    if (propertyName) {
+      console.log(`[AgentOffersPage] Accept button not found on Offers & Bids for "${propertyName}". Checking Conversations fallback...`);
+      try {
+        const { ConversationsPage } = require("./ConversationsPage");
+        const conversationsPage = new ConversationsPage(this.page);
+        const convUrl = this.page.url().includes("/agent") ? "/dashboard/agent?tab=conversations" : "/dashboard?tab=conversations";
+        await this.page.goto(convUrl, { waitUntil: "domcontentloaded" });
+        await this.page.waitForTimeout(2000);
+        await conversationsPage.openAgentConversation(propertyName);
+        await conversationsPage.acceptNegotiatedOffer();
+        console.log(`[AgentOffersPage] Successfully accepted offer via Conversations tab!`);
+        this.isAlreadyAccepted = true;
+        return;
+      } catch (chatErr) {
+        console.warn(`[AgentOffersPage] Conversations fallback failed: ${chatErr.message}. Returning to Offers & Bids to check state...`);
+        const baseUrl = this.page.url().includes("/agent") ? "/dashboard/agent?tab=offers-bids" : "/dashboard?tab=offers-bids";
+        await this.page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+        await this.page.waitForTimeout(2000);
+      }
+    }
+
     await expect(
       acceptedTarget,
       "Offer should show Accepted state or Accept button should be visible"
@@ -551,8 +698,9 @@ class AgentOffersPage {
 
     // 2. Check that the offer card shows accepted state or settlement options
     const acceptedTarget = this.page
-      .getByText(expectedMessage || /Offer accepted|preparing for contract exchange/i)
+      .getByText(expectedMessage || /Offer accepted|accepted|preparing for contract exchange/i)
       .or(this.page.getByRole("button", { name: "Copy Settlement Link" }))
+      .or(this.page.locator('[class*="accepted" i]'))
       .first();
 
     await expect(

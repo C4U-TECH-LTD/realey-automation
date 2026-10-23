@@ -174,10 +174,14 @@ class ConversationsPage {
     await this.page.waitForTimeout(1000);
 
     const shortName = expectedPropertyName.split(",")[0].trim();
+    const streetNumMatch = shortName.match(/^(\d+)/);
+    const streetNum = streetNumMatch ? streetNumMatch[1] : null;
     const streetOnly = shortName.replace(/^\d+[\s\/-]*/, "").trim();
     const escapedShort = shortName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedStreet = streetOnly ? streetOnly.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : "";
-    const cardPattern = new RegExp(`${escapedShort}${escapedStreet ? `|${escapedStreet}` : ""}`, "i");
+    const cardPattern = streetNum
+      ? new RegExp(`(?:^|\\D)${escapedShort}(?:\\D|$)`, "i")
+      : new RegExp(`${escapedShort}${escapedStreet ? `|${escapedStreet}` : ""}`, "i");
 
     const searchInput = this.page
       .getByPlaceholder(/search by property title or address/i)
@@ -185,7 +189,7 @@ class ConversationsPage {
       .first();
 
     const locateCards = async () => {
-      return this.page
+      let locator = this.page
         .locator('div[class*="rounded"].border, div[class*="rounded-2xl"], div[class*="bg-card"], div.border')
         .filter({ hasText: cardPattern })
         .filter({
@@ -193,6 +197,10 @@ class ConversationsPage {
             "svg.lucide-chevron-down, svg.lucide-chevron-up, [class*='lucide-chevron']"
           ),
         });
+      if (streetNum) {
+        locator = locator.filter({ hasText: new RegExp(`(?:^|\\D)${streetNum}(?:\\D|$)`) });
+      }
+      return locator;
     };
 
     // 1. Filter using search input with smart fallback
@@ -409,7 +417,7 @@ class ConversationsPage {
       .first();
 
     if (!(await agentChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
-      agentChatButton = propertyRow.locator('.divide-y button[type="button"]').first();
+      agentChatButton = propertyRow.locator('.divide-y button, .divide-y a, .divide-y div[role="button"]').first();
     }
 
     if (!(await agentChatButton.isVisible({ timeout: 2000 }).catch(() => false))) {
@@ -918,6 +926,13 @@ class ConversationsPage {
       .waitFor({ state: "hidden", timeout: 15_000 })
       .catch(() => {});
 
+    // Check if offer is already accepted
+    const alreadyAccepted = this.page.getByText(/offer accepted|accepted|preparing for contract exchange/i).first();
+    if (await alreadyAccepted.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log("[acceptNegotiatedOffer] Offer in chat is already accepted.");
+      return;
+    }
+
     const acceptTarget = this.page
       .getByRole("button", { name: /^Accept$/i })
       .or(this.page.locator('button').filter({ hasText: /^Accept$/i }))
@@ -925,14 +940,11 @@ class ConversationsPage {
 
     const isAcceptVisible = await acceptTarget.isVisible({ timeout: 5000 }).catch(() => false);
     if (!isAcceptVisible) {
-      console.log("[acceptNegotiatedOffer] Accept button not visible after 5s, reloading chat page...");
-      await this.page.reload({ waitUntil: "domcontentloaded" });
+      if (await alreadyAccepted.isVisible({ timeout: 2000 }).catch(() => false)) {
+        console.log("[acceptNegotiatedOffer] Offer in chat is already accepted.");
+        return;
+      }
       await this.page.waitForTimeout(2000);
-      await this.page
-        .locator('.animate-spin, svg.lucide-loader-2, [class*="loading"]')
-        .first()
-        .waitFor({ state: "hidden", timeout: 15_000 })
-        .catch(() => {});
     }
 
     await expect(

@@ -398,6 +398,8 @@ BeforeAll(function () {
 });
 
 Before(async function ({ pickle }) {
+  const tagNames = (pickle?.tags || []).map((t) => t.name);
+  const isProdTag = tagNames.some((t) => /@prod/i.test(t));
   const isStaging = (process.env.BASE_URL || "").includes("staging");
   if (isStaging && pickle?.name) {
     pickle.name = pickle.name.replace(/^Flow 1\b/i, "Stag Flow 1");
@@ -405,6 +407,10 @@ Before(async function ({ pickle }) {
   this.pickle = pickle;
   this.currentStepName = null;
   this.scenarioArtifactTimestamp = artifactTimestamp();
+
+  if (isProdTag && !process.env.BASE_URL) {
+    this.baseURL = "https://app.realey.com.au/";
+  }
 
   // Cooldown buffer between scenarios to allow CloudFront / AWS WAF / Auth rate limit tokens to refresh
   const interScenarioCooldown = isStaging ? 15000 : 3000;

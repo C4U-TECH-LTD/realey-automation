@@ -75,7 +75,7 @@ const settlementExchangeFlowData = {
 
     // Agent login
     email:
-      process.env.AGENT_EMAIL || "agent.c4utest@yopmail.com",
+      process.env.AGENT_EMAIL || "uat.agent.c4utest@yopmail.com",
     password:
       process.env.AGENT_PASSWORD || "Test12345@",
     otp:
