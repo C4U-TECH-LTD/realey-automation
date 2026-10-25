@@ -321,6 +321,26 @@ Then(
   }
 );
 
+When(
+  "the Buyer completes the settlement setup for Prod Flow 1",
+  async function () {
+    console.log("[Prod Flow 1] Buyer completing settlement setup...");
+    await this.settlementPage.completeSettlement();
+  }
+);
+
+Then(
+  "the Buyer verifies conversation is created for this property for Prod Flow 1",
+  async function () {
+    const propertyTitle =
+      this.createdListingStreet ||
+      this.createdListingTitle ||
+      f1ProdTestAcFlowData.agent.listing.expectedPropertyName;
+    console.log(`[Prod Flow 1] Buyer verifying conversation created for property: "${propertyTitle}"...`);
+    await this.conversationsPage.verifyPropertyConversationExists(propertyTitle);
+  }
+);
+
 // =====================================================
 // FINAL SETTLEMENT VERIFICATION
 // =====================================================

@@ -192,6 +192,16 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
+      - name: Configure GitHub Pages
+        if: always()
+        uses: actions/configure-pages@v5
+
+      - name: Upload Allure Report To GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: allure-report/
+
       - name: Fail Job if Cucumber Tests Failed
         if: always()
         run: |
@@ -199,3 +209,44 @@ jobs:
             echo "Cucumber tests failed or were broken."
             exit 1
           fi
+
+  # =========================================================
+  # DEPLOY ALLURE REPORT
+  # =========================================================
+
+  deploy-allure:
+    name: Publish Allure Report
+    if: always()
+    needs:
+      - run-f1-prod-test-ac
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Allure Report
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Show Allure Report URL
+        run: |
+          echo ""
+          echo "============================================"
+          echo "ALLURE REPORT"
+          echo "============================================"
+          echo "${{ steps.deployment.outputs.page_url }}"
+          echo "============================================"
+
+      - name: Add Allure Link To Job Summary
+        run: |
+          echo "## 📊 Prod F1 Test AC Allure Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "🔗 **[Open Allure Report](${{ steps.deployment.outputs.page_url }})**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Live report published to GitHub Pages" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Includes Cucumber scenario results, step screenshots, and failure traces" >> "$GITHUB_STEP_SUMMARY"
+

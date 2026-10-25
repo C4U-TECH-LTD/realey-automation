@@ -35,6 +35,8 @@ Feature: Prod F1 Test AC - Production Flow 1 E2E with Test Account Isolation
     And the Buyer selects mortgage broker for Prod Flow 1
     And the Buyer pays the deposit for Prod Flow 1
     Then the Prod Flow 1 deposit payment is successful
+    When the Buyer completes the settlement setup for Prod Flow 1
+    Then the Buyer verifies conversation is created for this property for Prod Flow 1
 
     # Settlement Verification
     When I switch to Agent test account for Prod Flow 1

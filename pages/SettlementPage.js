@@ -1674,11 +1674,14 @@ class SettlementPage {
 
 
   async completeSettlement() {
+    console.log("Checking for 'Complete Setup' / 'Complete Settlement' button...");
     const completeButton = this.page
       .getByRole("button", {
-        name: /Complete Setup|Complete Settlement/i,
+        name: /Complete Setup|Complete Settlement|Complete/i,
       })
       .or(this.page.locator('button:has-text("Complete Setup")'))
+      .or(this.page.locator('button:has-text("Complete Settlement")'))
+      .or(this.page.locator('button:has-text("Complete")'))
       .last();
 
     if (await completeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -1692,22 +1695,36 @@ class SettlementPage {
 
       await completeButton.click();
       console.log("Clicked Complete Setup / Complete Settlement button");
-      await this.page.waitForTimeout(1000);
+      await this.page.waitForTimeout(1500);
     }
 
-    // Dismiss completion modal if present via Go to Conversation or Close
+    // Check for "Go to Conversation" button in completion modal or page
+    const goToConvBtn = this.page
+      .getByRole("button", { name: /Go to Conversation/i })
+      .or(this.page.locator('button:has-text("Go to Conversation")'))
+      .first();
+
+    if (await goToConvBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      console.log("Clicked 'Go to Conversation' button after settlement completion");
+      await goToConvBtn.click();
+      await this.page.waitForURL(/tab=conversations|\/chat\//, { timeout: 15_000 }).catch(() => {});
+      await this.page.waitForTimeout(1000);
+      return;
+    }
+
+    // Dismiss completion modal if still present via Close / Dismiss
     const dialog = this.page.getByRole("dialog").last();
-    if (await dialog.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await dialog.isVisible({ timeout: 2000 }).catch(() => false)) {
       const finishBtn = dialog
         .getByRole("button", {
-          name: /Go to Conversation|Close|Done|Finish|Dismiss|Confirm|Proceed/i,
+          name: /Close|Done|Finish|Dismiss|Confirm|Proceed/i,
         })
         .or(dialog.locator('button[aria-label*="close" i]'))
         .first();
 
-      if (await finishBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (await finishBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await finishBtn.click();
-        console.log("Clicked dismiss / Go to Conversation button in completeSettlement");
+        console.log("Clicked dismiss button in completeSettlement");
       }
     }
 

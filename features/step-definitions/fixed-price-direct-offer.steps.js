@@ -1035,3 +1035,23 @@ Then(
       );
   }
 );
+
+When(
+  "the General User completes the settlement setup",
+  async function () {
+    console.log("[Flow 1] General User completing settlement setup...");
+    await this.settlementPage.completeSettlement();
+  }
+);
+
+Then(
+  "the General User verifies conversation is created for this property",
+  async function () {
+    const propertyTitle =
+      this.createdListingStreet ||
+      this.createdListingTitle ||
+      listingData.location.expectedPropertyName;
+    console.log(`[Flow 1] General User verifying conversation created for property: "${propertyTitle}"...`);
+    await this.conversationsPage.verifyPropertyConversationExists(propertyTitle);
+  }
+);

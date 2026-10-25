@@ -57,6 +57,8 @@ Feature: Flow 1 - Fixed Price Direct Offer Acceptance and Settlement
     And the General User selects the configured mortgage broker
     And the General User pays the deposit
     Then the deposit payment is successful
+    When the General User completes the settlement setup
+    Then the General User verifies conversation is created for this property
 
     # Settlement Verification
     When I switch from General User to Agent
