@@ -1393,27 +1393,31 @@ class ConversationsPage {
     // Allow conversations list time to settle from backend
     await this.page.waitForTimeout(2500);
 
-    const emptyState = this.page.getByText(/No conversations yet|Create a new chat to get started|Property · 0/i).first();
+    const emptyState = this.page
+      .getByText(/No conversations yet|Create a new chat to get started|Property · 0/i)
+      .first();
     const hasEmptyState = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
 
-    try {
-      const { propertyRow } = await this.getPropertyRow(propertyName);
-      const isVisible = await propertyRow.isVisible({ timeout: 5000 }).catch(() => false);
-      if (isVisible) {
-        console.log(`[PASS] Conversation row verified for property: "${propertyName}"`);
-        return propertyRow;
+    if (hasEmptyState) {
+      console.log(`[ConversationsPage] Empty state detected, reloading page once to verify backend sync...`);
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+      await this.page.waitForTimeout(3000);
+      const stillEmpty = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
+      if (stillEmpty) {
+        throw new Error(
+          `Expected conversation for property "${propertyName}" to be created after deposit payment, but none was found (Conversations list shows "No conversations yet").`
+        );
       }
-    } catch (err) {
-      console.log(`[ConversationsPage] Conversation row lookup note for "${propertyName}": ${err.message}`);
     }
 
-    if (hasEmptyState || await emptyState.isVisible({ timeout: 2000 }).catch(() => false)) {
-      console.warn(`[KNOWN BUG] Conversation for property "${propertyName}" is not showing yet ("No conversations yet"). Known backend bug pending developer fix. Continuing workflow...`);
-      return null;
-    }
+    const { propertyRow } = await this.getPropertyRow(propertyName);
+    await expect(
+      propertyRow,
+      `Conversation row for property "${propertyName}" should be visible in Conversations after deposit payment`
+    ).toBeVisible({ timeout: 15_000 });
 
-    console.warn(`[ConversationsPage] Conversation for "${propertyName}" not found in list. Known issue pending developer fix.`);
-    return null;
+    console.log(`[PASS] Conversation row verified for property: "${propertyName}"`);
+    return propertyRow;
   }
 }
 
