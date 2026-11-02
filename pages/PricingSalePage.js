@@ -375,6 +375,7 @@ class PricingSalePage {
   // FIXED PRICE / OFFER PRICE
   // =====================================================
   async enterPriceGuide(priceGuide) {
+    await this.selectBuyerVisibility("Internal Buyers").catch(() => {});
     await this.fillMoneyInput(
       this.priceGuideInput,
       priceGuide,
@@ -388,6 +389,7 @@ class PricingSalePage {
   async enterReservePrice(
     reservePrice
   ) {
+    await this.selectBuyerVisibility("Internal Buyers").catch(() => {});
     await this.fillMoneyInput(
       this.priceGuideInput,
       reservePrice,

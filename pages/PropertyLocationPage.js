@@ -619,48 +619,64 @@ class PropertyLocationPage {
     // Match targetSearch or fallback names
     const modal = this.page.locator('[role="dialog"]').last();
 
-    // 1. Look for explicit "Add" button next to search result
-    const addResultBtn = modal
-      .locator("button")
-      .filter({ hasText: /^Add$/i })
-      .or(modal.locator('button:has-text("Add")'))
-      .filter({ visible: true })
+    // 1. Look for preferred solicitor row (James Anderson, Sz Sell Sol, Sa Sell So) and its Add button
+    const preferredPattern = /James Anderson|Sz Sell Sol|Sa Sell So|subratotest/i;
+    const preferredRow = modal
+      .locator("div, li, tr")
+      .filter({ hasText: preferredPattern })
+      .filter({ has: modal.locator('button:has-text("Add")') })
       .first();
 
-    if (await addResultBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
-      console.log("[PropertyLocationPage] Found 'Add' button for solicitor result, clicking...");
-      await addResultBtn.scrollIntoViewIfNeeded().catch(() => {});
-      await addResultBtn.click({ force: true });
+    if (await preferredRow.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log(`[PropertyLocationPage] Found preferred solicitor row matching ${preferredPattern}, clicking its 'Add' button...`);
+      const rowAddBtn = preferredRow.locator('button:has-text("Add")').first();
+      await rowAddBtn.scrollIntoViewIfNeeded().catch(() => {});
+      await rowAddBtn.click({ force: true });
       await this.page.waitForTimeout(1000);
     } else {
-      // 2. Otherwise look for clickable solicitor row/card
-      const candidateRow = modal
-        .locator('div[class*="cursor-pointer"], tr, li, button, [role="option"]')
-        .filter({ hasText: /Sa Sell So|Sz Sell Sol|solicitor|@/i })
+      // 2. Look for explicit "Add" button next to search result
+      const addResultBtn = modal
+        .locator("button")
+        .filter({ hasText: /^Add$/i })
+        .or(modal.locator('button:has-text("Add")'))
         .filter({ visible: true })
         .first();
 
-      if (await candidateRow.isVisible({ timeout: 3000 }).catch(() => false)) {
-        console.log("[PropertyLocationPage] Clicking solicitor candidate row...");
-        await candidateRow.click({ force: true });
-        await this.page.waitForTimeout(500);
-
-        const innerAddBtn = modal.locator('button:has-text("Add")').filter({ visible: true }).first();
-        if (await innerAddBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-          await innerAddBtn.click({ force: true });
-          await this.page.waitForTimeout(1000);
-        }
+      if (await addResultBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        console.log("[PropertyLocationPage] Found 'Add' button for solicitor result, clicking...");
+        await addResultBtn.scrollIntoViewIfNeeded().catch(() => {});
+        await addResultBtn.click({ force: true });
+        await this.page.waitForTimeout(1000);
       } else {
-        const escapedSearch = (targetSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const targetOption = modal
-          .locator("button, [role='option'], li, div.cursor-pointer")
-          .filter({ hasText: new RegExp(escapedSearch, "i") })
+        // 3. Otherwise look for clickable solicitor row/card
+        const candidateRow = modal
+          .locator('div[class*="cursor-pointer"], tr, li, button, [role="option"]')
+          .filter({ hasText: /James Anderson|Sa Sell So|Sz Sell Sol|David Montana|solicitor|@/i })
           .filter({ visible: true })
           .first();
 
-        if (await targetOption.isVisible({ timeout: 3000 }).catch(() => false)) {
-          console.log(`[PropertyLocationPage] Clicking '${targetSearch}' solicitor card...`);
-          await targetOption.click({ force: true });
+        if (await candidateRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+          console.log("[PropertyLocationPage] Clicking solicitor candidate row...");
+          await candidateRow.click({ force: true });
+          await this.page.waitForTimeout(500);
+
+          const innerAddBtn = modal.locator('button:has-text("Add")').filter({ visible: true }).first();
+          if (await innerAddBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+            await innerAddBtn.click({ force: true });
+            await this.page.waitForTimeout(1000);
+          }
+        } else {
+          const escapedSearch = (targetSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const targetOption = modal
+            .locator("button, [role='option'], li, div.cursor-pointer")
+            .filter({ hasText: new RegExp(escapedSearch, "i") })
+            .filter({ visible: true })
+            .first();
+
+          if (await targetOption.isVisible({ timeout: 3000 }).catch(() => false)) {
+            console.log(`[PropertyLocationPage] Clicking '${targetSearch}' solicitor card...`);
+            await targetOption.click({ force: true });
+          }
         }
       }
     }
