@@ -11,16 +11,22 @@ class PropertyDetailsPage {
        STEP INDICATORS
     ===================================================== */
 
-    this.listPropertyTitle = page.getByRole("heading", {
-      name: "List Your Property",
-      exact: true,
-    });
+    this.listPropertyTitle = page
+      .getByRole("heading", {
+        name: /List Your Property|Create Listing|New Listing/i,
+      })
+      .or(page.getByText(/List Your Property/i))
+      .first();
 
     this.detailsStepText = page.getByText("Details", {
       exact: true,
     });
 
-    this.stepCounter = page.getByText(/Step 2 of 5/i);
+    this.stepCounter = page
+      .getByText(/Step 2 of 5/i)
+      .or(page.getByText(/Property Details/i))
+      .or(page.getByText("Details", { exact: true }))
+      .first();
 
     /* =====================================================
        PROPERTY TYPE

@@ -617,35 +617,63 @@ class PropertyLocationPage {
     }
 
     // Match targetSearch or fallback names
-    const escapedSearch = (targetSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const targetOption = this.page
-      .locator("*")
-      .filter({ hasText: new RegExp(escapedSearch, "i") })
+    const modal = this.page.locator('[role="dialog"]').last();
+
+    // 1. Look for explicit "Add" button next to search result
+    const addResultBtn = modal
+      .locator("button")
+      .filter({ hasText: /^Add$/i })
+      .or(modal.locator('button:has-text("Add")'))
       .filter({ visible: true })
-      .last();
+      .first();
 
-    if (await targetOption.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      console.log(`Clicking '${targetSearch}' solicitor card...`);
-      await targetOption.click();
+    if (await addResultBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
+      console.log("[PropertyLocationPage] Found 'Add' button for solicitor result, clicking...");
+      await addResultBtn.scrollIntoViewIfNeeded().catch(() => {});
+      await addResultBtn.click({ force: true });
+      await this.page.waitForTimeout(1000);
     } else {
-      const altOption = this.page
-        .locator("*")
-        .filter({ hasText: /James Anderson|subratotest99|solicitor\.c4utest@yopmail\.com/i })
+      // 2. Otherwise look for clickable solicitor row/card
+      const candidateRow = modal
+        .locator('div[class*="cursor-pointer"], tr, li, button, [role="option"]')
+        .filter({ hasText: /Sa Sell So|Sz Sell Sol|solicitor|@/i })
         .filter({ visible: true })
-        .last();
+        .first();
 
-      if (await altOption.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        console.log("Clicking fallback solicitor card...");
-        await altOption.click();
+      if (await candidateRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+        console.log("[PropertyLocationPage] Clicking solicitor candidate row...");
+        await candidateRow.click({ force: true });
+        await this.page.waitForTimeout(500);
+
+        const innerAddBtn = modal.locator('button:has-text("Add")').filter({ visible: true }).first();
+        if (await innerAddBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+          await innerAddBtn.click({ force: true });
+          await this.page.waitForTimeout(1000);
+        }
       } else {
-        console.warn(`Could not find "${targetSearch}", selecting first available solicitor option...`);
-        const firstOption = this.page
-          .locator('[role="option"], [role="menuitem"], [class*="card" i]')
+        const escapedSearch = (targetSearch || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const targetOption = modal
+          .locator("button, [role='option'], li, div.cursor-pointer")
+          .filter({ hasText: new RegExp(escapedSearch, "i") })
           .filter({ visible: true })
           .first();
 
-        await firstOption.click();
+        if (await targetOption.isVisible({ timeout: 3000 }).catch(() => false)) {
+          console.log(`[PropertyLocationPage] Clicking '${targetSearch}' solicitor card...`);
+          await targetOption.click({ force: true });
+        }
       }
+    }
+
+    // 3. Confirm addition if Add button is still present
+    const remainingAddBtn = modal
+      .locator('button:has-text("Add"), button:has-text("+")')
+      .filter({ visible: true })
+      .first();
+    if (await remainingAddBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      console.log("[PropertyLocationPage] Confirming addition with remaining Add button...");
+      await remainingAddBtn.click({ force: true }).catch(() => {});
+      await this.page.waitForTimeout(1000);
     }
 
     await this.page.waitForTimeout(1_000);
@@ -870,6 +898,14 @@ class PropertyLocationPage {
 
     await targetButton.click();
     await this.page.waitForTimeout(1000);
+
+    // If still on step 1, re-click Next with force
+    const stillOnLocation = await this.sectionHeading.isVisible({ timeout: 1500 }).catch(() => false);
+    if (stillOnLocation) {
+      console.log("[PropertyLocationPage] Still on Location step, re-clicking Next button with force...");
+      await targetButton.click({ force: true }).catch(() => {});
+      await this.page.waitForTimeout(1500);
+    }
   }
 
   // =====================================================

@@ -132,17 +132,11 @@ When(
     f1ProdTestAcFlowData.agent.listing.expectedPropertyName = fullName;
     f1ProdTestAcFlowData.agent.listing.headline = unique.headline;
 
-    // Assign Seller Solicitor (Sz Sell Sol / prod.sellsol.c4u.tst@yopmail.com)
-    await this.propertyLocationPage.assignSellerSolicitor(
-      f1ProdTestAcFlowData.accounts.sellerSolicitor.email
+    // Assign Seller Solicitor & Broker, then advance to Step 2
+    await this.propertyLocationPage.clickNext(
+      f1ProdTestAcFlowData.accounts.sellerSolicitor.email,
+      "Sz Broker"
     );
-
-    // Click Next
-    const dialog = this.page.locator('[role="dialog"]').last();
-    const dialogNext = dialog.getByRole("button", { name: "Next", exact: true }).first();
-    const nextBtn = (await dialogNext.isVisible().catch(() => false)) ? dialogNext : this.propertyLocationPage.nextButton;
-    await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
-    await nextBtn.click();
   }
 );
 
@@ -169,6 +163,7 @@ When(
     const listing = f1ProdTestAcFlowData.agent.listing;
     await this.pricingSalePage.waitForPage();
     await this.pricingSalePage.selectListingType(listing.listingType);
+    await this.pricingSalePage.selectBuyerVisibility("Internal Buyers");
     await this.pricingSalePage.enterPriceGuide(listing.priceGuide);
     await this.pricingSalePage.clickNext();
   }

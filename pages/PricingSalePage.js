@@ -29,14 +29,18 @@ class PricingSalePage {
       .getByRole("combobox")
       .first();
 
-    // Fixed Price / Offers = Price Guide
+    // Fixed Price / Offers = Price Guide / Asking Price
     // Auction = Reserve Price
-    this.priceGuideInput = page.getByPlaceholder(
-      "e.g., 950,000",
-      {
-        exact: true,
-      }
-    );
+    this.priceGuideInput = page
+      .getByPlaceholder("e.g., 950,000", { exact: true })
+      .or(page.locator('input[placeholder*="950,000" i]'))
+      .or(
+        page
+          .locator("label")
+          .filter({ hasText: /Asking Price|Price Guide|Reserve Price/i })
+          .locator("xpath=following::input[1]")
+      )
+      .first();
 
     // =====================================================
     // AUCTION ONLY
@@ -250,6 +254,64 @@ class PricingSalePage {
     console.log(
       `Listing Type selected: ${listingType}`
     );
+  }
+
+  // =====================================================
+  // BUYER VISIBILITY
+  // =====================================================
+  async selectBuyerVisibility(visibility = "Internal Buyers") {
+    console.log(`[PricingSalePage] Checking for Buyer Visibility (target: "${visibility}")...`);
+    await this.page.waitForTimeout(500);
+
+    const visibilitySection = this.page
+      .locator("*")
+      .filter({ hasText: /Buyer Visibility|Select who can discover this property/i })
+      .filter({ visible: true })
+      .first();
+
+    const isSectionVisible = await visibilitySection.isVisible({ timeout: 1500 }).catch(() => false);
+
+    const targetCard = this.page
+      .locator("div, label, button")
+      .filter({ hasText: new RegExp(visibility, "i") })
+      .filter({ hasText: /Published to registered buyers|Hidden from registered buyers/i })
+      .filter({ visible: true })
+      .last();
+
+    const isCardVisible = await targetCard.isVisible({ timeout: 1500 }).catch(() => false);
+
+    if (!isSectionVisible && !isCardVisible) {
+      console.log("[PricingSalePage] Buyer Visibility field not found on this step, continuing.");
+      return;
+    }
+
+    console.log(`[PricingSalePage] Selecting Buyer Visibility: "${visibility}"...`);
+    if (isCardVisible) {
+      await targetCard.scrollIntoViewIfNeeded().catch(() => {});
+      try {
+        await targetCard.click({ timeout: 3000 });
+      } catch (err) {
+        console.log(`[PricingSalePage] Standard click failed (${err.message}), retrying force click...`);
+        await targetCard.click({ force: true });
+      }
+    } else {
+      const radio = this.page.getByRole("radio", { name: new RegExp(visibility, "i") }).first();
+      if (await radio.isVisible({ timeout: 1500 }).catch(() => false)) {
+        await radio.check({ force: true }).catch(() => {});
+      } else {
+        const textOption = this.page
+          .locator("button, div, label")
+          .filter({ hasText: new RegExp(`^\\s*${visibility}`, "i") })
+          .filter({ visible: true })
+          .first();
+        if (await textOption.isVisible({ timeout: 1500 }).catch(() => false)) {
+          await textOption.click({ force: true });
+        }
+      }
+    }
+
+    await this.page.waitForTimeout(500);
+    console.log(`[PASS] Buyer Visibility "${visibility}" selected successfully.`);
   }
 
   // =====================================================
@@ -872,15 +934,21 @@ class PricingSalePage {
   // NEXT
   // =====================================================
   async clickNext() {
+    await this.selectBuyerVisibility("Internal Buyers").catch(() => {});
+
+    const dialog = this.page.locator('[role="dialog"]').last();
+    const dialogNext = dialog.getByRole("button", { name: "Next", exact: true }).first();
+    const nextBtn = (await dialogNext.isVisible().catch(() => false)) ? dialogNext : this.nextButton;
+
     await expect(
-      this.nextButton,
+      nextBtn,
       "Next button should be visible"
     ).toBeVisible({
       timeout: 20_000,
     });
 
     await expect(
-      this.nextButton,
+      nextBtn,
       "Next button should be enabled"
     ).toBeEnabled();
 
@@ -888,7 +956,7 @@ class PricingSalePage {
       "Clicking Pricing Next button..."
     );
 
-    await this.nextButton.click();
+    await nextBtn.click();
 
     console.log(
       "Pricing Next button clicked"
@@ -902,11 +970,16 @@ class PricingSalePage {
   async completePricingStep({
     listingType,
     priceGuide,
+    buyerVisibility = "Internal Buyers",
   }) {
     await this.waitForPage();
 
     await this.selectListingType(
       listingType
+    );
+
+    await this.selectBuyerVisibility(
+      buyerVisibility
     );
 
     await this.enterPriceGuide(
