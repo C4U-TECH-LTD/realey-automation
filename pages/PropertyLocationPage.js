@@ -7,17 +7,17 @@ class PropertyLocationPage {
   constructor(page) {
     this.page = page;
 
-    this.modalTitle = page.getByRole("heading", {
-      name: "List Your Property",
-      exact: true,
-    });
+    this.modalTitle = page
+      .getByRole("heading", {
+        name: /List Your Property|Create Listing|New Listing/i,
+      })
+      .or(page.getByText(/List Your Property/i))
+      .first();
 
-    this.sectionHeading = page.getByText(
-      "Property Location",
-      {
-        exact: true,
-      }
-    );
+    this.sectionHeading = page
+      .getByRole("heading", { name: /Property Location/i })
+      .or(page.getByText("Property Location"))
+      .first();
 
     this.streetAddressInput = page
       .getByPlaceholder("e.g., 15 Smith Avenue", {

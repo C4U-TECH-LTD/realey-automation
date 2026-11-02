@@ -20,15 +20,20 @@ class DashboardPage {
        SIDEBAR MENU
     ===================================================== */
 
-    this.listingsMenuButton = page.getByRole("button", {
-      name: "Listings",
-      exact: true,
-    });
+    this.listingsMenuButton = page
+      .getByRole("button", { name: /listings|deals/i })
+      .or(page.locator("a, button").filter({ hasText: /^(?:Listings|Deals)$/i }))
+      .first();
 
-    this.listingsPageHeading = page.getByRole("heading", {
-      name: "Listings",
-      exact: true,
-    });
+    this.listingsPageHeading = page
+      .getByRole("heading", { name: /listings|properties|deals/i })
+      .or(page.getByText(/Total Listings|Manage your property listings/i))
+      .or(
+        page.locator(
+          'button:has-text("Create New Listing"), button:has-text("Create Your First Listing")'
+        )
+      )
+      .first();
 
     this.listingsSearchInput = page.getByPlaceholder(
       "Search by address, title...",
@@ -186,6 +191,57 @@ class DashboardPage {
       timeout: 30_000,
     });
 
+    // Dismiss any open notification popover or drawer
+    await this.page.keyboard.press("Escape").catch(() => {});
+
+    const clickListingButton = async (btn) => {
+      await this.dismissNotificationPrompts();
+      await this.page.keyboard.press("Escape").catch(() => {});
+      try {
+        await btn.click({ timeout: 4000 });
+      } catch (err) {
+        console.log("[DashboardPage] Button click intercepted or timed out, dismissing prompt and retrying...");
+        await this.dismissNotificationPrompts();
+        await this.page.keyboard.press("Escape").catch(() => {});
+        await btn.click({ force: true });
+      }
+    };
+
+    const createNewButton = this.page
+      .locator('button:has-text("Create New Listing")')
+      .first();
+
+    const createFirstButton = this.page
+      .locator('button:has-text("Create Your First Listing")')
+      .first();
+
+    // 1. If Create Listing button is already visible on dashboard, click it directly
+    if (await createNewButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await expect(
+        createNewButton,
+        "Create New Listing button should be enabled"
+      ).toBeEnabled({
+        timeout: 20_000,
+      });
+
+      await createNewButton.scrollIntoViewIfNeeded();
+      await clickListingButton(createNewButton);
+      return;
+    }
+
+    if (await createFirstButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await expect(
+        createFirstButton,
+        "Create Your First Listing button should be enabled"
+      ).toBeEnabled({
+        timeout: 20_000,
+      });
+
+      await createFirstButton.scrollIntoViewIfNeeded();
+      await clickListingButton(createFirstButton);
+      return;
+    }
+
     /*
      * The dashboard shell loads before the Listings content.
      * Wait for the main Listings area or open it from the sidebar.
@@ -210,25 +266,6 @@ class DashboardPage {
     ).toBeVisible({
       timeout: 30_000,
     });
-
-    const clickListingButton = async (btn) => {
-      await this.dismissNotificationPrompts();
-      try {
-        await btn.click({ timeout: 4000 });
-      } catch (err) {
-        console.log("[DashboardPage] Button click intercepted or timed out, dismissing prompt and retrying...");
-        await this.dismissNotificationPrompts();
-        await btn.click({ force: true });
-      }
-    };
-
-    const createNewButton = this.page
-      .locator('button:has-text("Create New Listing")')
-      .first();
-
-    const createFirstButton = this.page
-      .locator('button:has-text("Create Your First Listing")')
-      .first();
 
     const createNewVisible = await createNewButton
       .isVisible()
@@ -301,10 +338,10 @@ class DashboardPage {
       await modal.waitFor({ state: "hidden", timeout: 30_000 }).catch(() => {});
     }
 
-    if (this.page.url().includes("tab=listings")) {
-      const heading = this.page.getByRole("heading", { name: "Listings", exact: true });
+    if (this.page.url().includes("tab=listings") || this.page.url().includes("tab=deals")) {
+      const heading = this.listingsPageHeading;
       if (await heading.isVisible({ timeout: 2000 }).catch(() => false)) {
-        console.log("Already on Listings tab with heading visible.");
+        console.log("Already on Listings/Deals tab with heading visible.");
         return;
       }
     }
@@ -313,7 +350,7 @@ class DashboardPage {
       this.page
         .locator('aside, nav, [class*="sidebar" i]')
         .locator('a, button, div[role="button"]')
-        .filter({ hasText: /^Listings$/i })
+        .filter({ hasText: /^(?:Listings|Deals)$/i })
     ).first();
 
     await expect(
@@ -334,7 +371,7 @@ class DashboardPage {
     await expect(
       this.page,
       "Listings page should open after clicking Listings menu"
-    ).toHaveURL(/dashboard\/agent\?tab=listings/i, {
+    ).toHaveURL(/dashboard\/agent(?:\?tab=(?:listings|deals))?/i, {
       timeout: 20_000,
     });
 

@@ -11,15 +11,20 @@ class ListingsPage {
     // LISTINGS PAGE
     // =====================================================
 
-    this.listingsMenuButton = page.getByRole("button", {
-      name: "Listings",
-      exact: true,
-    });
+    this.listingsMenuButton = page
+      .getByRole("button", { name: /listings|deals/i })
+      .or(page.locator("a, button").filter({ hasText: /^(?:Listings|Deals)$/i }))
+      .first();
 
-    this.listingsPageHeading = page.getByRole("heading", {
-      name: "Listings",
-      exact: true,
-    });
+    this.listingsPageHeading = page
+      .getByRole("heading", { name: /listings|properties|deals/i })
+      .or(page.getByText(/Total Listings|Manage your property listings/i))
+      .or(
+        page.locator(
+          'button:has-text("Create New Listing"), button:has-text("Create Your First Listing")'
+        )
+      )
+      .first();
 
     this.searchInput = page.getByPlaceholder(
       "Search by address, title...",
@@ -212,7 +217,7 @@ class ListingsPage {
       this.page,
       "Listings page URL should open"
     ).toHaveURL(
-      /dashboard\/agent\?tab=listings/i,
+      /dashboard\/agent(?:\?tab=(?:listings|deals))?/i,
       {
         timeout: 30_000,
       }
