@@ -121,7 +121,7 @@ const fixedPriceTaskListFlowData = {
   // =====================================================
 
   settlement: {
-    solicitorSearch: "Maxel",
+    solicitorSearch: "Hasan",
     brokerSearch: "Alen",
   },
 

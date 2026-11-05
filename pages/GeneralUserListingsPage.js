@@ -137,6 +137,32 @@ class GeneralUserListingsPage {
 
     await this.search(searchText);
 
+    // If search returned "No Properties Found" immediately due to indexing delay, retry with reload
+    const emptyResults = this.page.getByText(/No Properties Found/i).first();
+    if (await emptyResults.isVisible({ timeout: 2500 }).catch(() => false)) {
+      console.log(`[GeneralUserListingsPage] 'No Properties Found' for "${searchText}". Waiting 3s for backend indexing and refreshing...`);
+      await this.page.waitForTimeout(3000);
+      await this.page.goto("/listings", { waitUntil: "domcontentloaded" });
+      await this.page.waitForTimeout(2000);
+
+      const freshCard = this.page
+        .locator("div, article")
+        .filter({ hasText: streetOnly })
+        .filter({ has: this.page.getByRole("button", { name: "Learn More", exact: true }) })
+        .first();
+
+      if (await freshCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const btn = freshCard.getByRole("button", { name: "Learn More", exact: true });
+        await btn.scrollIntoViewIfNeeded().catch(() => {});
+        await btn.click();
+        await this.page.waitForLoadState("domcontentloaded");
+        await this.page.waitForURL((url) => url.pathname.includes("-listing/"), { timeout: 15_000 }).catch(() => {});
+        return;
+      }
+
+      await this.search(searchText);
+    }
+
     // 1. Wait for "Loading properties..." indicator to disappear
     await this.page
       .getByText(/loading properties/i)

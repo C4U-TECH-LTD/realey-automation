@@ -598,9 +598,9 @@ class AgentOffersPage {
 
         const confirmButton = dialog
           .locator("button")
-          .filter({ hasText: /^Confirm$/i })
-          .or(dialog.getByRole("button", { name: /^Confirm$/i, includeHidden: true }))
-          .or(this.page.locator("button").filter({ hasText: /^Confirm$/i }))
+          .filter({ hasText: /^Confirm(?:\s+Acceptance)?$/i })
+          .or(dialog.getByRole("button", { name: /^Confirm(?:\s+Acceptance)?$/i, includeHidden: true }))
+          .or(this.page.locator("button").filter({ hasText: /^Confirm(?:\s+Acceptance)?$/i }))
           .last();
 
         if (await confirmButton.isVisible().catch(() => false)) {
@@ -628,7 +628,7 @@ class AgentOffersPage {
         const hasToast = await toast.isVisible({ timeout: 3000 }).catch(() => false);
         if (!hasToast) {
           // If confirm button is still present, attempt one last force dispatch click
-          const lastConfirm = dialog.locator("button").filter({ hasText: /^Confirm$/i }).first();
+          const lastConfirm = dialog.locator("button").filter({ hasText: /^Confirm(?:\s+Acceptance)?$/i }).first();
           if (await lastConfirm.isVisible().catch(() => false)) {
             console.log("Dialog still visible with Confirm button, dispatching click...");
             await lastConfirm.dispatchEvent("click").catch(() => {});

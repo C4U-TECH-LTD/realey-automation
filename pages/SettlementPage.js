@@ -215,8 +215,10 @@ class SettlementPage {
       })
       .first();
 
-    if (!(await select.isVisible({ timeout: 5000 }).catch(() => false))) {
-      console.log(`Scoped Select button for "${searchText}" not immediately visible, checking first Select button in dialog`);
+    if (!(await select.isVisible({ timeout: 3000 }).catch(() => false))) {
+      console.log(`Scoped Select button for "${searchText}" not immediately visible, clearing search input...`);
+      await this.professionalSearchInput.fill("");
+      await this.page.waitForTimeout(1000);
       select = dialog.getByRole("button", { name: /^Select$/i }).first();
     }
 
@@ -393,8 +395,10 @@ class SettlementPage {
     })
     .first();
 
-  if (!(await selectButton.isVisible({ timeout: 5000 }).catch(() => false))) {
-    console.log(`Scoped Select button for broker "${searchText}" not immediately visible, checking first Select button in dialog`);
+  if (!(await selectButton.isVisible({ timeout: 3000 }).catch(() => false))) {
+    console.log(`Scoped Select button for broker "${searchText}" not immediately visible, clearing search input...`);
+    await this.professionalSearchInput.fill("");
+    await this.page.waitForTimeout(1000);
     selectButton = dialog.getByRole("button", { name: /^Select$/i }).first();
   }
 

@@ -231,7 +231,7 @@ const listingData = {
           ? "subrato"
           : ((process.env.BASE_URL || "").includes("realey.com.au")
             ? "Sz Buyer Sol"
-            : "Maxel")),
+            : "Hasan")),
 
       brokerSearch:
         process.env.FLOW1_BROKER_SEARCH ||

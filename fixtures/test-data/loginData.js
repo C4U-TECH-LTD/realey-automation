@@ -25,6 +25,24 @@ const loginData = {
     otp: process.env.AUCTION_BUYER_2_OTP || "123456",
   },
 
+  sellerSolicitor: {
+    email: process.env.SELLER_SOLICITOR_EMAIL || "subratotest99.2@gmail.com",
+    password: process.env.SELLER_SOLICITOR_PASSWORD || "Test12345@",
+    otp: process.env.SELLER_SOLICITOR_OTP || "123456",
+  },
+
+  buyerSolicitor: {
+    email: process.env.BUYER_SOLICITOR_EMAIL || "subratotest99.2+0@gmail.com",
+    password: process.env.BUYER_SOLICITOR_PASSWORD || "Test12345@",
+    otp: process.env.BUYER_SOLICITOR_OTP || "123456",
+  },
+
+  buyer: {
+    email: process.env.BUYER_EMAIL || "subratotest99.3@gmail.com",
+    password: process.env.BUYER_PASSWORD || "Test12345@",
+    otp: process.env.BUYER_OTP || "123456",
+  },
+
   invalidUser: {
     email: "invalid-user@1bjhpbwd.mailosaur.net",
     password: "WrongPassword@123",

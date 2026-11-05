@@ -7,59 +7,47 @@ async function dismissWelcomeAndNotificationModals(page, options = {}) {
   const timeout = options.timeout || 3000;
 
   try {
-    const modalSelector = '[role="dialog"], div.fixed[class*="z-"]';
-    const modal = page
-      .locator(modalSelector)
-      .filter({
-        hasText: /Welcome to Realey|enable.*notification|never miss a message|turn on notification|please configure the progress to continue/i,
-      })
-      .first();
+    for (let i = 0; i < 5; i++) {
+      let dismissedAny = false;
 
-    if (await modal.isVisible({ timeout }).catch(() => false)) {
-      console.log("[ModalHelper] Welcome/Notification modal detected, attempting dismissal...");
+      // 1. Check for "Never miss a message" / Notification modal first (it overlays everything)
+      const notNowBtn = page.locator('button:has-text("Not now"), button:has-text("Later"), button:has-text("Maybe later")').first();
+      if (await notNowBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+        console.log("[ModalHelper] Notification modal detected, clicking 'Not now'...");
+        await notNowBtn.click({ force: true }).catch(() => {});
+        dismissedAny = true;
+        await page.waitForTimeout(500);
+      }
 
-      // 1. Try Cross / Close button
-      const closeBtn = modal
-        .locator(
-          'button.absolute.right-3.top-3, button.absolute, button:has(svg.lucide-x), [aria-label*="close" i], button:has-text("✕"), button:has-text("×")'
-        )
-        .or(modal.getByRole("button", { name: /^close$/i }))
-        .first();
-
-      if (await closeBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-        console.log("[ModalHelper] Clicking cross (✕) button...");
-        await closeBtn.click().catch(() => {});
-      } else {
-        // 2. Try Skip button
-        const skipBtn = modal
-          .getByRole("button", { name: /^skip/i })
-          .or(modal.locator('button:has-text("Skip")'))
-          .first();
-
-        if (await skipBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-          console.log("[ModalHelper] Clicking 'Skip' button...");
-          await skipBtn.click().catch(() => {});
+      // 2. Check for "Please configure the progress" or other dialogs
+      const dialog = page.locator('[role="dialog"]').first();
+      if (await dialog.isVisible({ timeout: 500 }).catch(() => false)) {
+        console.log("[ModalHelper] Open dialog detected, attempting to dismiss...");
+        const closeBtn = dialog.locator('button:has(svg.lucide-x), button.absolute.right-3.top-3, button.absolute.right-4.top-4, button:has-text("✕"), button:has-text("×")').first();
+        if (await closeBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+          console.log("[ModalHelper] Clicking dialog close button...");
+          await closeBtn.click({ force: true }).catch(() => {});
+          dismissedAny = true;
+          await page.waitForTimeout(500);
         } else {
-          // 3. Try Later / Not now button
-          const laterBtn = modal
-            .getByRole("button", { name: /later|not now/i })
-            .or(
-              modal.locator(
-                'button:has-text("Later"), button:has-text("Maybe later"), button:has-text("Not now"), button:has-text("Ask me later")'
-              )
-            )
-            .first();
-
-          if (await laterBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-            console.log("[ModalHelper] Clicking 'Later' / 'Not now' button...");
-            await laterBtn.click().catch(() => {});
+          const closeTextBtn = dialog.getByRole('button', { name: /^close$/i }).or(dialog.locator('button:has-text("Close")')).first();
+          if (await closeTextBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+            console.log("[ModalHelper] Clicking dialog 'Close' text button...");
+            await closeTextBtn.click({ force: true }).catch(() => {});
+            dismissedAny = true;
+            await page.waitForTimeout(500);
           }
         }
       }
 
-      await modal.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
-      console.log("[ModalHelper] Modal dismissed successfully.");
+      // 3. Check for any remaining modal backdrop
+      const backdrop = page.locator('div.fixed.inset-0.z-\\[99\\], div.fixed[class*="bg-black/80"]').first();
+      if (!dismissedAny && !(await backdrop.isVisible({ timeout: 500 }).catch(() => false))) {
+        break;
+      }
+      await page.waitForTimeout(300);
     }
+    console.log("[ModalHelper] Modal dismissal phase finished.");
   } catch (err) {
     console.warn("[ModalHelper] Error during modal dismissal:", err.message);
   }
